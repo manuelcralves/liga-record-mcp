@@ -66,8 +66,14 @@ live site: `search_market` (the whole player pool, with ownership percentages
 for finding differentials), `check_market_transfer` (prices a swap from the real
 quote rather than a hand-typed one), `get_fixtures` (the league calendar) and
 `squad_fixtures` (each of your players' next opponent, home or away), plus
-`list_coaches`. Every read carries an `as_of` timestamp so Claude can say how
-fresh the data is instead of presenting a stored squad as live.
+`list_coaches`, `squad_value`, `club_strength` and `project_points`. Every read
+carries an `as_of` timestamp so Claude can say how fresh the data is instead of
+presenting a stored squad as live.
+
+`project_points` blends this season's form with a prior built from completed
+seasons and from Record's own pricing, and shows its working. It is explicitly
+**not validated** — Liga Record has never published past scores, so there is
+nothing to backtest against.
 
 `validate_selection` checks the chosen coach against the real 18 (§6.15). If the
 coach list can't be read it still validates everything else, but says so rather

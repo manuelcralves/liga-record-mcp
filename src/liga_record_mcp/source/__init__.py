@@ -9,6 +9,13 @@ person's squad, needs no authentication, and is deliberately read-only.
 """
 
 from .base import SquadSource, SquadSourceError
+from .history import (
+    CLUB_NAMES,
+    DEFAULT_SEASONS,
+    OpenFootballClient,
+    combine,
+    parse_season,
+)
 from .live import (
     MARKET_MAX_VALUE,
     MARKET_MIN_VALUE,
@@ -23,11 +30,16 @@ from .live import (
 from .manual import ManualSquadSource, load_coaches
 
 __all__ = [
+    "CLUB_NAMES",
+    "DEFAULT_SEASONS",
     "MARKET_MAX_VALUE",
     "MARKET_MIN_VALUE",
     "POSITION_CODE",
     "POSITION_FROM_CODE",
     "LigaRecordClient",
+    "OpenFootballClient",
+    "combine",
+    "parse_season",
     "ManualSquadSource",
     "MarketError",
     "SiteError",

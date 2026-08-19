@@ -44,19 +44,30 @@ from .rules import (
     validate_squad,
     validate_transfer,
 )
-from .stats import matches_played, never_played, per_match, rate_rows
+from .stats import (
+    PRIOR_STRENGTH,
+    club_price_index,
+    matches_played,
+    never_played,
+    per_match,
+    position_baselines,
+    project,
+    rate_rows,
+)
 from .source import (
     MARKET_MAX_VALUE,
     LigaRecordClient,
     ManualSquadSource,
     MarketError,
+    OpenFootballClient,
     SiteError,
     SquadSourceError,
     load_coaches,
 )
 
-#: Module level so the market cache survives across tool calls.
+#: Module level so the caches survive across tool calls.
 _market = LigaRecordClient()
+_history = OpenFootballClient()
 
 #: Overridable so a second team, or a test fixture, needs no code change.
 SQUAD_PATH = Path(
@@ -764,6 +775,158 @@ def squad_fixtures(round_number: int | None = None) -> dict[str, Any]:
         "fixtures_round": wanted,
         "playing": playing,
         "no_match_this_round": idle,
+    }
+
+
+# --------------------------------------------------------------------------
+# Tools — history and projection
+# --------------------------------------------------------------------------
+
+
+@server.tool()
+def club_strength() -> dict[str, Any]:
+    """Each club's record over completed seasons, against its output right now.
+
+    Team strength explains most of a defender's scoring rate — clean sheets and
+    goals conceded are club events, not individual ones — so a full season of
+    it is worth far more than two matches of the current one.
+
+    Clubs promoted this season carry `has_history: false`. They are not average;
+    they are unknown, and the difference matters.
+    """
+    try:
+        records = _history.club_records()
+    except SiteError as exc:
+        return {"detail": f"could not read the season archive: {exc}"}
+
+    matches = _matches_by_club()
+    snapshot = _load()
+    now: dict[str, list[float]] = {}
+    if matches:
+        for position in Position:
+            try:
+                for player in _market.search(position):
+                    count = matches.get(player.club, 0)
+                    if count:
+                        now.setdefault(player.club, []).append(player.points_total / count)
+            except MarketError:
+                break
+
+    mine = {p.club for p in snapshot.squad.players}
+    rows = []
+    for club, record in records.items():
+        rates = now.get(club, [])
+        rows.append(
+            {
+                "club": club,
+                "in_my_squad": club in mine,
+                "seasons": list(record.seasons),
+                "matches": record.matches,
+                "goals_against_per_match": (
+                    None
+                    if record.goals_against_per_match is None
+                    else round(record.goals_against_per_match, 2)
+                ),
+                "goals_for_per_match": (
+                    None
+                    if record.goals_for_per_match is None
+                    else round(record.goals_for_per_match, 2)
+                ),
+                "clean_sheet_rate": (
+                    None
+                    if record.clean_sheet_rate is None
+                    else round(record.clean_sheet_rate, 2)
+                ),
+                "has_history": record.has_history,
+                "current_rate": round(sum(rates) / len(rates), 2) if rates else None,
+            }
+        )
+    rows.sort(key=lambda r: (r["goals_against_per_match"] is None,
+                             r["goals_against_per_match"] or 0))
+    return {"source": "openfootball", "clubs": rows}
+
+
+@server.tool()
+def project_points(rounds_remaining: int = 32, prior_strength: float = PRIOR_STRENGTH) -> dict[str, Any]:
+    """Project each squad player's scoring rate for the rest of the season.
+
+    Blends what has been seen with a prior built from the club's record over
+    completed seasons and the price Record set before the season began. Early
+    on the prior dominates; as matches accumulate the observed form takes over.
+
+    Every projection shows its working — `components` carries the position
+    baseline, the club factor and the price factor — so the number can be
+    argued with rather than taken on faith.
+
+    `prior_strength` is how many matches the prior is worth; raise it to lean
+    harder on history, lower it to trust the current season more.
+
+    This is not validated. Liga Record has never published past scores, so
+    there is nothing to backtest against — the only honest test is to record
+    these projections now and check them in a few rounds.
+    """
+    snapshot = _load()
+    matches = _matches_by_club()
+    if matches is None:
+        return {**_provenance(snapshot), "detail": "the calendar could not be read"}
+    try:
+        records = _history.club_records()
+    except SiteError as exc:
+        return {**_provenance(snapshot), "detail": f"no season archive: {exc}"}
+
+    pool: list[Player] = []
+    for position in Position:
+        try:
+            pool.extend(_market.search(position))
+        except MarketError as exc:
+            return {**_provenance(snapshot), "detail": f"could not read the market: {exc}"}
+
+    market_players = [p.as_player() for p in pool]
+    baselines = position_baselines(market_players, matches)
+    played = [p for p in market_players if matches.get(p.club, 0) > 0]
+    league_ga = sum(
+        r.goals_against_per_match or 0 for r in records.values() if r.has_history
+    ) / max(1, sum(1 for r in records.values() if r.has_history))
+    league_gf = sum(
+        r.goals_for_per_match or 0 for r in records.values() if r.has_history
+    ) / max(1, sum(1 for r in records.values() if r.has_history))
+
+    mean_value: dict[Position, float] = {}
+    for position in Position:
+        same = [p.value for p in played if p.position is position]
+        mean_value[position] = sum(same) / len(same) if same else 0.0
+
+    league_mean_value = (
+        sum(p.value for p in played) / len(played) if played else 0.0
+    )
+    club_index = club_price_index(played, league_mean_value)
+
+    rows = [
+        project(
+            player,
+            matches.get(player.club, 0),
+            records.get(player.club),
+            baselines,
+            mean_value.get(player.position, 0.0),
+            league_ga,
+            league_gf,
+            club_index=club_index.get(player.club, 1.0),
+            prior_strength=prior_strength,
+            rounds_remaining=rounds_remaining,
+        )
+        for player in snapshot.squad.players
+    ]
+    rows.sort(key=lambda r: -(r["projected_rate"] or 0))
+    return {
+        **_provenance(snapshot),
+        "rounds_remaining": rounds_remaining,
+        "prior_strength_matches": prior_strength,
+        "league_goals_against_per_match": round(league_ga, 2),
+        "unvalidated": (
+            "no past Liga Record scores exist to test this against — treat it "
+            "as a reasoned estimate, not a measured one"
+        ),
+        "players": rows,
     }
 
 

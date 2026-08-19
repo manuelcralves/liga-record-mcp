@@ -179,6 +179,47 @@ class Fixture(BaseModel):
         return club == self.home
 
 
+class ClubRecord(BaseModel):
+    """A club's results over one or more completed seasons.
+
+    This is the historical prior. Team strength explains most of a defender's
+    Liga Record rate — clean sheets and goals conceded are club events, not
+    individual ones — and a full season of it is worth far more than two
+    matches of the current one.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    club: str  # the Liga Record label, so it joins to Player.club
+    seasons: tuple[str, ...] = ()
+    matches: int = Field(default=0, ge=0)
+    goals_for: int = Field(default=0, ge=0)
+    goals_against: int = Field(default=0, ge=0)
+    clean_sheets: int = Field(default=0, ge=0)
+    wins: int = Field(default=0, ge=0)
+
+    @property
+    def has_history(self) -> bool:
+        """False for promoted clubs — a real state, not a zero."""
+        return self.matches > 0
+
+    @property
+    def goals_for_per_match(self) -> float | None:
+        return self.goals_for / self.matches if self.matches else None
+
+    @property
+    def goals_against_per_match(self) -> float | None:
+        return self.goals_against / self.matches if self.matches else None
+
+    @property
+    def clean_sheet_rate(self) -> float | None:
+        return self.clean_sheets / self.matches if self.matches else None
+
+    @property
+    def win_rate(self) -> float | None:
+        return self.wins / self.matches if self.matches else None
+
+
 class Coach(BaseModel):
     """One of the 18 selectable coaches (§6.15). Free — never costs budget."""
 

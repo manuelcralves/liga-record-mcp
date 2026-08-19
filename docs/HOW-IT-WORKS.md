@@ -134,7 +134,29 @@ budget. Confirming a transfer stays a human's click on Record's own site.
 | 3 · MCP server | done |
 | 4 · Live site — market and calendar read, squad does not | mostly |
 
-**Honestly missing:** league standings, and the live squad read.
+**Honestly missing:** league standings, the live squad read, and per-player
+history (minutes, injuries) — which would need a keyed API.
+
+### The projection, and why it is not a prediction
+
+`project_points` blends observed form with a prior from completed seasons
+(openfootball, open data, no key) and Record's own pricing. Three measurements
+shaped it:
+
+- **62% of a Liga Record score is the editorial rating** — a journalist's
+  opinion, published nowhere. It cannot be reconstructed from any stats feed,
+  which is why "fetch the data from elsewhere and rebuild past points" does not
+  work.
+- **42% of the market never plays**, scoring −1 a round. The gap between not
+  playing and playing averagely is 3–4 points a round, larger than any other
+  effect in the game.
+- **Price and club strength correlate at r = 0.62.** Multiplying a raw price
+  factor by a club factor counted the same fact twice, so price is now measured
+  net of the club's own price level.
+
+The model is unvalidated by construction: past Liga Record scores do not exist
+to test against. The only honest check is forward — record projections now,
+compare in a few rounds.
 
 ### Why the coach list is a file
 
