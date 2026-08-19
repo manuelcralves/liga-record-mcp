@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "liga-record": {
+      "command": "C:\\Users\\manue\\OneDrive\\Desktop\\Stuff\\liga-record-mcp\\.venv\\Scripts\\liga-record-mcp.exe",
+      "args": []
+    }
+  }
+}

@@ -15,8 +15,13 @@ this reading of the regulation leaves open.
 ## Setup
 
 ```bash
-python -m venv .venv && ./.venv/Scripts/python.exe -m pip install -e .
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
 ```
+
+The editable install is not optional — it puts `liga_record_mcp` on the path (the
+project uses a `src/` layout) and creates the `liga-record-mcp` launcher the MCP
+config points at.
 
 Your squad lives in `data/squad.yaml`. Copy `data/squad.example.yaml` and fill in
 your 23 players — the loader checks the file against the regulation on every read
@@ -25,20 +30,22 @@ and names whatever is missing, so you don't have to count by hand. Point
 
 ## Connecting it to Claude
 
-Claude Code:
+`.mcp.json` in the repo root already declares the server, so Claude Code picks it
+up when you open this project — no CLI needed. Restart Claude Code after the
+install and approve the server when prompted.
 
-```bash
-claude mcp add liga-record -- ./.venv/Scripts/python.exe -m liga_record_mcp.server
-```
+> **The path in `.mcp.json` is absolute and machine-specific.** Windows resolves a
+> relative command against the *launching* process's directory, not the server's,
+> so a relative path fails when the app starts it. Edit that path if you move or
+> clone the repo.
 
-Claude Desktop — add to `claude_desktop_config.json`:
+Claude Desktop uses the same shape in `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "liga-record": {
-      "command": "C:\\path\\to\\liga-record-mcp\\.venv\\Scripts\\python.exe",
-      "args": ["-m", "liga_record_mcp.server"]
+      "command": "C:\\path\\to\\liga-record-mcp\\.venv\\Scripts\\liga-record-mcp.exe"
     }
   }
 }
