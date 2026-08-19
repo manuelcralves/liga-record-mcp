@@ -1,0 +1,123 @@
+# The 18 selectable coaches (§6.15) — one per Primeira Liga club.
+#
+# Read from the logged-in team-sheet page on 2026-08-19, during Ronda 3.
+#
+# Why this is a file rather than a live fetch: the coach list is only rendered
+# for a signed-in user, and the three endpoints that touch it are all POST
+# setters — team_manager.ashx sets your coach, it does not list them. So this
+# is hand-maintained like data/squad.yaml, which is fine: the list changes only
+# when a club changes manager.
+#
+# §6.17 — a round with no coach selected scores zero. That is why the server
+# checks a chosen coach against this list rather than accepting any text.
+#
+# Coaches are free: they never cost budget (§6.15).
+
+coaches:
+  - id: "96"
+    name: Van der Gaag
+    club: Marítimo
+    points_total: 14
+    points_round: 8
+
+  - id: "777"
+    name: Vasco Seabra
+    club: Arouca
+    points_total: 14
+    points_round: 9
+
+  - id: "890"
+    name: Farioli
+    club: FC Porto
+    points_total: 13
+    points_round: 7
+
+  - id: "622"
+    name: Marco Silva
+    club: Benfica
+    points_total: 11
+    points_round: 8
+
+  - id: "763"
+    name: Pepa
+    club: E. Amadora
+    points_total: 11
+    points_round: 4
+
+  - id: "906"
+    name: João Gião
+    club: Nacional
+    points_total: 11
+    points_round: 6
+
+  - id: "634"
+    name: Petit
+    club: Santa Clara
+    points_total: 8
+    points_round: 5
+
+  - id: "895"
+    name: Luís Pinto
+    club: Gil Vicente
+    points_total: 6
+    points_round: 0
+
+  - id: "7"
+    name: Carlos Carvalhal
+    club: Famalicão
+    points_total: 5
+    points_round: 2
+
+  - id: "822"
+    name: Bruno Pinheiro
+    club: Académico
+    points_total: 5
+    points_round: 0
+
+  - id: "860"
+    name: Rui Borges
+    club: Sporting
+    points_total: 5
+    points_round: 3
+
+  - id: "905"
+    name: Sérgio Ferreira
+    club: Alverca
+    points_total: 5
+    points_round: 4
+
+  - id: "876"
+    name: Tiago Margarido
+    club: V. Guimarães
+    points_total: 4
+    points_round: 3
+
+  - id: "893"
+    name: Vasco Botelho da Costa
+    club: Moreirense
+    points_total: 4
+    points_round: -1
+
+  - id: "891"
+    name: Carlos Vicens
+    club: Sp. Braga
+    points_total: 4
+    points_round: 0
+
+  - id: "894"
+    name: Sotiris
+    club: Rio Ave
+    points_total: 1
+    points_round: 0
+
+  - id: "842"
+    name: Vasco Matos
+    club: Estoril
+    points_total: 0
+    points_round: 0
+
+  - id: "904"
+    name: Filipe Coelho
+    club: Casa Pia
+    points_total: -2
+    points_round: -2

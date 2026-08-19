@@ -134,9 +134,22 @@ budget. Confirming a transfer stays a human's click on Record's own site.
 | 3 · MCP server | done |
 | 4 · Live site — market and calendar read, squad does not | mostly |
 
-**Honestly missing:** no standings and no coach list. That last one matters —
-§6.17 says a missing coach scores zero, and the server will currently accept any
-text as a coach.
+**Honestly missing:** league standings, and the live squad read.
+
+### Why the coach list is a file
+
+`data/coaches.yaml` is hand-maintained for two reasons, not one. The list only
+renders for a signed-in user — fetched anonymously the page returns the popover
+shell with zero coaches in it. And the endpoint that touches coaches,
+`team_manager.ashx`, is a **POST that sets your coach**; it does not list them.
+The same is true of `team.ashx` (sets the lineup) and `team_captain.ashx` (sets
+the captain). All three are writes, so none are implemented — the same line
+drawn around buy and sell.
+
+That makes §6.15 checkable: a chosen coach is verified against the real 18
+rather than accepted as any text. When the list can't be read, the result says
+`coach_unverified` instead of quietly skipping the check — a skipped check that
+looks like a passed one is the worst of the three outcomes.
 
 ### The calendar is the one scraped surface
 

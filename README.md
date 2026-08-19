@@ -28,6 +28,10 @@ your 23 players — the loader checks the file against the regulation on every r
 and names whatever is missing, so you don't have to count by hand. Point
 `LIGA_RECORD_SQUAD` at a different file to run a second team.
 
+`data/coaches.yaml` holds the 18 selectable coaches, also hand-maintained
+(`LIGA_RECORD_COACHES` overrides it). It changes only when a club changes
+manager.
+
 ## Connecting it to Claude
 
 `.mcp.json` in the repo root already declares the server, so Claude Code picks it
@@ -61,9 +65,13 @@ doesn't play?"*
 live site: `search_market` (the whole player pool, with ownership percentages
 for finding differentials), `check_market_transfer` (prices a swap from the real
 quote rather than a hand-typed one), `get_fixtures` (the league calendar) and
-`squad_fixtures` (each of your players' next opponent, home or away). Every read
-carries an `as_of` timestamp so Claude can say how fresh the data is instead of
-presenting a stored squad as live.
+`squad_fixtures` (each of your players' next opponent, home or away), plus
+`list_coaches`. Every read carries an `as_of` timestamp so Claude can say how
+fresh the data is instead of presenting a stored squad as live.
+
+`validate_selection` checks the chosen coach against the real 18 (§6.15). If the
+coach list can't be read it still validates everything else, but says so rather
+than skipping the check silently.
 
 The live client is **read-only by design**. The site also exposes buy, sell and
 renegotiate endpoints — their contracts are known — and they are deliberately

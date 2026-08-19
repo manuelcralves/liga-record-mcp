@@ -20,6 +20,7 @@ from .models import (
     STARTER_RANGE,
     XI_SIZE,
     AutosubResult,
+    Coach,
     Player,
     Position,
     Selection,
@@ -113,8 +114,17 @@ def validate_squad(squad: Squad) -> SquadCheck:
     return SquadCheck(is_valid=not violations, violations=violations)
 
 
-def validate_selection(squad: Squad, selection: Selection) -> SelectionCheck:
-    """Check one round's team sheet against §6.13, §6.17 and §10.3(l)."""
+def validate_selection(
+    squad: Squad,
+    selection: Selection,
+    coaches: Sequence[Coach] | None = None,
+) -> SelectionCheck:
+    """Check one round's team sheet against §6.13, §6.15, §6.17 and §10.3(l).
+
+    Pass `coaches` to check the chosen coach is a real one. Without it only the
+    presence of a coach is checked — which catches the §6.17 zero-score case but
+    would accept any text at all.
+    """
     violations: list[Violation] = []
     index = squad.by_id()
     picked = list(selection.starters) + list(selection.bench)
@@ -177,6 +187,16 @@ def validate_selection(squad: Squad, selection: Selection) -> SelectionCheck:
             Violation(
                 rule="§6.17",
                 detail="no coach selected — the team scores zero for the round",
+            )
+        )
+    elif coaches is not None and selection.coach_id not in {c.id for c in coaches}:
+        violations.append(
+            Violation(
+                rule="§6.15",
+                detail=(
+                    f"{selection.coach_id} is not one of the {len(coaches)} "
+                    "selectable coaches"
+                ),
             )
         )
 

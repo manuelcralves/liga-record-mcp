@@ -30,6 +30,8 @@ XI = (
     "FWD2",
 )
 BENCH = ("DEF5", "MID5", "FWD3", "GK2")
+#: Farioli (FC Porto) — a real id from data/coaches.yaml, since §6.15 is now checked.
+COACH = "890"
 
 
 @pytest.fixture(autouse=True)
@@ -70,6 +72,7 @@ def test_everything_is_registered_on_the_server():
         "check_market_transfer",
         "get_fixtures",
         "squad_fixtures",
+        "list_coaches",
     }
     assert resources == {"ligarecord://regulamento", "ligarecord://squad"}
     assert prompts == {"pick_starting_xi", "plan_transfers"}
@@ -128,15 +131,46 @@ def test_search_squad_combines_filters():
 
 
 def test_validate_selection_accepts_a_legal_sheet():
-    result = mcp_server.validate_selection(list(XI), list(BENCH), "MID1", "C1")
+    result = mcp_server.validate_selection(list(XI), list(BENCH), "MID1", COACH)
     assert result["is_valid"] is True
     assert result["formation"] == "4-4-2"
+    assert "coach_unverified" not in result
 
 
 def test_validate_selection_reports_the_broken_rule():
-    result = mcp_server.validate_selection(list(XI), list(BENCH), "DEF5", "C1")
+    result = mcp_server.validate_selection(list(XI), list(BENCH), "DEF5", COACH)
     assert result["is_valid"] is False
-    assert result["violations"][0]["rule"] == "§10.3(l)"
+    assert {v["rule"] for v in result["violations"]} == {"§10.3(l)"}
+
+
+def test_validate_selection_catches_an_invented_coach():
+    """§6.15 — before the coach list existed, any text was accepted here."""
+    result = mcp_server.validate_selection(
+        list(XI), list(BENCH), "MID1", "José Mourinho"
+    )
+    assert result["is_valid"] is False
+    assert {v["rule"] for v in result["violations"]} == {"§6.15"}
+
+
+def test_validate_selection_says_when_the_coach_went_unchecked(monkeypatch):
+    """Skipping the check silently would be worse than not having it."""
+    monkeypatch.setattr(mcp_server, "COACHES_PATH", Path("no-such-file.yaml"))
+    result = mcp_server.validate_selection(list(XI), list(BENCH), "MID1", "anything")
+    assert result["is_valid"] is True
+    assert "not checked against the real 18" in result["coach_unverified"]
+
+
+def test_list_coaches_ranks_by_points():
+    result = mcp_server.list_coaches()
+    assert result["count"] == 18
+    totals = [c["points_total"] for c in result["coaches"]]
+    assert totals == sorted(totals, reverse=True)
+    assert result["coaches"][0]["name"] in {"Van der Gaag", "Vasco Seabra"}
+
+
+def test_list_coaches_reports_a_missing_file(monkeypatch):
+    monkeypatch.setattr(mcp_server, "COACHES_PATH", Path("no-such-file.yaml"))
+    assert "could not read the coach list" in mcp_server.list_coaches()["detail"]
 
 
 def test_simulate_autosubs_through_the_tool():

@@ -22,9 +22,55 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from ..models import Player, Selection, Squad, SquadSnapshot, Violation
+from ..models import (
+    COACH_COUNT,
+    Coach,
+    Player,
+    Selection,
+    Squad,
+    SquadSnapshot,
+    Violation,
+)
 from ..rules import validate_selection, validate_squad
 from .base import SquadSourceError
+
+
+def load_coaches(path: str | Path) -> list[Coach]:
+    """The 18 selectable coaches, from a hand-maintained YAML file.
+
+    Hand-maintained for the same reason the squad is: the list only renders for
+    a signed-in user, and the endpoint that touches it (`team_manager.ashx`)
+    sets a coach rather than listing them. It changes when a club changes
+    manager, which is rare.
+    """
+    file = Path(path)
+    if not file.is_file():
+        raise SquadSourceError(f"no coach file at {file}")
+    try:
+        raw = yaml.safe_load(file.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise SquadSourceError(f"{file} is not valid YAML: {exc}") from exc
+
+    entries = (raw or {}).get("coaches") if isinstance(raw, dict) else None
+    if not isinstance(entries, list):
+        raise SquadSourceError(f"{file} is missing a `coaches` list")
+
+    try:
+        coaches = [Coach(**entry) for entry in entries]
+    except (TypeError, ValidationError) as exc:
+        raise SquadSourceError(f"{file} has a bad coach entry: {exc}") from exc
+
+    repeated = sorted({c.id for c in coaches if [x.id for x in coaches].count(c.id) > 1})
+    if repeated:
+        raise SquadSourceError(
+            f"{file} has duplicate coach ids: {', '.join(repeated)}"
+        )
+    if len(coaches) != COACH_COUNT:
+        raise SquadSourceError(
+            f"{file} lists {len(coaches)} coaches; §6.15 expects {COACH_COUNT}, "
+            "one per club — a short list usually means a partial copy"
+        )
+    return coaches
 
 
 def _describe(violations: list[Violation]) -> str:

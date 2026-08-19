@@ -20,7 +20,7 @@ from .live import (
     parse_fixtures,
     parse_market_player,
 )
-from .manual import ManualSquadSource
+from .manual import ManualSquadSource, load_coaches
 
 __all__ = [
     "MARKET_MAX_VALUE",
@@ -33,6 +33,7 @@ __all__ = [
     "SiteError",
     "SquadSource",
     "SquadSourceError",
+    "load_coaches",
     "parse_fixtures",
     "parse_market_player",
 ]

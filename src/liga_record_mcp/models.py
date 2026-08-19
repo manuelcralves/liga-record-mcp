@@ -62,6 +62,9 @@ MIN_PRICE = 500_000
 # --- Transfers (§6.8, §6.9) ---
 REOPENED_MAX_SWAPS = 6
 
+# --- Coaches (§6.15) — one per club, and they never cost budget ---
+COACH_COUNT = 18
+
 
 class Valuation(str, Enum):
     """Which price to value a squad at.
@@ -185,6 +188,7 @@ class Coach(BaseModel):
     name: str
     club: str
     points_total: int = 0
+    points_round: int = 0
 
 
 class Squad(BaseModel):

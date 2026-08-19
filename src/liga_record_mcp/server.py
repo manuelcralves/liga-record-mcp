@@ -50,6 +50,8 @@ from .source import (
     ManualSquadSource,
     MarketError,
     SiteError,
+    SquadSourceError,
+    load_coaches,
 )
 
 #: Module level so the market cache survives across tool calls.
@@ -59,6 +61,11 @@ _market = LigaRecordClient()
 SQUAD_PATH = Path(
     os.environ.get("LIGA_RECORD_SQUAD")
     or Path(__file__).resolve().parents[2] / "data" / "squad.yaml"
+)
+
+COACHES_PATH = Path(
+    os.environ.get("LIGA_RECORD_COACHES")
+    or Path(__file__).resolve().parents[2] / "data" / "coaches.yaml"
 )
 
 server = MCPServer(
@@ -83,6 +90,19 @@ def _load() -> SquadSnapshot:
     question in step 4, when the source is a network call.
     """
     return ManualSquadSource(SQUAD_PATH).load()
+
+
+def _coaches():
+    """The selectable coaches, or None if the list cannot be read.
+
+    Returning None rather than raising keeps a missing coach file from breaking
+    every team-sheet check — but callers must then say the coach went
+    unverified, because silently skipping the check is worse than not having it.
+    """
+    try:
+        return load_coaches(COACHES_PATH)
+    except SquadSourceError:
+        return None
 
 
 def _fold(text: str) -> str:
@@ -231,9 +251,13 @@ def validate_selection(
     """Check a team sheet against §6.13, §6.17 and §10.3(l).
 
     Bench order matters — the first substitute listed is the first to come on.
+    `coach_id` is checked against the real list of 18 (§6.15), so a made-up
+    coach is caught rather than quietly accepted.
+
     This is authoritative: trust it over your own count of the formation.
     """
     snapshot = _load()
+    coaches = _coaches()
     check = _validate_selection(
         snapshot.squad,
         Selection(
@@ -242,13 +266,20 @@ def validate_selection(
             captain=captain,
             coach_id=coach_id,
         ),
+        coaches,
     )
-    return {
+    result = {
         **_provenance(snapshot),
         "is_valid": check.is_valid,
         "formation": check.formation,
         "violations": _violations_out(check.violations),
     }
+    if coaches is None:
+        result["coach_unverified"] = (
+            "the coach list could not be read, so the coach was not checked "
+            "against the real 18"
+        )
+    return result
 
 
 @server.tool()
@@ -385,6 +416,34 @@ def project_price(player_id: str, round_points: int) -> dict[str, Any]:
         "change": change,
         "value_after": project_new_price(player.value, round_points),
         "in_regulation": not 1 <= round_points <= 3,
+    }
+
+
+@server.tool()
+def list_coaches() -> dict[str, Any]:
+    """The 18 selectable coaches (§6.15), best-scoring first.
+
+    A coach is free — picking one never costs budget — and a round with none
+    selected scores zero (§6.17). So there is no reason not to have one, and
+    every reason to take the best available.
+    """
+    coaches = _coaches()
+    if coaches is None:
+        return {"detail": f"could not read the coach list at {COACHES_PATH}"}
+    ranked = sorted(coaches, key=lambda c: (-c.points_total, c.name))
+    return {
+        "source": "manual",
+        "count": len(ranked),
+        "coaches": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "club": c.club,
+                "points_total": c.points_total,
+                "points_round": c.points_round,
+            }
+            for c in ranked
+        ],
     }
 
 
