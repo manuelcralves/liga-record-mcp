@@ -15,6 +15,8 @@ from .models import (
     BENCH_SIZE,
     MAX_SUBS_ON,
     MIN_PRICE,
+    SQUAD_QUOTA,
+    SQUAD_SIZE,
     STARTER_RANGE,
     XI_SIZE,
     AutosubResult,
@@ -23,6 +25,7 @@ from .models import (
     Selection,
     SelectionCheck,
     Squad,
+    SquadCheck,
     Substitution,
     TransferCheck,
     TransferWindow,
@@ -64,6 +67,50 @@ def legal_formations() -> list[str]:
         if lo_g + d + m + f == XI_SIZE
     ]
     return sorted(shapes)
+
+
+def validate_squad(squad: Squad) -> SquadCheck:
+    """Check the squad itself against §6.4 and §6.6.
+
+    A hand-maintained squad file drifts: a mistyped position or a transfer
+    recorded on one side only should fail loudly where the data enters, not
+    surface three tools later as a confidently wrong recommendation.
+    """
+    violations: list[Violation] = []
+    ids = [p.id for p in squad.players]
+
+    repeated = sorted({i for i, n in Counter(ids).items() if n > 1})
+    if repeated:
+        violations.append(
+            Violation(rule="§6.6", detail=f"duplicate player ids: {', '.join(repeated)}")
+        )
+
+    if len(squad.players) != SQUAD_SIZE:
+        violations.append(
+            Violation(
+                rule="§6.6",
+                detail=f"expected {SQUAD_SIZE} players, got {len(squad.players)}",
+            )
+        )
+
+    counts = _counts(squad.players)
+    for position, quota in SQUAD_QUOTA.items():
+        found = counts[position]
+        if found != quota:
+            violations.append(
+                Violation(
+                    rule="§6.6",
+                    detail=f"{position.value}: {found} in the squad, must be exactly {quota}",
+                )
+            )
+
+    value = squad.value()
+    if value > squad.budget:
+        violations.append(
+            Violation(rule="§6.4", detail=f"{_eur(value - squad.budget)} over budget")
+        )
+
+    return SquadCheck(is_valid=not violations, violations=violations)
 
 
 def validate_selection(squad: Squad, selection: Selection) -> SelectionCheck:

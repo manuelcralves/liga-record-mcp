@@ -3,7 +3,7 @@ name = "liga-record-mcp"
 version = "0.1.0"
 description = "MCP server exposing Liga Record fantasy football data as tools Claude can query"
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2.0"]
+dependencies = ["pydantic>=2.0", "pyyaml>=6.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]

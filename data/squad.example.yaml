@@ -1,0 +1,70 @@
+# Liga Record squad — hand-maintained.
+#
+# Copy this to data/squad.yaml and replace the entries with your own players.
+# The loader checks the file against the regulation every time it reads it and
+# refuses anything illegal, so a typo fails here instead of quietly becoming a
+# wrong recommendation later.
+#
+# Required (§6.6): exactly 23 players — 3 GK, 8 DEF, 8 MID, 4 FWD — with a
+# total value no greater than the budget (§6.4). The error message names
+# whatever is missing, so you do not have to count by hand.
+
+team:
+  id: 156412 # the id_team that appears in the site's URLs
+  name: Melro
+  bonus: 0 # §6.4 — the 40M ceiling only moves on bonus you have earned
+  penalties: 0
+
+round: 3
+
+# Optional. Without it, freshness comes from this file's modification time,
+# which is usually what you want: edit the file and it updates itself.
+# updated: 2026-08-19
+
+players:
+  # `position` is one of GK, DEF, MID, FWD.
+  # `value` is V.A. (the current quote), `initial_value` is V.I. (what you
+  # paid). Both in whole euros: 5500000, never "5,5 M€".
+  #
+  # Four entries are shown for shape. A real file needs all 23.
+  - id: G00001
+    name: Example Keeper
+    position: GK
+    club: Example FC
+    value: 5500000
+    initial_value: 5500000
+    points_total: 0
+
+  - id: D00001
+    name: Example Defender
+    position: DEF
+    club: Example FC
+    value: 1200000
+    initial_value: 1000000
+    points_total: 0
+
+  - id: M00001
+    name: Example Midfielder
+    position: MID
+    club: Other FC
+    value: 2000000
+    initial_value: 2000000
+    points_total: 0
+
+  - id: F00001
+    name: Example Forward
+    position: FWD
+    club: Other FC
+    value: 3000000
+    initial_value: 3000000
+    points_total: 0
+
+# Optional — this round's team sheet. Omit the whole block between rounds.
+# Bench order matters (§11.2): the first name listed is the first to come on.
+#
+# selection:
+#   starters: [G00001, D00001, D00002, D00003, D00004,
+#              M00001, M00002, M00003, M00004, F00001, F00002]
+#   bench: [D00005, M00005, F00003, D00006]
+#   captain: M00001
+#   coach: C00001

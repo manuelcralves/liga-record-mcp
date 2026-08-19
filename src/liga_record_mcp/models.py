@@ -9,6 +9,7 @@ https://liga.record.pt/info/ajuda.aspx, summarised in docs/PLANNING.md.
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -166,6 +167,11 @@ class Violation(BaseModel):
     detail: str
 
 
+class SquadCheck(BaseModel):
+    is_valid: bool
+    violations: list[Violation] = Field(default_factory=list)
+
+
 class SelectionCheck(BaseModel):
     is_valid: bool
     formation: str | None = None
@@ -191,3 +197,20 @@ class AutosubResult(BaseModel):
     captain_id: str | None = None
     captain_inherited: bool = False
     unreplaced: list[str] = Field(default_factory=list)
+
+
+class SquadSnapshot(BaseModel):
+    """Squad data together with where and when it came from.
+
+    Provenance travels with the data so a tool result can say "as of Tuesday"
+    rather than presenting a stale squad as the current one. The clock lives
+    here at the source boundary, never in rules.py.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    squad: Squad
+    selection: Selection | None = None
+    round_number: int | None = None
+    fetched_at: datetime
+    source: str
