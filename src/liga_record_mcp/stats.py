@@ -12,6 +12,7 @@ total without the number of matches behind it.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable, Sequence
 from statistics import mean
 
@@ -284,6 +285,105 @@ def project(
     if rounds_remaining is not None:
         out["projected_remaining"] = round(projected * rounds_remaining)
     return out
+
+
+# --------------------------------------------------------------------------
+# Fixture adjustment
+#
+# `project` returns a season rate: it knows how strong a club is, not who the
+# club plays this week. Over a whole season that averages out, but a team sheet
+# is set one round at a time, and a defender away at Porto is not the same bet
+# as the same defender at home to the weakest attack in the league.
+#
+# The split below matters more than the arithmetic. A player collects a
+# roughly fixed amount for simply turning out — the editorial rating, measured
+# at about 2 points a match — and the opponent barely moves it. Everything
+# else rides on the result. Only that second part is scaled, so a hard fixture
+# dents a projection instead of erasing it.
+# --------------------------------------------------------------------------
+
+#: Points a player collects for appearing at all, largely the editorial rating.
+#: Measured at 2-3 per match played; the low end is used so the adjustment is
+#: applied to more of the projection rather than less.
+APPEARANCE_FLOOR = 2.0
+
+#: Goals scored at home and away, relative to a neutral venue.
+HOME_GOAL_FACTOR = 1.10
+AWAY_GOAL_FACTOR = 0.91
+
+#: How far a single fixture may move the result-dependent part. Two completed
+#: seasons of club form is not enough to justify wider swings than this.
+FIXTURE_BOUNDS = (0.55, 1.75)
+
+#: How much of a position's result-dependent points ride on the defence rather
+#: than the attack. Knowing only the club explains r-squared 0.76 of a
+#: defender's rate but only 0.31 of a midfielder's, so the split is heavily
+#: weighted at the back and barely applied up front.
+DEFENSIVE_SHARE = {
+    Position.GK: 1.0,
+    Position.DEF: 0.85,
+    Position.MID: 0.5,
+    Position.FWD: 0.1,
+}
+
+
+def fixture_multipliers(
+    club_goals_against: float,
+    club_goals_for: float,
+    opponent_goals_against: float,
+    opponent_goals_for: float,
+    league_goals_against: float,
+    league_goals_for: float,
+    *,
+    at_home: bool,
+    bounds: tuple[float, float] = FIXTURE_BOUNDS,
+) -> tuple[float, float]:
+    """Return (defensive, attacking) multipliers for one fixture.
+
+    Both are expressed against the club's own average fixture, so a value of 1
+    means "no easier or harder than this club's normal week". The defensive
+    side compares clean-sheet odds under a Poisson reading of expected goals
+    conceded; the attacking side compares expected goals scored directly.
+
+    Callers pass league averages for clubs with no history — a promoted side
+    has no record to read, and guessing one would be worse than admitting it.
+    """
+    own_adjustment = HOME_GOAL_FACTOR if at_home else AWAY_GOAL_FACTOR
+    opponent_adjustment = AWAY_GOAL_FACTOR if at_home else HOME_GOAL_FACTOR
+
+    expected_against = (
+        club_goals_against
+        * (opponent_goals_for / league_goals_for)
+        * opponent_adjustment
+    )
+    expected_for = (
+        club_goals_for
+        * (opponent_goals_against / league_goals_against)
+        * own_adjustment
+    )
+
+    defensive = math.exp(-expected_against) / math.exp(-club_goals_against)
+    attacking = expected_for / club_goals_for
+    return _clamp(defensive, bounds), _clamp(attacking, bounds)
+
+
+def adjust_for_fixture(
+    projected_rate: float,
+    position: Position,
+    defensive: float,
+    attacking: float,
+    *,
+    floor: float = APPEARANCE_FLOOR,
+) -> float:
+    """Rescale a season rate for one round's opponent.
+
+    The floor is never scaled: a player who turns out collects it whoever the
+    opponent is. Only what is left over — the clean sheets, the goals, the
+    margin — moves with the fixture.
+    """
+    share = DEFENSIVE_SHARE[position]
+    multiplier = share * defensive + (1 - share) * attacking
+    return floor + max(0.0, projected_rate - floor) * multiplier
 
 
 def rate_rows(
