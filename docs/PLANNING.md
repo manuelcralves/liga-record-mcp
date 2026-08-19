@@ -125,6 +125,12 @@ A sub replaces a starter who does not play, or whose match is abandoned/postpone
 4. Processed after the jornada's last scoring match.
 5. If the captain is auto-subbed, **the replacement inherits the captaincy**.
 
+### Resolved in step 4 (from the site itself, not by inference)
+- **The two "Pts" figures are `PointsTotal` then `Points`.** The market API names them, and the page's own `PlayerHTML()` renders them in that order. The earlier reading was an inference; it is now confirmed.
+- **Market data needs no authentication.** `playersearch.ashx` answers a cookie-less request. The session-token question only applies to reading a specific team's squad.
+- **Player codes are plain integers**, not §4.5's "uma letra e cinco algarismos".
+- **The market spans €500 000 to €12 000 000**, which is the site's own search range.
+
 ### Open rule questions (found while implementing)
 - **Scores of 1, 2 or 3 points move no price.** §12.3 tabulates 4–5, 6–9 and 10+ upward; §12.4 covers 0 and negative. Nothing covers 1–3. Implemented as no movement — confirm against a real round.
 - **§11.3 awards the substitute to the *lower-valued* failing starter.** That is the literal text ("o jogador de menor valor"), but it is counterintuitive — you would expect your better player to be covered first. Implemented literally; worth verifying against a round where it actually bites.

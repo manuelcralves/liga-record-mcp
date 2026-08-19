@@ -44,7 +44,15 @@ from .rules import (
     validate_squad,
     validate_transfer,
 )
-from .source import ManualSquadSource
+from .source import (
+    MARKET_MAX_VALUE,
+    LigaRecordClient,
+    ManualSquadSource,
+    MarketError,
+)
+
+#: Module level so the market cache survives across tool calls.
+_market = LigaRecordClient()
 
 #: Overridable so a second team, or a test fixture, needs no code change.
 SQUAD_PATH = Path(
@@ -380,6 +388,133 @@ def project_price(player_id: str, round_points: int) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------
+# Tools — the transfer market (live, read-only)
+# --------------------------------------------------------------------------
+
+
+def _market_out(player, owned: set[str]) -> dict[str, Any]:
+    return {
+        "id": player.id,
+        "name": player.name,
+        "position": player.position.value,
+        "club": player.club,
+        "value": player.value,
+        "points_total": player.points_total,
+        "points_round": player.points_round,
+        "owned_percent": player.owned_percent,
+        "in_squad": player.id in owned,
+    }
+
+
+@server.tool()
+def search_market(
+    position: str,
+    max_value: int | None = None,
+    min_points: int | None = None,
+    max_owned_percent: float | None = None,
+    club: str | None = None,
+    name: str | None = None,
+    limit: int = 15,
+) -> dict[str, Any]:
+    """Search the whole Liga Record player market, not just the squad.
+
+    `position` is required — one of GK, DEF, MID, FWD. The site's endpoint
+    returns nothing without one.
+
+    `max_owned_percent` finds differentials: players few other teams hold. A
+    high-scoring player owned by 40% of the league gains you nothing on the
+    field; the same player owned by 3% is where places are won.
+
+    This one reads the live site, so it is the only tool here whose answer can
+    change without anyone editing a file. Results are cached for 15 minutes —
+    quotes only move when a round is scored.
+    """
+    try:
+        wanted = Position(position.upper())
+    except ValueError:
+        return {"detail": f"unknown position {position!r}; use GK, DEF, MID or FWD"}
+
+    try:
+        found = _market.search(
+            wanted,
+            name=name or "",
+            club=club or "",
+            max_value=max_value if max_value is not None else MARKET_MAX_VALUE,
+        )
+    except MarketError as exc:
+        return {"detail": f"could not read the market: {exc}"}
+
+    if min_points is not None:
+        found = [p for p in found if p.points_total >= min_points]
+    if max_owned_percent is not None:
+        found = [p for p in found if p.owned_percent <= max_owned_percent]
+
+    snapshot = _load()
+    owned = set(snapshot.squad.by_id())
+    shown = found[: max(1, limit)]
+    return {
+        "source": "ligarecord (live)",
+        "position": wanted.value,
+        "matched": len(found),
+        "showing": len(shown),
+        "players": [_market_out(p, owned) for p in shown],
+    }
+
+
+@server.tool()
+def check_market_transfer(out_id: str, in_id: str) -> dict[str, Any]:
+    """Check a real transfer: one squad player out, one market player in.
+
+    Both are player ids. Unlike check_transfer, the incoming player's price and
+    position come from the live market rather than being described by hand — so
+    the budget arithmetic uses their actual quote.
+    """
+    snapshot = _load()
+    squad = snapshot.squad
+    outgoing = squad.by_id().get(out_id)
+    if outgoing is None:
+        return {
+            **_provenance(snapshot),
+            "is_valid": False,
+            "violations": [{"rule": "§6.8", "detail": f"{out_id} is not in the squad"}],
+        }
+
+    # Only that position's market is searched: §6.8 requires like for like, so
+    # an incoming player from any other list would be illegal regardless.
+    try:
+        candidates = _market.search(outgoing.position)
+    except MarketError as exc:
+        return {**_provenance(snapshot), "detail": f"could not read the market: {exc}"}
+
+    incoming = next((p for p in candidates if p.id == in_id), None)
+    if incoming is None:
+        return {
+            **_provenance(snapshot),
+            "is_valid": False,
+            "violations": [
+                {
+                    "rule": "§6.8",
+                    "detail": (
+                        f"{in_id} is not among the {outgoing.position.value}s on the "
+                        "market; a transfer must keep the positional contingent"
+                    ),
+                }
+            ],
+        }
+
+    check = validate_transfer(squad, out_id, incoming.as_player())
+    return {
+        **_provenance(snapshot),
+        "out": {"id": outgoing.id, "name": outgoing.name, "value": outgoing.value},
+        "in": _market_out(incoming, set(squad.by_id())),
+        "is_valid": check.is_valid,
+        "squad_value_after": check.value_after,
+        "balance_after": check.balance_after,
+        "violations": _violations_out(check.violations),
+    }
+
+
+# --------------------------------------------------------------------------
 # Resources
 # --------------------------------------------------------------------------
 
@@ -492,11 +627,15 @@ def plan_transfers() -> str:
         "Read ligarecord://regulamento, then call get_squad. Only one transfer "
         "is allowed per round and it must be like for like — a defender out "
         "means a defender in.\n\n"
-        "Identify the weakest position in the squad on form, fixtures and value "
-        "for money, and suggest who to sell. For any replacement you propose, "
-        "call check_transfer with their real price to confirm it fits the "
-        "budget before recommending it. Say plainly when you are relying on "
-        "knowledge of the league rather than data from these tools."
+        "Identify the weakest player in the squad on points per euro, then call "
+        "search_market for that position to find who is actually available and "
+        "affordable. Confirm any proposal with check_market_transfer before "
+        "recommending it — do not tell me a transfer fits the budget without "
+        "having run that check.\n\n"
+        "Weigh ownership as well as points: a player held by most of the league "
+        "keeps me level with it, while a strong player few teams own is how "
+        "places are gained. Say plainly when you are relying on knowledge of "
+        "the league rather than data from these tools."
     )
 
 

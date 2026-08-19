@@ -57,9 +57,16 @@ doesn't play?"*
 ## What it exposes
 
 **Tools** — `get_squad`, `get_player`, `search_squad`, `validate_selection`,
-`simulate_autosubs`, `check_transfer`, `project_price`. Every read carries an
-`as_of` timestamp so Claude can say how fresh the data is instead of presenting a
-stored squad as live.
+`simulate_autosubs`, `check_transfer`, `project_price`, plus two that read the
+live site: `search_market` (the whole player pool, with ownership percentages
+for finding differentials) and `check_market_transfer` (prices a swap from the
+real quote rather than a hand-typed one). Every read carries an `as_of`
+timestamp so Claude can say how fresh the data is instead of presenting a stored
+squad as live.
+
+The live client is **read-only by design**. The site also exposes buy, sell and
+renegotiate endpoints — their contracts are known — and they are deliberately
+not implemented. Confirming a transfer stays a human's click on Record's site.
 
 **Resources** — `ligarecord://regulamento` (generated from the same constants the
 rules enforce, so it can't drift from the code) and `ligarecord://squad`.
@@ -77,8 +84,14 @@ tested without touching the site.
 
 ## Status
 
-Steps 1–3 of the plan are done: the rules engine, the data-source seam with a
-hand-maintained YAML squad, and the MCP server. Step 4 swaps in a live client
-behind the same `SquadSource` protocol — the site turns out to have a JSON
-backend at `common/services/playersearch.ashx`, so that's a client rather than a
-scraper.
+Steps 1–3 are done: the rules engine, the data-source seam with a hand-maintained
+YAML squad, and the MCP server.
+
+Step 4 is half done, and the half that matters most is the half that shipped.
+`playersearch.ashx` returns clean JSON for the entire 498-player market and
+**needs no authentication** — verified with a request carrying no cookie — so
+the session-token problem the plan treated as step 4's main risk simply does not
+arise for market data.
+
+Reading a *specific team's* squad does still need a login, so `data/squad.yaml`
+remains hand-maintained. That is the remaining piece.

@@ -66,6 +66,8 @@ def test_everything_is_registered_on_the_server():
         "simulate_autosubs",
         "check_transfer",
         "project_price",
+        "search_market",
+        "check_market_transfer",
     }
     assert resources == {"ligarecord://regulamento", "ligarecord://squad"}
     assert prompts == {"pick_starting_xi", "plan_transfers"}
@@ -213,4 +215,126 @@ def test_squad_resource_renders_the_current_squad():
 
 def test_prompts_tell_claude_to_verify_rather_than_assert():
     assert "validate_selection" in mcp_server.pick_starting_xi()
-    assert "check_transfer" in mcp_server.plan_transfers()
+    plan = mcp_server.plan_transfers()
+    assert "search_market" in plan
+    assert "check_market_transfer" in plan
+
+
+# --------------------------------------------------------------------------
+# Market tools — the client is stubbed, so these never touch the network.
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def market_squad(
+    squad_file: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, squad: Squad
+) -> None:
+    """A squad carrying real market ids, so ownership cross-referencing works.
+
+    Only the ids are swapped, not the values — the fixture squad's arithmetic
+    stays intact and the assertions below can be derived from it.
+    """
+    real_ids = {"GK1": "42180", "GK2": "38800", "GK3": "43430"}
+    players = [
+        p.model_copy(update={"id": real_ids[p.id]}) if p.id in real_ids else p
+        for p in squad.players
+    ]
+    path = write_squad_file(
+        tmp_path / "market_squad.yaml", squad_document(make_squad(players), round=3)
+    )
+    monkeypatch.setattr(mcp_server, "SQUAD_PATH", path)
+
+
+@pytest.fixture
+def stub_market(monkeypatch: pytest.MonkeyPatch):
+    """Replace the live client with a fixed market drawn from the fixture."""
+    import json
+
+    from liga_record_mcp.models import Position
+    from liga_record_mcp.source import parse_market_player
+
+    rows = json.loads(
+        (Path(__file__).parent / "fixtures" / "playersearch_gr.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    keepers = [parse_market_player(r) for r in rows]
+
+    class StubMarket:
+        def search(self, position, **kwargs):
+            if position is not Position.GK:
+                return []
+            found = keepers
+            cap = kwargs.get("max_value")
+            if cap is not None:
+                found = [p for p in found if p.value <= cap]
+            return found
+
+    monkeypatch.setattr(mcp_server, "_market", StubMarket())
+
+
+def test_search_market_returns_ranked_players(stub_market):
+    result = mcp_server.search_market("GK", limit=3)
+    assert result["matched"] == 61
+    assert result["showing"] == 3
+    assert result["players"][0]["name"] == "Diogo Costa"
+    assert result["players"][0]["owned_percent"] == pytest.approx(25.97)
+
+
+def test_search_market_flags_players_already_owned(stub_market, market_squad):
+    """Suggesting a player you already have is a wasted recommendation."""
+    result = mcp_server.search_market("GK", limit=61)
+    by_name = {p["name"]: p for p in result["players"]}
+    assert by_name["Diogo Costa"]["in_squad"] is True
+    assert by_name["Samuel Soares"]["in_squad"] is False
+
+
+def test_search_market_finds_differentials(stub_market):
+    """Low ownership is the point of the filter."""
+    result = mcp_server.search_market("GK", max_owned_percent=5.0, limit=61)
+    assert all(p["owned_percent"] <= 5.0 for p in result["players"])
+    assert "Lucão" not in {p["name"] for p in result["players"]}  # 34.69% owned
+
+
+def test_search_market_rejects_an_unknown_position(stub_market):
+    assert "GK, DEF, MID or FWD" in mcp_server.search_market("SWEEPER")["detail"]
+
+
+def test_search_market_reports_a_failure_rather_than_crashing(monkeypatch):
+    from liga_record_mcp.source import MarketError
+
+    class Broken:
+        def search(self, *a, **k):
+            raise MarketError("connection refused")
+
+    monkeypatch.setattr(mcp_server, "_market", Broken())
+    assert "could not read the market" in mcp_server.search_market("GK")["detail"]
+
+
+def test_check_market_transfer_prices_from_the_live_quote(stub_market, market_squad):
+    """The incoming price comes from the market, not from the caller."""
+    result = mcp_server.check_market_transfer("42180", "41452")
+
+    assert result["is_valid"] is True
+    assert result["in"]["name"] == "Lucas França"
+    assert result["in"]["value"] == 500_000  # the live quote, not a guess
+    # Fixture squad is 39 100 000; the outgoing keeper is 600 000.
+    assert result["squad_value_after"] == 39_100_000 - 600_000 + 500_000
+    assert result["balance_after"] == 40_000_000 - result["squad_value_after"]
+
+
+def test_check_market_transfer_refuses_a_player_outside_the_position(
+    stub_market, market_squad
+):
+    """§6.8 — only the outgoing player's position is searched, which enforces it."""
+    result = mcp_server.check_market_transfer("DEF1", "41452")  # DEF out, GK in
+    assert result["is_valid"] is False
+    assert "positional contingent" in result["violations"][0]["detail"]
+
+
+def test_check_market_transfer_refuses_an_unowned_outgoing_player(
+    stub_market, market_squad
+):
+    result = mcp_server.check_market_transfer("99999", "41452")
+    assert result["is_valid"] is False
+    assert "not in the squad" in result["violations"][0]["detail"]

@@ -107,6 +107,41 @@ class Player(BaseModel):
         return self.value if basis is Valuation.CURRENT else self.initial_value
 
 
+class MarketPlayer(BaseModel):
+    """A player in the transfer market — not necessarily one you own.
+
+    Carries what the squad page does not: how many teams hold this player. That
+    is the whole basis of a differential pick, so it is worth a separate model
+    rather than being flattened into Player.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    name: str
+    position: Position
+    club: str
+    value: int = Field(ge=MIN_PRICE)  # V.A.
+    initial_value: int = Field(ge=MIN_PRICE)  # V.I.
+    points_total: int = 0
+    points_round: int = 0
+    owned_by_teams: int = Field(default=0, ge=0)
+    owned_percent: float = Field(default=0.0, ge=0.0, le=100.0)
+
+    def as_player(self) -> Player:
+        """The squad-shaped view, so the rules functions can take it directly."""
+        return Player(
+            id=self.id,
+            name=self.name,
+            position=self.position,
+            club=self.club,
+            value=self.value,
+            initial_value=self.initial_value,
+            points_total=self.points_total,
+            points_round=self.points_round,
+        )
+
+
 class Coach(BaseModel):
     """One of the 18 selectable coaches (§6.15). Free — never costs budget."""
 
