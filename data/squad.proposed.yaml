@@ -1,21 +1,20 @@
 # PROPOSED squad — not your actual team.
 #
-# VERSION 2. The first version ranked players on total points while
-# Sp. Braga and Gil Vicente had a postponed fixture and had played one
-# match fewer. That made four good players look poor — Fran Navarro at
-# 6.0 a game was listed as a 6-point player next to someone else's 12.
-# Everything here is points per match, on both sides of every swap.
+# VERSION 3, and the numbers are projections rather than observed form.
 #
-# Value EUR 38,500,000 -> EUR 35,750,000.  Balance EUR 4,250,000.
+# v1 ranked on total points while two clubs had a postponed fixture, which
+# made four good players look poor. v2 fixed the denominator but still
+# chased two matches of scoring. v3 shrinks that toward a prior built from
+# two completed seasons of club results and from Record's own pricing, so
+# a hot start counts for about a third and the rest is history.
 #
-# STILL A SMALL SAMPLE. One or two matches per club. A EUR 750 000
-# defender at 8.0 a game has had one good fortnight, not established a
-# level. Club concentration after these swaps: Gil Vicente 5, Arouca 4, FC Porto 3 — that is a bet on
-# those clubs' starts holding up.
+# Value EUR 38,500,000 -> EUR 39,000,000.  Balance EUR 1,000,000.
 #
-# Lines marked NOW are where the gap is far too large to be noise. The
-# rest can wait for Ronda 4 to score; the window runs to Ronda 5, so
-# that evidence is free.
+# The projections are NOT validated. Liga Record has never published past
+# scores, so there is nothing to test them against. They are reasoned, not
+# measured — record them now and check in a few rounds.
+#
+# Club concentration: Gil Vicente 5, FC Porto 3, Arouca 3, Marítimo 3.
 #
 # To try it:  set LIGA_RECORD_SQUAD to this file's path and restart Claude.
 
@@ -29,7 +28,7 @@ round: 3
 
 players:
   # --- Guarda-redes (3) ---
-  - id: "38800"          # kept — 7.0 pts/jogo em 2
+  - id: "38800"          # kept — proj 3.9/jornada (7.0 visto)
     name: Diogo Costa
     position: GK
     club: FC Porto
@@ -38,7 +37,7 @@ players:
     points_total: 14
     points_round: 7
 
-  - id: "43430"          # kept — 6.0 pts/jogo em 1
+  - id: "43430"          # kept — proj 2.1/jornada (6.0 visto)
     name: Lucão
     position: GK
     club: Gil Vicente
@@ -47,7 +46,7 @@ players:
     points_total: 6
     points_round: 0
 
-  - id: "43383"          # IN for Bernardo Fontes — 4.0 pts/jogo em 2  # NOW
+  - id: "43383"          # IN for Bernardo Fontes — proj 2.1/jornada (4.0 visto)  # NOW
     name: Alfonso Pastor
     position: GK
     club: Marítimo
@@ -57,16 +56,7 @@ players:
     points_round: 2
 
   # --- Defesas (8) ---
-  - id: "42893"          # IN for Eduardo Quaresma — 8.0 pts/jogo em 2  # NOW
-    name: Jose Fontán
-    position: DEF
-    club: Arouca
-    value: 750000
-    initial_value: 750000
-    points_total: 16
-    points_round: 10
-
-  - id: "41584"          # IN for Martim Fernandes — 6.5 pts/jogo em 2  # can wait
+  - id: "41584"          # IN for Eduardo Quaresma — proj 3.7/jornada (6.5 visto)  # NOW
     name: Nehuén Pérez
     position: DEF
     club: FC Porto
@@ -75,34 +65,16 @@ players:
     points_total: 13
     points_round: 9
 
-  - id: "43426"          # kept — 6.0 pts/jogo em 2
-    name: Javi Sánchez
+  - id: "42893"          # IN for Rodrigo Pinheiro — proj 3.5/jornada (8.0 visto)  # can wait
+    name: Jose Fontán
     position: DEF
     club: Arouca
-    value: 500000
-    initial_value: 500000
-    points_total: 12
-    points_round: 6
-
-  - id: "43052"          # IN for Lagerbielke — 5.5 pts/jogo em 2  # can wait
-    name: Léo Santos
-    position: DEF
-    club: Nacional
     value: 750000
     initial_value: 750000
-    points_total: 11
+    points_total: 16
     points_round: 10
 
-  - id: "41400"          # kept — 5.0 pts/jogo em 1
-    name: Buatu
-    position: DEF
-    club: Gil Vicente
-    value: 750000
-    initial_value: 750000
-    points_total: 5
-    points_round: 0
-
-  - id: "41670"          # kept — 5.0 pts/jogo em 2
+  - id: "41670"          # kept — proj 3.1/jornada (5.0 visto)
     name: Zaidu
     position: DEF
     club: FC Porto
@@ -111,16 +83,34 @@ players:
     points_total: 10
     points_round: 5
 
-  - id: "42615"          # IN for Rodrigo Pinheiro — 5.0 pts/jogo em 2  # can wait
-    name: Lebedenko
+  - id: "43052"          # IN for Lagerbielke — proj 2.8/jornada (5.5 visto)  # can wait
+    name: Léo Santos
+    position: DEF
+    club: Nacional
+    value: 750000
+    initial_value: 750000
+    points_total: 11
+    points_round: 10
+
+  - id: "43426"          # kept — proj 2.8/jornada (6.0 visto)
+    name: Javi Sánchez
     position: DEF
     club: Arouca
     value: 500000
     initial_value: 500000
-    points_total: 10
+    points_total: 12
     points_round: 6
 
-  - id: "43510"          # kept — 4.0 pts/jogo em 2
+  - id: "41350"          # IN for Martim Fernandes — proj 2.8/jornada (5.5 visto)  # can wait
+    name: Tiago Esgaio
+    position: DEF
+    club: Arouca
+    value: 1000000
+    initial_value: 1000000
+    points_total: 11
+    points_round: 6
+
+  - id: "43510"          # kept — proj 2.5/jornada (4.0 visto)
     name: Finn van Breemen
     position: DEF
     club: Famalicão
@@ -129,35 +119,17 @@ players:
     points_total: 8
     points_round: 6
 
-  # --- Médios (8) ---
-  - id: "21459"          # kept — 8.5 pts/jogo em 2
-    name: Raphael Guzzo
-    position: MID
-    club: Marítimo
+  - id: "41400"          # kept — proj 2.3/jornada (5.0 visto)
+    name: Buatu
+    position: DEF
+    club: Gil Vicente
     value: 750000
     initial_value: 750000
-    points_total: 17
-    points_round: 4
+    points_total: 5
+    points_round: 0
 
-  - id: "33728"          # kept — 5.5 pts/jogo em 2
-    name: Samu
-    position: MID
-    club: V. Guimarães
-    value: 1000000
-    initial_value: 1000000
-    points_total: 11
-    points_round: 7
-
-  - id: "43499"          # IN for Issa Doumbia — 5.0 pts/jogo em 2  # can wait
-    name: Altimira
-    position: MID
-    club: Sporting
-    value: 3000000
-    initial_value: 3000000
-    points_total: 10
-    points_round: 7
-
-  - id: "42725"          # kept — 4.5 pts/jogo em 2
+  # --- Médios (8) ---
+  - id: "42725"          # kept — proj 5.1/jornada (4.5 visto)
     name: Zalazar
     position: MID
     club: Sporting
@@ -166,34 +138,43 @@ players:
     points_total: 9
     points_round: 2
 
-  - id: "42532"          # IN for Miguel Nogueira — 4.5 pts/jogo em 2  # can wait
-    name: Miguel Baeza
+  - id: "21459"          # kept — proj 4.8/jornada (8.5 visto)
+    name: Raphael Guzzo
     position: MID
-    club: Nacional
-    value: 500000
-    initial_value: 500000
-    points_total: 9
-    points_round: 3
-
-  - id: "43304"          # IN for Gorby — 4.5 pts/jogo em 2  # can wait
-    name: Liziero
-    position: MID
-    club: Nacional
-    value: 500000
-    initial_value: 500000
-    points_total: 9
+    club: Marítimo
+    value: 750000
+    initial_value: 750000
+    points_total: 17
     points_round: 4
 
-  - id: "42765"          # kept — 4.0 pts/jogo em 1
-    name: Cáseres
+  - id: "43500"          # kept — proj 4.3/jornada (3.5 visto)
+    name: Issa Doumbia
     position: MID
-    club: Gil Vicente
+    club: Sporting
+    value: 3500000
+    initial_value: 3500000
+    points_total: 7
+    points_round: 4
+
+  - id: "33728"          # kept — proj 3.8/jornada (5.5 visto)
+    name: Samu
+    position: MID
+    club: V. Guimarães
+    value: 1000000
+    initial_value: 1000000
+    points_total: 11
+    points_round: 7
+
+  - id: "42019"          # IN for Miguel Nogueira — proj 3.1/jornada (4.0 visto)  # can wait
+    name: Danilovic
+    position: MID
+    club: Marítimo
     value: 500000
     initial_value: 500000
-    points_total: 4
-    points_round: 0
+    points_total: 8
+    points_round: 4
 
-  - id: "42937"          # kept — 4.0 pts/jogo em 1
+  - id: "42937"          # kept — proj 2.9/jornada (4.0 visto)
     name: Santi García
     position: MID
     club: Gil Vicente
@@ -202,8 +183,26 @@ players:
     points_total: 4
     points_round: 0
 
+  - id: "42220"          # kept — proj 2.9/jornada (2.0 visto)
+    name: Gorby
+    position: MID
+    club: Sp. Braga
+    value: 1000000
+    initial_value: 1000000
+    points_total: 2
+    points_round: 0
+
+  - id: "42765"          # kept — proj 2.5/jornada (4.0 visto)
+    name: Cáseres
+    position: MID
+    club: Gil Vicente
+    value: 500000
+    initial_value: 500000
+    points_total: 4
+    points_round: 0
+
   # --- Avançados (4) ---
-  - id: "42896"          # IN for Pau Victor — 15.0 pts/jogo em 2  # NOW
+  - id: "42896"          # IN for Pau Victor — proj 8.8/jornada (15.0 visto)  # NOW
     name: Pavlidis
     position: FWD
     club: Benfica
@@ -212,29 +211,29 @@ players:
     points_total: 30
     points_round: 24
 
-  - id: "42398"          # kept — 7.0 pts/jogo em 1
-    name: Héctor Hernández
-    position: FWD
-    club: Gil Vicente
-    value: 500000
-    initial_value: 500000
-    points_total: 7
-    points_round: 0
-
-  - id: "43232"          # IN for Begraoui — 7.0 pts/jogo em 2  # can wait
-    name: Barbero
-    position: FWD
-    club: Arouca
-    value: 750000
-    initial_value: 750000
-    points_total: 14
-    points_round: 7
-
-  - id: "42142"          # kept — 6.0 pts/jogo em 1
+  - id: "42142"          # kept — proj 4.5/jornada (6.0 visto)
     name: Fran Navarro
     position: FWD
     club: Sp. Braga
     value: 2500000
     initial_value: 2500000
     points_total: 6
+    points_round: 0
+
+  - id: "42920"          # kept — proj 4.3/jornada (3.5 visto)
+    name: Begraoui
+    position: FWD
+    club: Estoril
+    value: 2500000
+    initial_value: 2500000
+    points_total: 7
+    points_round: 1
+
+  - id: "42398"          # kept — proj 3.2/jornada (7.0 visto)
+    name: Héctor Hernández
+    position: FWD
+    club: Gil Vicente
+    value: 500000
+    initial_value: 500000
+    points_total: 7
     points_round: 0
