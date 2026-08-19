@@ -35,6 +35,26 @@ COACH = "890"
 
 
 @pytest.fixture(autouse=True)
+def offline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test reaches the network.
+
+    Tools now consult the calendar to normalise points per match, so without
+    this the suite would quietly start making live requests — which is slow,
+    flaky, and dishonest about what is being tested. Tests that need real
+    market or calendar data install their own stub over this one.
+    """
+
+    class Offline:
+        def search(self, position, **kwargs):
+            return []
+
+        def fixtures(self):
+            return []
+
+    monkeypatch.setattr(mcp_server, "_market", Offline())
+
+
+@pytest.fixture(autouse=True)
 def squad_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, squad: Squad) -> Path:
     """Point the server at a fixture squad, with accents to exercise folding."""
     accented = {"MID1": "Javi Sánchez", "MID2": "Héctor Hernández", "FWD1": "Sánchez Júnior"}
@@ -73,6 +93,7 @@ def test_everything_is_registered_on_the_server():
         "get_fixtures",
         "squad_fixtures",
         "list_coaches",
+        "squad_value",
     }
     assert resources == {"ligarecord://regulamento", "ligarecord://squad"}
     assert prompts == {"pick_starting_xi", "plan_transfers"}
@@ -306,6 +327,9 @@ def stub_market(monkeypatch: pytest.MonkeyPatch):
                 found = [p for p in found if p.value <= cap]
             return found
 
+        def fixtures(self):
+            return []
+
     monkeypatch.setattr(mcp_server, "_market", StubMarket())
 
 
@@ -455,3 +479,96 @@ def test_get_fixtures_reports_a_failure_rather_than_crashing(monkeypatch):
 
     monkeypatch.setattr(mcp_server, "_market", Broken())
     assert "could not read the calendar" in mcp_server.get_fixtures()["detail"]
+
+
+# --------------------------------------------------------------------------
+# Scoring rates — the fix for the postponed-fixture mistake.
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def stub_uneven_calendar(monkeypatch: pytest.MonkeyPatch):
+    """Club 1 and Club 2 have played twice; Club 3 only once."""
+    from liga_record_mcp.models import Fixture
+
+    calendar = [
+        Fixture(round_number=1, home="Club 1", away="Club 2", home_goals=1, away_goals=0),
+        Fixture(round_number=1, home="Club 3", away="Club 4", home_goals=2, away_goals=2),
+        Fixture(round_number=2, home="Club 2", away="Club 1", home_goals=0, away_goals=0),
+        Fixture(round_number=2, home="Club 3", away="Club 5", kickoff="20 AGO 20:30"),
+    ]
+
+    class StubCal:
+        def fixtures(self):
+            return calendar
+
+        def search(self, position, **kwargs):
+            return []
+
+    monkeypatch.setattr(mcp_server, "_market", StubCal())
+
+
+def test_get_squad_carries_the_denominator(stub_uneven_calendar):
+    """A total without its match count is what caused the original mistake."""
+    players = mcp_server.get_squad()["players"]
+    assert all("matches_played" in p for p in players)
+    assert all("points_per_match" in p for p in players)
+
+
+def test_squad_value_warns_when_clubs_are_uneven(stub_uneven_calendar):
+    result = mcp_server.squad_value()
+    # 0 covers squad clubs the stub calendar never fixtures — a real state,
+    # and one a points total would hide completely.
+    assert result["match_counts_in_squad"] == [0, 1, 2]
+    assert "never points_total" in result["warning"]
+
+
+def test_squad_value_has_no_warning_when_clubs_are_even(monkeypatch, squad: Squad):
+    from liga_record_mcp.models import Fixture
+
+    every_club = sorted({p.club for p in squad.players})
+    pairs = [
+        Fixture(round_number=1, home=a, away=b, home_goals=1, away_goals=0)
+        for a, b in zip(every_club[::2], every_club[1::2])
+    ]
+
+    class EvenCal:
+        def fixtures(self):
+            return pairs
+
+        def search(self, position, **kwargs):
+            return []
+
+    monkeypatch.setattr(mcp_server, "_market", EvenCal())
+    result = mcp_server.squad_value()
+    assert result["match_counts_in_squad"] == [1]
+    assert result["warning"] is None
+
+
+def test_squad_value_ranks_by_rate(stub_uneven_calendar):
+    rows = mcp_server.squad_value()["players"]
+    rates = [r["points_per_match"] for r in rows if r["points_per_match"] is not None]
+    assert rates == sorted(rates, reverse=True)
+
+
+def test_squad_value_says_when_the_calendar_is_unreachable(monkeypatch):
+    from liga_record_mcp.source import SiteError
+
+    class Broken:
+        def fixtures(self):
+            raise SiteError("down")
+
+    monkeypatch.setattr(mcp_server, "_market", Broken())
+    assert "rates cannot be computed" in mcp_server.squad_value()["detail"]
+
+
+def test_get_squad_says_when_rates_are_missing(monkeypatch):
+    from liga_record_mcp.source import SiteError
+
+    class Broken:
+        def fixtures(self):
+            raise SiteError("down")
+
+    monkeypatch.setattr(mcp_server, "_market", Broken())
+    result = mcp_server.get_squad()
+    assert "not comparable across clubs" in result["rates_unavailable"]

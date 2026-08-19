@@ -44,6 +44,7 @@ from .rules import (
     validate_squad,
     validate_transfer,
 )
+from .stats import matches_played, never_played, per_match, rate_rows
 from .source import (
     MARKET_MAX_VALUE,
     LigaRecordClient,
@@ -122,8 +123,20 @@ def _provenance(snapshot: SquadSnapshot) -> dict[str, Any]:
     }
 
 
-def _player_out(player: Player) -> dict[str, Any]:
-    return {
+def _matches_by_club() -> dict[str, int] | None:
+    """Matches completed per club, or None when the calendar is unreachable.
+
+    Cached for six hours by the client, so the cost is paid once. Needed
+    because a total is meaningless without its denominator.
+    """
+    try:
+        return matches_played(_market.fixtures())
+    except SiteError:
+        return None
+
+
+def _player_out(player: Player, matches: dict[str, int] | None = None) -> dict[str, Any]:
+    out = {
         "id": player.id,
         "name": player.name,
         "position": player.position.value,
@@ -133,6 +146,13 @@ def _player_out(player: Player) -> dict[str, Any]:
         "points_total": player.points_total,
         "points_round": player.points_round,
     }
+    if matches is not None:
+        count = matches.get(player.club, 0)
+        rate = per_match(player.points_total, count)
+        out["matches_played"] = count
+        out["points_per_match"] = None if rate is None else round(rate, 2)
+        out["never_played"] = never_played(player, count)
+    return out
 
 
 def _violations_out(violations) -> list[dict[str, str]]:
@@ -154,18 +174,30 @@ def get_squad() -> dict[str, Any]:
 
     Carries `as_of`: say how fresh the data is rather than presenting a stored
     squad as live.
+
+    Each player carries `matches_played` and `points_per_match`. Compare on the
+    rate, not the total — clubs are on different match counts whenever a
+    fixture is postponed, and a total alone will rank a good player at a club
+    with a game in hand as though he were poor.
     """
     snapshot = _load()
     squad = snapshot.squad
-    return {
+    matches = _matches_by_club()
+    result = {
         **_provenance(snapshot),
         "team": {"id": squad.team_id, "name": squad.team_name},
         "budget": squad.budget,
         "squad_value": squad.value(),
         "balance": squad.balance(),
         "is_legal": validate_squad(squad).is_valid,
-        "players": [_player_out(p) for p in squad.players],
+        "players": [_player_out(p, matches) for p in squad.players],
     }
+    if matches is None:
+        result["rates_unavailable"] = (
+            "the calendar could not be read, so points_per_match is missing — "
+            "totals are not comparable across clubs with different match counts"
+        )
+    return result
 
 
 @server.tool()
@@ -228,11 +260,49 @@ def search_squad(
     if min_points is not None:
         found = [p for p in found if p.points_total >= min_points]
 
+    matches = _matches_by_club()
     found.sort(key=lambda p: (-p.points_total, p.value))
     return {
         **_provenance(snapshot),
         "count": len(found),
-        "players": [_player_out(p) for p in found],
+        "players": [_player_out(p, matches) for p in found],
+    }
+
+
+@server.tool()
+def squad_value() -> dict[str, Any]:
+    """Your squad ranked by scoring rate, with the cost of each player.
+
+    Use this rather than reading totals off get_squad. `points_per_match`
+    normalises for clubs on different match counts; `value_rate` is points per
+    match per million, which is the figure that answers "is he worth his
+    price".
+
+    `never_played` marks players who have not taken the field once. §10.3 pays
+    an unused player -1 a round, and across the market 42% of players are in
+    that state — it is the largest single effect in the game, and it is
+    invisible in a points total.
+    """
+    snapshot = _load()
+    matches = _matches_by_club()
+    if matches is None:
+        return {
+            **_provenance(snapshot),
+            "detail": "the calendar could not be read, so rates cannot be computed",
+        }
+
+    rows = rate_rows(snapshot.squad.players, matches)
+    counts = sorted({r["matches_played"] for r in rows})
+    return {
+        **_provenance(snapshot),
+        "match_counts_in_squad": counts,
+        "warning": (
+            "clubs are on different match counts — compare points_per_match, "
+            "never points_total"
+        )
+        if len(counts) > 1
+        else None,
+        "players": rows,
     }
 
 
@@ -452,8 +522,10 @@ def list_coaches() -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
-def _market_out(player, owned: set[str]) -> dict[str, Any]:
-    return {
+def _market_out(
+    player, owned: set[str], matches: dict[str, int] | None = None
+) -> dict[str, Any]:
+    out = {
         "id": player.id,
         "name": player.name,
         "position": player.position.value,
@@ -464,6 +536,12 @@ def _market_out(player, owned: set[str]) -> dict[str, Any]:
         "owned_percent": player.owned_percent,
         "in_squad": player.id in owned,
     }
+    if matches is not None:
+        count = matches.get(player.club, 0)
+        rate = per_match(player.points_total, count)
+        out["matches_played"] = count
+        out["points_per_match"] = None if rate is None else round(rate, 2)
+    return out
 
 
 @server.tool()
@@ -511,13 +589,15 @@ def search_market(
 
     snapshot = _load()
     owned = set(snapshot.squad.by_id())
+    matches = _matches_by_club()
     shown = found[: max(1, limit)]
     return {
         "source": "ligarecord (live)",
         "position": wanted.value,
         "matched": len(found),
         "showing": len(shown),
-        "players": [_market_out(p, owned) for p in shown],
+        "note": "rank on points_per_match — clubs are on different match counts",
+        "players": [_market_out(p, owned, matches) for p in shown],
     }
 
 
