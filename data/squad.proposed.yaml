@@ -1,0 +1,238 @@
+# PROPOSED squad — not your actual team.
+#
+# Generated from live market data. data/squad.yaml is untouched; this file
+# exists so you can explore the after-state in the tool before changing
+# anything on liga.record.pt.
+#
+# Points 146 -> 248.  Value EUR 38,500,000 -> EUR 28,750,000.  Balance EUR 11,250,000.
+#
+# CAVEAT: this ranks players on two rounds of scoring, which is a small
+# sample. A EUR 500 000 defender on 16 points has had one good fortnight,
+# not established a level — regression is the base case. Several of these
+# are Arouca players, so it is also a bet on one club's hot start.
+#
+# Lines marked NOW are the ones where the gap is too large to be noise.
+# The rest can wait for Ronda 4 to score — the free-transfer window does
+# not close until Ronda 5, so that evidence is free.
+#
+# To try it:  set LIGA_RECORD_SQUAD to this file's path and restart Claude.
+
+team:
+  id: 156412
+  name: Melro
+  bonus: 0
+  penalties: 0
+
+round: 3
+
+players:
+  # --- Guarda-redes (3) ---
+  - id: "38800"          # kept
+    name: Diogo Costa
+    position: GK
+    club: FC Porto
+    value: 5500000
+    initial_value: 5500000
+    points_total: 14
+    points_round: 7
+
+  - id: "43383"          # IN for Bernardo Fontes  # NOW
+    name: Alfonso Pastor
+    position: GK
+    club: Marítimo
+    value: 500000
+    initial_value: 500000
+    points_total: 8
+    points_round: 2
+
+  - id: "43430"          # kept
+    name: Lucão
+    position: GK
+    club: Gil Vicente
+    value: 500000
+    initial_value: 500000
+    points_total: 6
+    points_round: 0
+
+  # --- Defesas (8) ---
+  - id: "42893"          # IN for Lagerbielke  # NOW
+    name: Jose Fontán
+    position: DEF
+    club: Arouca
+    value: 750000
+    initial_value: 750000
+    points_total: 16
+    points_round: 10
+
+  - id: "41584"          # IN for Eduardo Quaresma  # can wait
+    name: Nehuén Pérez
+    position: DEF
+    club: FC Porto
+    value: 2000000
+    initial_value: 2000000
+    points_total: 13
+    points_round: 9
+
+  - id: "43426"          # kept
+    name: Javi Sánchez
+    position: DEF
+    club: Arouca
+    value: 500000
+    initial_value: 500000
+    points_total: 12
+    points_round: 6
+
+  - id: "43052"          # IN for Martim Fernandes  # can wait
+    name: Léo Santos
+    position: DEF
+    club: Nacional
+    value: 750000
+    initial_value: 750000
+    points_total: 11
+    points_round: 10
+
+  - id: "41350"          # IN for Rodrigo Pinheiro  # can wait
+    name: Tiago Esgaio
+    position: DEF
+    club: Arouca
+    value: 1000000
+    initial_value: 1000000
+    points_total: 11
+    points_round: 6
+
+  - id: "42890"          # IN for Buatu  # can wait
+    name: Zé Vitor
+    position: DEF
+    club: Nacional
+    value: 750000
+    initial_value: 750000
+    points_total: 10
+    points_round: 10
+
+  - id: "41670"          # kept
+    name: Zaidu
+    position: DEF
+    club: FC Porto
+    value: 1500000
+    initial_value: 1500000
+    points_total: 10
+    points_round: 5
+
+  - id: "43510"          # kept
+    name: Finn van Breemen
+    position: DEF
+    club: Famalicão
+    value: 500000
+    initial_value: 500000
+    points_total: 8
+    points_round: 6
+
+  # --- Médios (8) ---
+  - id: "21459"          # kept
+    name: Raphael Guzzo
+    position: MID
+    club: Marítimo
+    value: 750000
+    initial_value: 750000
+    points_total: 17
+    points_round: 4
+
+  - id: "33728"          # kept
+    name: Samu
+    position: MID
+    club: V. Guimarães
+    value: 1000000
+    initial_value: 1000000
+    points_total: 11
+    points_round: 7
+
+  - id: "42532"          # IN for Gorby  # NOW
+    name: Miguel Baeza
+    position: MID
+    club: Nacional
+    value: 500000
+    initial_value: 500000
+    points_total: 9
+    points_round: 3
+
+  - id: "43304"          # IN for Zalazar  # NOW
+    name: Liziero
+    position: MID
+    club: Nacional
+    value: 500000
+    initial_value: 500000
+    points_total: 9
+    points_round: 4
+
+  - id: "43556"          # IN for Issa Doumbia  # can wait
+    name: Bénito
+    position: MID
+    club: E. Amadora
+    value: 500000
+    initial_value: 500000
+    points_total: 9
+    points_round: 2
+
+  - id: "43443"          # IN for Santi García  # can wait
+    name: Nile John
+    position: MID
+    club: Moreirense
+    value: 500000
+    initial_value: 500000
+    points_total: 9
+    points_round: 2
+
+  - id: "42765"          # kept
+    name: Cáseres
+    position: MID
+    club: Gil Vicente
+    value: 500000
+    initial_value: 500000
+    points_total: 4
+    points_round: 0
+
+  - id: "43263"          # kept
+    name: Miguel Nogueira
+    position: MID
+    club: V. Guimarães
+    value: 500000
+    initial_value: 500000
+    points_total: 3
+    points_round: 1
+
+  # --- Avançados (4) ---
+  - id: "42896"          # IN for Pau Victor  # NOW
+    name: Pavlidis
+    position: FWD
+    club: Benfica
+    value: 6000000
+    initial_value: 6000000
+    points_total: 30
+    points_round: 24
+
+  - id: "43232"          # IN for Fran Navarro  # can wait
+    name: Barbero
+    position: FWD
+    club: Arouca
+    value: 750000
+    initial_value: 750000
+    points_total: 14
+    points_round: 7
+
+  - id: "42398"          # kept
+    name: Héctor Hernández
+    position: FWD
+    club: Gil Vicente
+    value: 500000
+    initial_value: 500000
+    points_total: 7
+    points_round: 0
+
+  - id: "42920"          # kept
+    name: Begraoui
+    position: FWD
+    club: Estoril
+    value: 2500000
+    initial_value: 2500000
+    points_total: 7
+    points_round: 1
