@@ -1,0 +1,234 @@
+# Manuel's Liga Record squad — team "Melro" (id_team 156412).
+#
+# Read from the live squad page at liga.record.pt on 2026-08-19, during Ronda 3.
+# Cross-checked against the page's own totals: the 23 V.A. values below sum to
+# €38 500 000, matching "Valor do Plantel", and leave the €1 500 000 shown as
+# "Saldo Disponível" against the €40 000 000 budget.
+#
+# No `updated:` key on purpose — freshness comes from this file's modification
+# time, so editing it after a transfer updates its own provenance.
+#
+# NOTE ON POINTS: the page shows two figures per player, both labelled "Pts",
+# with no distinguishing markup. Read here as total first, last round second,
+# because the first is >= the second for all 23 and Ronda 3 is not yet scored.
+# An inference from the data, not something the page states — worth confirming.
+
+team:
+  id: 156412
+  name: Melro
+  bonus: 0
+  penalties: 0
+
+round: 3
+
+players:
+  # --- Guarda-redes (3) ---
+  - id: "42180"
+    name: Bernardo Fontes
+    position: GK
+    club: Sp. Braga
+    value: 750000
+    initial_value: 750000
+    points_total: -1
+    points_round: 0
+
+  - id: "38800"
+    name: Diogo Costa
+    position: GK
+    club: FC Porto
+    value: 5500000
+    initial_value: 5500000
+    points_total: 14
+    points_round: 7
+
+  - id: "43430"
+    name: Lucão
+    position: GK
+    club: Gil Vicente
+    value: 500000
+    initial_value: 500000
+    points_total: 6
+    points_round: 0
+
+  # --- Defesas (8) ---
+  - id: "41400"
+    name: Buatu
+    position: DEF
+    club: Gil Vicente
+    value: 750000
+    initial_value: 750000
+    points_total: 5
+    points_round: 0
+
+  - id: "41681"
+    name: Eduardo Quaresma
+    position: DEF
+    club: Sporting
+    value: 2500000
+    initial_value: 2500000
+    points_total: 2
+    points_round: 1
+
+  - id: "43510"
+    name: Finn van Breemen
+    position: DEF
+    club: Famalicão
+    value: 500000
+    initial_value: 500000
+    points_total: 8
+    points_round: 6
+
+  - id: "43426"
+    name: Javi Sánchez
+    position: DEF
+    club: Arouca
+    value: 500000
+    initial_value: 500000
+    points_total: 12
+    points_round: 6
+
+  - id: "43175"
+    name: Lagerbielke
+    position: DEF
+    club: Sp. Braga
+    value: 1500000
+    initial_value: 1500000
+    points_total: 1
+    points_round: 0
+
+  - id: "42850"
+    name: Martim Fernandes
+    position: DEF
+    club: FC Porto
+    value: 2000000
+    initial_value: 2000000
+    points_total: 4
+    points_round: -1
+
+  - id: "42927"
+    name: Rodrigo Pinheiro
+    position: DEF
+    club: Famalicão
+    value: 750000
+    initial_value: 750000
+    points_total: 3
+    points_round: 1
+
+  - id: "41670"
+    name: Zaidu
+    position: DEF
+    club: FC Porto
+    value: 1500000
+    initial_value: 1500000
+    points_total: 10
+    points_round: 5
+
+  # --- Médios (8) ---
+  - id: "42765"
+    name: Cáseres
+    position: MID
+    club: Gil Vicente
+    value: 500000
+    initial_value: 500000
+    points_total: 4
+    points_round: 0
+
+  - id: "42220"
+    name: Gorby
+    position: MID
+    club: Sp. Braga
+    value: 1000000
+    initial_value: 1000000
+    points_total: 2
+    points_round: 0
+
+  - id: "43500"
+    name: Issa Doumbia
+    position: MID
+    club: Sporting
+    value: 3500000
+    initial_value: 3500000
+    points_total: 7
+    points_round: 4
+
+  - id: "43263"
+    name: Miguel Nogueira
+    position: MID
+    club: V. Guimarães
+    value: 500000
+    initial_value: 500000
+    points_total: 3
+    points_round: 1
+
+  - id: "21459"
+    name: Raphael Guzzo
+    position: MID
+    club: Marítimo
+    value: 750000
+    initial_value: 750000
+    points_total: 17
+    points_round: 4
+
+  - id: "33728"
+    name: Samu
+    position: MID
+    club: V. Guimarães
+    value: 1000000
+    initial_value: 1000000
+    points_total: 11
+    points_round: 7
+
+  - id: "42937"
+    name: Santi García
+    position: MID
+    club: Gil Vicente
+    value: 1000000
+    initial_value: 1000000
+    points_total: 4
+    points_round: 0
+
+  - id: "42725"
+    name: Zalazar
+    position: MID
+    club: Sporting
+    value: 5000000
+    initial_value: 5000000
+    points_total: 9
+    points_round: 2
+
+  # --- Avançados (4) ---
+  - id: "42920"
+    name: Begraoui
+    position: FWD
+    club: Estoril
+    value: 2500000
+    initial_value: 2500000
+    points_total: 7
+    points_round: 1
+
+  - id: "42142"
+    name: Fran Navarro
+    position: FWD
+    club: Sp. Braga
+    value: 2500000
+    initial_value: 2500000
+    points_total: 6
+    points_round: 0
+
+  - id: "42398"
+    name: Héctor Hernández
+    position: FWD
+    club: Gil Vicente
+    value: 500000
+    initial_value: 500000
+    points_total: 7
+    points_round: 0
+
+  - id: "43296"
+    name: Pau Victor
+    position: FWD
+    club: Sp. Braga
+    value: 3000000
+    initial_value: 3000000
+    points_total: 5
+    points_round: 0
