@@ -96,6 +96,8 @@ def test_everything_is_registered_on_the_server():
         "squad_value",
         "club_strength",
         "project_points",
+        "record_appearances",
+        "appearance_history",
     }
     assert resources == {"ligarecord://regulamento", "ligarecord://squad"}
     assert prompts == {"pick_starting_xi", "plan_transfers"}

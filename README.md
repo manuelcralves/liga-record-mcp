@@ -66,7 +66,8 @@ live site: `search_market` (the whole player pool, with ownership percentages
 for finding differentials), `check_market_transfer` (prices a swap from the real
 quote rather than a hand-typed one), `get_fixtures` (the league calendar) and
 `squad_fixtures` (each of your players' next opponent, home or away), plus
-`list_coaches`, `squad_value`, `club_strength` and `project_points`. Every read
+`list_coaches`, `squad_value`, `club_strength`, `project_points`,
+`record_appearances` and `appearance_history`. Every read
 carries an `as_of` timestamp so Claude can say how fresh the data is instead of
 presenting a stored squad as live.
 

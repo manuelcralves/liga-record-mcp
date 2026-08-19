@@ -57,6 +57,64 @@ def never_played(player: Player, matches: int) -> bool:
 
 
 # --------------------------------------------------------------------------
+# Appearances
+#
+# Liga Record never says who played — but §10.3 pays an unused player -1 a
+# round, so the scoring gives it away. Recorded week by week, that builds the
+# one signal no free external source could give us: how often a player actually
+# takes the field.
+#
+# One honest limit: a player who took the field and scored exactly -1 is
+# indistinguishable from one who sat out. That is uncommon — playing carries an
+# editorial rating of roughly 2-3 — and over many rounds the occasional
+# misreading washes out, but a single round should not be treated as certain.
+# --------------------------------------------------------------------------
+
+PLAYED = "played"
+UNUSED = "unused"
+NO_MATCH = "no_match"
+
+
+def last_scored_round(fixtures: Iterable[Fixture]) -> int | None:
+    """The round a player's `points_round` refers to."""
+    scored = [f.round_number for f in fixtures if f.played]
+    return max(scored) if scored else None
+
+
+def clubs_playing_in(fixtures: Iterable[Fixture], round_number: int) -> set[str]:
+    """Clubs with a completed match in that round.
+
+    A postponed fixture is not an absence: those players score 0, not -1, and
+    counting it against them would punish the club rather than the player.
+    """
+    playing: set[str] = set()
+    for fixture in fixtures:
+        if fixture.round_number == round_number and fixture.played:
+            playing.add(fixture.home)
+            playing.add(fixture.away)
+    return playing
+
+
+def classify_appearance(points_round: int, club_played: bool) -> str:
+    """Whether a player took the field, from their round score alone."""
+    if not club_played:
+        return NO_MATCH
+    return UNUSED if points_round == -1 else PLAYED
+
+
+def appearance_rate(history: dict[str, str]) -> float | None:
+    """Share of a player's club's matches in which he actually played.
+
+    Rounds where the club had no match are excluded from the denominator, so a
+    postponement never looks like being dropped.
+    """
+    counted = [v for v in history.values() if v != NO_MATCH]
+    if not counted:
+        return None
+    return sum(1 for v in counted if v == PLAYED) / len(counted)
+
+
+# --------------------------------------------------------------------------
 # Projection
 #
 # Two matches of form is a thin basis for a season, so a projection blends what

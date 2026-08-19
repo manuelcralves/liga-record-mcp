@@ -45,8 +45,15 @@ from .rules import (
     validate_transfer,
 )
 from .stats import (
+    NO_MATCH,
+    PLAYED,
     PRIOR_STRENGTH,
+    UNUSED,
+    appearance_rate,
+    classify_appearance,
     club_price_index,
+    clubs_playing_in,
+    last_scored_round,
     matches_played,
     never_played,
     per_match,
@@ -62,7 +69,12 @@ from .source import (
     OpenFootballClient,
     SiteError,
     SquadSourceError,
+    history_for,
+    load_appearances,
     load_coaches,
+    record_round,
+    recorded_rounds,
+    save_appearances,
 )
 
 #: Module level so the caches survive across tool calls.
@@ -78,6 +90,12 @@ SQUAD_PATH = Path(
 COACHES_PATH = Path(
     os.environ.get("LIGA_RECORD_COACHES")
     or Path(__file__).resolve().parents[2] / "data" / "coaches.yaml"
+)
+
+#: The only file this server writes to.
+APPEARANCES_PATH = Path(
+    os.environ.get("LIGA_RECORD_APPEARANCES")
+    or Path(__file__).resolve().parents[2] / "data" / "appearances.json"
 )
 
 server = MCPServer(
@@ -775,6 +793,119 @@ def squad_fixtures(round_number: int | None = None) -> dict[str, Any]:
         "fixtures_round": wanted,
         "playing": playing,
         "no_match_this_round": idle,
+    }
+
+
+# --------------------------------------------------------------------------
+# Tools — the appearance record
+#
+# The only tools here that write, and they write one local file. Nothing is
+# ever sent to liga.record.pt.
+# --------------------------------------------------------------------------
+
+
+@server.tool()
+def record_appearances(round_number: int | None = None) -> dict[str, Any]:
+    """Snapshot who played in the last scored round, and keep it.
+
+    Liga Record never publishes appearances, but §10.3 pays an unused player -1
+    a round, so the scoring gives it away. Run this once after each round
+    scores and the history accumulates — the one signal no free external source
+    covers for the current season.
+
+    Safe to run repeatedly: a round is keyed by its number and overwritten, not
+    double-counted. Writes only to a local file.
+    """
+    try:
+        fixtures = _market.fixtures()
+    except SiteError as exc:
+        return {"detail": f"could not read the calendar: {exc}"}
+
+    target = round_number if round_number is not None else last_scored_round(fixtures)
+    if target is None:
+        return {"detail": "no round has been scored yet"}
+
+    playing = clubs_playing_in(fixtures, target)
+    if not playing:
+        return {"detail": f"round {target} has no completed matches"}
+
+    statuses: dict[str, str] = {}
+    tally = {PLAYED: 0, UNUSED: 0, NO_MATCH: 0}
+    for position in Position:
+        try:
+            for player in _market.search(position):
+                status = classify_appearance(player.points_round, player.club in playing)
+                statuses[player.id] = status
+                tally[status] += 1
+        except MarketError as exc:
+            return {"detail": f"could not read the market: {exc}"}
+
+    try:
+        store = load_appearances(APPEARANCES_PATH)
+        updated = record_round(store, target, statuses)
+        save_appearances(APPEARANCES_PATH, updated)
+    except SquadSourceError as exc:
+        return {"detail": f"could not write the record: {exc}"}
+
+    return {
+        "round_recorded": target,
+        "players": len(statuses),
+        "played": tally[PLAYED],
+        "unused": tally[UNUSED],
+        "no_match": tally[NO_MATCH],
+        "rounds_on_file": recorded_rounds(updated),
+        "file": str(APPEARANCES_PATH),
+        "caveat": (
+            "a player who took the field and scored exactly -1 reads as unused; "
+            "uncommon, and it washes out over rounds"
+        ),
+    }
+
+
+@server.tool()
+def appearance_history() -> dict[str, Any]:
+    """How often each squad player has actually taken the field.
+
+    Rounds where a player's club had no match are excluded from the
+    denominator, so a postponed fixture never looks like being dropped.
+
+    The gap between playing and not playing is worth 3-4 points a round —
+    larger than form, price or fixtures — so a low rate here outweighs almost
+    anything else about a player.
+    """
+    snapshot = _load()
+    try:
+        store = load_appearances(APPEARANCES_PATH)
+    except SquadSourceError as exc:
+        return {**_provenance(snapshot), "detail": f"could not read the record: {exc}"}
+
+    rounds = recorded_rounds(store)
+    if not rounds:
+        return {
+            **_provenance(snapshot),
+            "rounds_on_file": [],
+            "detail": "nothing recorded yet — run record_appearances after a round scores",
+        }
+
+    rows = []
+    for player in snapshot.squad.players:
+        history = history_for(store, player.id)
+        rate = appearance_rate(history)
+        rows.append(
+            {
+                "id": player.id,
+                "name": player.name,
+                "position": player.position.value,
+                "club": player.club,
+                "appearance_rate": None if rate is None else round(rate, 2),
+                "rounds": history,
+            }
+        )
+    rows.sort(key=lambda r: (r["appearance_rate"] is None, r["appearance_rate"] or 0))
+    return {
+        **_provenance(snapshot),
+        "rounds_on_file": rounds,
+        "players": rows,
     }
 
 

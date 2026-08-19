@@ -137,6 +137,33 @@ budget. Confirming a transfer stays a human's click on Record's own site.
 **Honestly missing:** league standings, the live squad read, and per-player
 history (minutes, injuries) — which would need a keyed API.
 
+### Appearances: the signal nobody would sell us
+
+The largest effect in the game is whether a player takes the field at all —
+worth 3–4 points a round, more than form, price or fixtures. Liga Record never
+publishes it, and no free external source covers the current season.
+
+**API-Football was tried and abandoned.** Its free plan reaches seasons
+2022–2024 only, and even there the statistics come back `null` — 0 of 20
+players on the first page had minutes, appearances or goals. Four requests
+spent, nothing gained. The mistake worth remembering: the `/leagues` coverage
+flags describe what the *league* has, not what the *plan* may read, and reading
+them as permission cost the trip.
+
+The answer was already in the rulebook. §10.3 pays an unused player −1 a round,
+so the scoring itself says who played. `record_appearances` snapshots that each
+week and accumulates a history that needs no key, no account and no third
+party. Rounds where a club had no match are excluded from the denominator, so a
+postponed fixture never reads as being dropped.
+
+One honest limit: a player who took the field and scored exactly −1 is
+indistinguishable from one who sat out. Uncommon — playing carries an editorial
+rating of roughly 2–3 — and it washes out over rounds, but a single round is
+not certain.
+
+This is also the only part of the project that writes anything, and it writes
+one local file.
+
 ### The projection, and why it is not a prediction
 
 `project_points` blends observed form with a prior from completed seasons

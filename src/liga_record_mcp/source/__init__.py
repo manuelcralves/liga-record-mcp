@@ -8,6 +8,13 @@ The market client is separate: it reads the public player pool rather than one
 person's squad, needs no authentication, and is deliberately read-only.
 """
 
+from .appearances import (
+    history_for,
+    load_appearances,
+    record_round,
+    recorded_rounds,
+    save_appearances,
+)
 from .base import SquadSource, SquadSourceError
 from .history import (
     CLUB_NAMES,
@@ -45,7 +52,12 @@ __all__ = [
     "SiteError",
     "SquadSource",
     "SquadSourceError",
+    "history_for",
+    "load_appearances",
     "load_coaches",
+    "record_round",
+    "recorded_rounds",
+    "save_appearances",
     "parse_fixtures",
     "parse_market_player",
 ]
