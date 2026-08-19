@@ -1,0 +1,20 @@
+[project]
+name = "liga-record-mcp"
+version = "0.1.0"
+description = "MCP server exposing Liga Record fantasy football data as tools Claude can query"
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/liga_record_mcp"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "tests"]
+testpaths = ["tests"]
