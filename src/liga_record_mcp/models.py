@@ -142,6 +142,40 @@ class MarketPlayer(BaseModel):
         )
 
 
+class Fixture(BaseModel):
+    """One match in the league calendar.
+
+    Club names are the site's own labels ("Sp. Braga", "V. Guimarães") and are
+    the join key back to a Player's club, so they are kept verbatim rather than
+    normalised into something tidier that would no longer match.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    round_number: int = Field(ge=1)
+    home: str
+    away: str
+    home_goals: int | None = None
+    away_goals: int | None = None
+    #: As the site labels it, e.g. "07 AGO 20:15". Carries no year, so it is
+    #: kept as text rather than parsed into a datetime that would invent one.
+    kickoff: str | None = None
+
+    @property
+    def played(self) -> bool:
+        return self.home_goals is not None and self.away_goals is not None
+
+    def opponent_of(self, club: str) -> str | None:
+        if club == self.home:
+            return self.away
+        if club == self.away:
+            return self.home
+        return None
+
+    def is_home_for(self, club: str) -> bool:
+        return club == self.home
+
+
 class Coach(BaseModel):
     """One of the 18 selectable coaches (§6.15). Free — never costs budget."""
 

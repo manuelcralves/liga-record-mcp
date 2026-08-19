@@ -49,6 +49,7 @@ from .source import (
     LigaRecordClient,
     ManualSquadSource,
     MarketError,
+    SiteError,
 )
 
 #: Module level so the market cache survives across tool calls.
@@ -511,6 +512,119 @@ def check_market_transfer(out_id: str, in_id: str) -> dict[str, Any]:
         "squad_value_after": check.value_after,
         "balance_after": check.balance_after,
         "violations": _violations_out(check.violations),
+    }
+
+
+# --------------------------------------------------------------------------
+# Tools — the calendar (live, read-only)
+# --------------------------------------------------------------------------
+
+
+def _fixture_out(fixture) -> dict[str, Any]:
+    return {
+        "round": fixture.round_number,
+        "home": fixture.home,
+        "away": fixture.away,
+        "score": (
+            f"{fixture.home_goals}-{fixture.away_goals}" if fixture.played else None
+        ),
+        "kickoff": fixture.kickoff,
+        "played": fixture.played,
+    }
+
+
+def _next_round(fixtures) -> int | None:
+    unplayed = [f.round_number for f in fixtures if not f.played]
+    return min(unplayed) if unplayed else None
+
+
+@server.tool()
+def get_fixtures(
+    round_number: int | None = None, club: str | None = None
+) -> dict[str, Any]:
+    """The league calendar: who plays whom, when, and the result if played.
+
+    Defaults to the next unplayed round. `club` matches loosely and
+    accent-insensitively, so "guimaraes" finds V. Guimarães.
+    """
+    try:
+        fixtures = _market.fixtures()
+    except SiteError as exc:
+        return {"detail": f"could not read the calendar: {exc}"}
+
+    upcoming = _next_round(fixtures)
+    wanted = round_number if round_number is not None else upcoming
+    found = [f for f in fixtures if wanted is None or f.round_number == wanted]
+
+    if club is not None:
+        needle = _fold(club)
+        found = [f for f in found if needle in _fold(f.home) or needle in _fold(f.away)]
+
+    return {
+        "source": "ligarecord (live)",
+        "round": wanted,
+        "next_unplayed_round": upcoming,
+        "count": len(found),
+        "fixtures": [_fixture_out(f) for f in found],
+    }
+
+
+@server.tool()
+def squad_fixtures(round_number: int | None = None) -> dict[str, Any]:
+    """Each squad player's match for a round: opponent, and home or away.
+
+    This is what turns "who is in form" into "who is in form and playing at
+    home on Sunday". Players whose club has no match that round are listed
+    separately — they cannot score, so they should not start.
+    """
+    snapshot = _load()
+    try:
+        fixtures = _market.fixtures()
+    except SiteError as exc:
+        return {**_provenance(snapshot), "detail": f"could not read the calendar: {exc}"}
+
+    # The squad's own ronda is the authority, not the calendar's first unplayed
+    # round: a single postponed match keeps a finished round "unplayed" for
+    # days, and answering about that round would be wrong.
+    wanted = round_number
+    if wanted is None:
+        wanted = snapshot.round_number or _next_round(fixtures)
+    if wanted is None:
+        return {**_provenance(snapshot), "detail": "the season has no unplayed rounds"}
+
+    this_round = [f for f in fixtures if f.round_number == wanted]
+    playing: list[dict[str, Any]] = []
+    idle: list[dict[str, Any]] = []
+
+    for player in snapshot.squad.players:
+        match = next(
+            (f for f in this_round if f.opponent_of(player.club) is not None), None
+        )
+        entry = {
+            "id": player.id,
+            "name": player.name,
+            "position": player.position.value,
+            "club": player.club,
+            "points_total": player.points_total,
+        }
+        if match is None:
+            idle.append(entry)
+            continue
+        playing.append(
+            {
+                **entry,
+                "opponent": match.opponent_of(player.club),
+                "at": "home" if match.is_home_for(player.club) else "away",
+                "kickoff": match.kickoff,
+            }
+        )
+
+    playing.sort(key=lambda e: (e["position"], -e["points_total"]))
+    return {
+        **_provenance(snapshot),
+        "fixtures_round": wanted,
+        "playing": playing,
+        "no_match_this_round": idle,
     }
 
 

@@ -16,6 +16,8 @@ from .live import (
     POSITION_FROM_CODE,
     LigaRecordClient,
     MarketError,
+    SiteError,
+    parse_fixtures,
     parse_market_player,
 )
 from .manual import ManualSquadSource
@@ -28,7 +30,9 @@ __all__ = [
     "LigaRecordClient",
     "ManualSquadSource",
     "MarketError",
+    "SiteError",
     "SquadSource",
     "SquadSourceError",
+    "parse_fixtures",
     "parse_market_player",
 ]

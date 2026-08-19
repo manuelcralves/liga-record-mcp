@@ -132,20 +132,38 @@ budget. Confirming a transfer stays a human's click on Record's own site.
 | 1 · Rules engine | done |
 | 2 · Data-source seam + YAML squad | done |
 | 3 · MCP server | done |
-| 4 · Live site — market reads, squad does not | half |
+| 4 · Live site — market and calendar read, squad does not | mostly |
 
-**Honestly missing:** no fixtures, no gameweek calendar, no standings, no coach
-list. That last one matters — §6.17 says a missing coach scores zero, and the
-server will currently accept any text as a coach.
+**Honestly missing:** no standings and no coach list. That last one matters —
+§6.17 says a missing coach scores zero, and the server will currently accept any
+text as a coach.
 
-Fixtures are the biggest gap. Every recommendation is currently form-based, with
-no knowledge of who plays whom.
+### The calendar is the one scraped surface
+
+The market has a JSON endpoint; the calendar does not, so all 306 fixtures are
+parsed out of one HTML page. That is brittle by nature, so it is contained:
+every selector lives in `parse_fixtures`, and a recorded copy of the page is
+checked into `tests/fixtures/calendario.html`. A redesign fails one test rather
+than quietly producing wrong opponents.
+
+Two things reality taught the parser. The site separates day from month with a
+**non-breaking space** — the same U+00A0 that bit the euro formatter back in
+step 1 — and **far-future rounds have a date but no kickoff time**, which is a
+real state rather than a parse failure.
+
+### "Next round" is not what the calendar says
+
+A single postponed match keeps a finished round open. On the day this was built,
+round 2 still had Sp. Braga vs Gil Vicente outstanding, so "first round with an
+unplayed match" answered 2 while the actual fantasy ronda was 3. `squad_fixtures`
+therefore trusts the squad file's own `round:` and falls back to the calendar
+only when it has nothing better. `get_fixtures` stays literal, because it is a
+question about the league rather than about your team.
 
 ## Next, in order
 
 1. **Restructure the squad.** The only item with a deadline — points start at
    Ronda 5 and the site still reports `team_has_played: false`. Not code.
 2. **Fill in the `selection:` block** in `data/squad.yaml`.
-3. **Add fixtures.** The largest quality jump available in code.
-4. **Finish the live squad read.** Needs a login; real work for convenience.
-5. **Verify the three uncertain rules.** Costs nothing once a round is scored.
+3. **Finish the live squad read.** Needs a login; real work for convenience.
+4. **Verify the three uncertain rules.** Costs nothing once a round is scored.

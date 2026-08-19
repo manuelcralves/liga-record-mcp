@@ -68,6 +68,8 @@ def test_everything_is_registered_on_the_server():
         "project_price",
         "search_market",
         "check_market_transfer",
+        "get_fixtures",
+        "squad_fixtures",
     }
     assert resources == {"ligarecord://regulamento", "ligarecord://squad"}
     assert prompts == {"pick_starting_xi", "plan_transfers"}
@@ -338,3 +340,84 @@ def test_check_market_transfer_refuses_an_unowned_outgoing_player(
     result = mcp_server.check_market_transfer("99999", "41452")
     assert result["is_valid"] is False
     assert "not in the squad" in result["violations"][0]["detail"]
+
+
+# --------------------------------------------------------------------------
+# Calendar tools — also stubbed, no network.
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def stub_calendar(monkeypatch: pytest.MonkeyPatch):
+    """A three-round calendar where round 2 has one match still unplayed."""
+    from liga_record_mcp.models import Fixture
+
+    calendar = [
+        Fixture(round_number=1, home="Club 1", away="Club 2", home_goals=1, away_goals=0),
+        Fixture(round_number=2, home="Club 2", away="Club 1", home_goals=2, away_goals=2),
+        # The straggler: postponed, so round 2 is still technically open.
+        Fixture(round_number=2, home="Club 3", away="Club 4", kickoff="20 AGO 20:30"),
+        Fixture(round_number=3, home="Club 1", away="Club 3", kickoff="23 AGO 18:00"),
+        Fixture(round_number=3, home="Club 2", away="Club 5", kickoff="23 AGO 20:30"),
+    ]
+
+    class StubCalendar:
+        def fixtures(self):
+            return calendar
+
+        def search(self, position, **kwargs):
+            return []
+
+    monkeypatch.setattr(mcp_server, "_market", StubCalendar())
+
+
+def test_squad_fixtures_follows_the_squads_own_round(stub_calendar):
+    """A postponed match keeps round 2 open; the squad says round 3, so use 3.
+
+    Answering about round 2 because one fixture is outstanding would attach
+    every player to the wrong opponent.
+    """
+    result = mcp_server.squad_fixtures()
+    assert result["fixtures_round"] == 3
+
+
+def test_squad_fixtures_reports_opponent_and_venue(stub_calendar):
+    result = mcp_server.squad_fixtures(round_number=1)
+    entries = {e["name"]: e for e in result["playing"]}
+    someone = next(e for e in entries.values() if e["club"] == "Club 1")
+    assert someone["opponent"] == "Club 2"
+    assert someone["at"] == "home"
+
+
+def test_squad_fixtures_separates_players_with_no_match(stub_calendar):
+    """A player whose club is idle cannot score, so they must not be buried
+    in the same list as everyone else."""
+    result = mcp_server.squad_fixtures(round_number=1)
+    idle_clubs = {e["club"] for e in result["no_match_this_round"]}
+    assert "Club 3" in idle_clubs  # not in the round-1 fixture
+    assert all(e["club"] in {"Club 1", "Club 2"} for e in result["playing"])
+
+
+def test_get_fixtures_defaults_to_the_first_unplayed_round(stub_calendar):
+    """get_fixtures is about the league, not the squad, so it stays literal."""
+    result = mcp_server.get_fixtures()
+    assert result["round"] == 2
+    assert result["next_unplayed_round"] == 2
+    assert result["count"] == 2
+
+
+def test_get_fixtures_filters_by_club_without_accents(stub_calendar):
+    result = mcp_server.get_fixtures(round_number=3, club="club 5")
+    assert result["count"] == 1
+    assert result["fixtures"][0]["away"] == "Club 5"
+
+
+def test_get_fixtures_reports_a_failure_rather_than_crashing(monkeypatch):
+    from liga_record_mcp.source import SiteError
+
+    class Broken:
+        def fixtures(self):
+            raise SiteError("calendar page moved")
+
+    monkeypatch.setattr(mcp_server, "_market", Broken())
+    assert "could not read the calendar" in mcp_server.get_fixtures()["detail"]
