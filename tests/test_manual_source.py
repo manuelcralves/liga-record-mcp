@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
+from helpers import squad_document as as_document
+from helpers import write_squad_file
 
 from liga_record_mcp.models import Squad
 from liga_record_mcp.source import ManualSquadSource, SquadSource, SquadSourceError
@@ -27,35 +28,8 @@ LEGAL_XI = [
 ]
 
 
-def as_document(squad: Squad, **extra: Any) -> dict[str, Any]:
-    document: dict[str, Any] = {
-        "team": {
-            "id": squad.team_id,
-            "name": squad.team_name,
-            "bonus": squad.bonus,
-            "penalties": squad.penalties,
-        },
-        "players": [
-            {
-                "id": p.id,
-                "name": p.name,
-                "position": p.position.value,
-                "club": p.club,
-                "value": p.value,
-                "initial_value": p.initial_value,
-                "points_total": p.points_total,
-            }
-            for p in squad.players
-        ],
-    }
-    document.update(extra)
-    return document
-
-
 def write_squad(tmp_path: Path, document: dict[str, Any]) -> ManualSquadSource:
-    path = tmp_path / "squad.yaml"
-    path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
-    return ManualSquadSource(path)
+    return ManualSquadSource(write_squad_file(tmp_path / "squad.yaml", document))
 
 
 def test_loads_a_valid_squad(tmp_path: Path, squad: Squad):
