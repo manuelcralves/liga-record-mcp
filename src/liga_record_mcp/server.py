@@ -1461,6 +1461,26 @@ publishes a line-up.
 - At most {MAX_SUBS_ON} substitutes come on.
 - A replaced captain passes the armband to whoever comes on (§11.5).
 
+## The trial period (§19)
+
+Rounds 1-4 are a trial — "período experimental" — and round 5 "marca o início
+efetivo do passatempo". It runs until 1 September.
+
+- Points are scored exactly as in the real thing during those rounds.
+- **They do not move prices.** This is why 0 of 498 players had been repriced
+  after two rounds, a silence this project could not explain until §19 was
+  read: the pricing rules of §12 simply are not running yet.
+- Squads can be rebuilt freely rather than one transfer a round — seven were
+  made in a single window, which is the evidence.
+- A player whose value or position changes is REMOVED from squads holding him;
+  one who leaves the league is hidden from search, kept in the squad, and
+  scores -1 every round thereafter.
+
+Whether the points carry into round 5 or the table restarts is NOT stated
+here, and the summer-championship table the site exposes comes back empty, so
+this server does not claim either. Check the site before treating a lead or a
+deficit from these rounds as meaning anything.
+
 ## Transfers (§6.8, §6.9)
 - One per round, like for like: the positional contingent must hold.
 - Transfers close in February; the reopened market allows up to

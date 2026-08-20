@@ -155,18 +155,23 @@ def market_leaders(stored: dict) -> dict:
                 continue
             played = counts.get(player.club, 0)
             rate = per_match(player.points_total, played)
-            if played >= 2 and rate is not None:
+            # Requiring two matches would drop Sp. Braga and Gil Vicente
+            # entirely — hiding the clubs the postponement disadvantaged, which
+            # is the denominator mistake in another hat. They rank with
+            # everyone else and carry their sample size.
+            if played >= 1 and rate is not None:
                 ranked.append(
                     {
                         "name": player.name,
                         "club": player.club,
                         "rate": round(rate, 1),
+                        "matches": played,
                         "value": player.value,
                         "owned": round(player.owned_percent, 1),
                         "mine": player.id in mine,
                     }
                 )
-        ranked.sort(key=lambda r: (-r["rate"], -r["owned"]))
+        ranked.sort(key=lambda r: (-r["rate"], -r["matches"], -r["owned"]))
         best[pos.value] = ranked[:3]
 
     owned = sorted(market, key=lambda p: -p.owned_percent)[:5]
@@ -684,7 +689,7 @@ def best_section(data: dict) -> str:
         rows = best.get(pos) or []
         entries = chr(10).join(
             f"""            <tr>
-              <td class="name">{esc(r['name'])}{'<span class="cap">teu</span>' if r['mine'] else ''}<span class="sub">{esc(r['club'])} · {r['owned']:.0f}% posse</span></td>
+              <td class="name">{esc(r['name'])}{'<span class="cap">teu</span>' if r['mine'] else ''}<span class="sub">{esc(r['club'])} · {r['owned']:.0f}% posse{' · 1 jogo só' if r['matches'] < 2 else ''}</span></td>
               <td class="fig strong">{r['rate']:.1f}</td>
             </tr>"""
             for r in rows
@@ -700,8 +705,10 @@ def best_section(data: dict) -> str:
         </div>"""
         )
     share = market["never_played"] / market["market_size"]
-    return f"""      <p class="lede">Pontos por jogo entre quem tem pelo menos dois
-      jogos. Tens <strong>{market['podium_slots_mine']} dos
+    return f"""      <p class="lede">Pontos por jogo. Quem tem um jogo só — o Sp. Braga e o
+      Gil Vicente, por causa do adiamento — vai marcado, mas não é excluído:
+      deixá-los de fora esconderia justamente os clubes que o adiamento
+      prejudicou. Tens <strong>{market['podium_slots_mine']} dos
       {market['podium_slots']}</strong> lugares do pódio — o plantel não é o
       problema. Vale a pena lembrar o pano de fundo: <strong>{market['never_played']}
       dos {market['market_size']}</strong> jogadores do mercado ({share:.0%}) ainda não
