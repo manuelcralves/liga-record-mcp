@@ -197,7 +197,13 @@ class TeamStanding(BaseModel):
     user_name: str
     points_total: int
     points_round: int
+    #: Rank among every team in the country.
     position: int
+    #: Rank inside a private league. Only the league service fills this in; a
+    #: national query leaves it None. It is the number a participant playing
+    #: against friends actually cares about, so it is kept distinct from
+    #: `position` rather than overwriting it.
+    position_league: int | None = None
     position_round: int | None = None
     position_change: int | None = None
     formation: str | None = None

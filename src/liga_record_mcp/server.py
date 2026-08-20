@@ -93,6 +93,12 @@ COACHES_PATH = Path(
     or Path(__file__).resolve().parents[2] / "data" / "coaches.yaml"
 )
 
+#: The private league to read when `standings` is called without a guid.
+#: Kept in the environment rather than in a file because the guid exposes the
+#: team names and usernames of everyone else in the league, and .mcp.json is
+#: committed. Set it in the shell, never in a tracked config.
+DEFAULT_LEAGUE = os.environ.get("LIGA_RECORD_LEAGUE") or None
+
 #: The only file this server writes to.
 APPEARANCES_PATH = Path(
     os.environ.get("LIGA_RECORD_APPEARANCES")
@@ -544,14 +550,15 @@ def standings(
     A position is reported together with the size of the field, since one
     without the other says very little.
     """
+    guid = league_guid or DEFAULT_LEAGUE
     try:
         rows, pages = _market.standings(
-            team=team, league_guid=league_guid, page=page, page_size=page_size
+            team=team, league_guid=guid, page=page, page_size=page_size
         )
     except SiteError as exc:
         return {"detail": str(exc)}
 
-    scope = "private league" if league_guid else "national"
+    scope = "private league" if guid else "national"
     out: dict[str, Any] = {
         "as_of": _now_iso(),
         "source": "ligarecord",
@@ -561,6 +568,7 @@ def standings(
         "teams": [
             {
                 "position": r.position,
+                "position_league": r.position_league,
                 "team": r.team_name,
                 "user": r.user_name,
                 "points_total": r.points_total,
@@ -575,7 +583,7 @@ def standings(
     # Only an unfiltered query walks the whole field; with `team` set the page
     # count describes the matches for that name, which says nothing about how
     # many teams are playing.
-    if pages and not league_guid and not team:
+    if pages and not guid and not team:
         out["field_size_estimate"] = pages * page_size
         out["field_size_note"] = (
             "pages x page_size, so the last page is partial and this is an upper bound"

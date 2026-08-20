@@ -169,3 +169,31 @@ def test_an_empty_page_is_not_an_error(monkeypatch):
 
     assert rows == []
     assert pages == 0
+
+
+def test_a_private_league_carries_its_own_position():
+    """PositionLeague is the number that decides a league among friends.
+
+    The national service leaves it empty, so it must not be confused with
+    `position` — a team can be 6598th in the country and 8th of 30 friends.
+    """
+    standing = parse_standing(
+        {
+            "IdTeam": 156412,
+            "NameTeam": "Melro",
+            "NameUser": "manuelcralves",
+            "PointsTotal": "87",
+            "PointsRound": "38",
+            "Position": "6598",
+            "PositionLeague": "8",
+        }
+    )
+    assert standing.position == 6598
+    assert standing.position_league == 8
+
+
+def test_a_national_row_has_no_league_position(payload):
+    """The national service sends "" here, which is absence, not zero."""
+    standing = parse_standing(payload[0]["Teams"][0])
+
+    assert standing.position_league is None

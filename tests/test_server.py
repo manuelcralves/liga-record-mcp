@@ -629,3 +629,33 @@ def test_standings_reports_a_site_failure_as_detail(monkeypatch):
 
     assert "could not reach" in result["detail"]
     assert "teams" not in result
+
+
+def test_standings_falls_back_to_the_configured_league(monkeypatch):
+    """The guid is not committed, so it arrives from the environment."""
+    seen = {}
+
+    class Ranked:
+        def standings(self, *, league_guid=None, **kwargs):
+            seen["guid"] = league_guid
+            return [], 0
+
+    monkeypatch.setattr(mcp_server, "_market", Ranked())
+    monkeypatch.setattr(mcp_server, "DEFAULT_LEAGUE", "from-the-environment")
+
+    assert mcp_server.standings()["scope"] == "private league"
+    assert seen["guid"] == "from-the-environment"
+
+    mcp_server.standings(league_guid="explicit-wins")
+    assert seen["guid"] == "explicit-wins"
+
+
+def test_standings_is_national_when_no_league_is_configured(monkeypatch):
+    class Ranked:
+        def standings(self, **kwargs):
+            return [], 0
+
+    monkeypatch.setattr(mcp_server, "_market", Ranked())
+    monkeypatch.setattr(mcp_server, "DEFAULT_LEAGUE", None)
+
+    assert mcp_server.standings()["scope"] == "national"

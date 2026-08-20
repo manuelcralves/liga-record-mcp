@@ -107,6 +107,7 @@ def parse_standing(row: dict[str, Any]) -> TeamStanding:
             points_total=_int_or_none(row.get("PointsTotal")) or 0,
             points_round=_int_or_none(row.get("PointsRound")) or 0,
             position=_int_or_none(row.get("Position")) or 0,
+            position_league=_int_or_none(row.get("PositionLeague")),
             position_round=_int_or_none(row.get("PositionRound")),
             position_change=_int_or_none(row.get("PositionChange")),
             formation=row.get("TeamFormation") or None,
