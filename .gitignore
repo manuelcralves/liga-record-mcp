@@ -22,3 +22,7 @@ design/*.html
 # zerozero page cache: other people's pages, fetched once and kept locally.
 # Not ours to redistribute, and regenerable.
 data/zerozero-cache/
+
+# Player history scraped from zerozero: regenerable, and not ours to
+# redistribute wholesale.
+data/players.json
