@@ -1,0 +1,19 @@
+# GitHub Pages serves this whole folder, and Pages can only be pointed at the
+# repository root or at /docs — there is no way to give the site a subfolder of
+# its own. Without this file, the project's notes are published as web pages
+# too: Jekyll converts them to HTML and serves the raw Markdown alongside.
+#
+# They are meant to be read on GitHub, next to the code they describe, not
+# hosted. Excluding them here keeps them exactly where they belong in the
+# repository while leaving the dashboard as the only thing the site publishes.
+exclude:
+  - HOW-IT-WORKS.md
+  - PLANNING.md
+
+# The dashboard is a complete, self-contained page. Jekyll must copy it through
+# untouched rather than wrapping it in a layout or rewriting its markup.
+defaults:
+  - scope:
+      path: "index.html"
+    values:
+      layout: null
