@@ -668,6 +668,64 @@ def club_concentration(players: Sequence[Player]) -> list[tuple[str, int]]:
     return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
+def league_table(fixtures: Iterable[Fixture]) -> list[dict[str, object]]:
+    """The Primeira Liga table, computed from the calendar rather than fetched.
+
+    Every input is already on hand: the calendar carries scores for played
+    matches, so the standings are a fold over it. Nothing new is requested from
+    the site.
+
+    `played` is reported per club and never assumed equal. Two clubs are a
+    match behind after one postponement, and a table that hides that is the
+    same error as a points total without its denominator — which is what this
+    module exists to prevent.
+
+    Ordering is the Portuguese one: points, then goal difference, then goals
+    scored, then name so the result is stable.
+    """
+    table: dict[str, dict[str, int]] = {}
+    for fixture in fixtures:
+        if not fixture.played:
+            continue
+        sides = (
+            (fixture.home, fixture.home_goals, fixture.away_goals),
+            (fixture.away, fixture.away_goals, fixture.home_goals),
+        )
+        for club, scored, conceded in sides:
+            row = table.setdefault(
+                club,
+                {"played": 0, "won": 0, "drawn": 0, "lost": 0,
+                 "goals_for": 0, "goals_against": 0},
+            )
+            row["played"] += 1
+            row["goals_for"] += scored
+            row["goals_against"] += conceded
+            if scored > conceded:
+                row["won"] += 1
+            elif scored == conceded:
+                row["drawn"] += 1
+            else:
+                row["lost"] += 1
+
+    rows = []
+    for club, row in table.items():
+        difference = row["goals_for"] - row["goals_against"]
+        rows.append(
+            {
+                "club": club,
+                **row,
+                "goal_difference": difference,
+                "points": row["won"] * 3 + row["drawn"],
+            }
+        )
+    rows.sort(
+        key=lambda r: (-r["points"], -r["goal_difference"], -r["goals_for"], r["club"])
+    )
+    for place, row in enumerate(rows, 1):
+        row["position"] = place
+    return rows
+
+
 def rate_rows(
     players: Sequence[Player], matches_by_club: dict[str, int]
 ) -> list[dict[str, object]]:

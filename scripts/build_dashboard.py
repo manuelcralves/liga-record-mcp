@@ -39,6 +39,8 @@ from liga_record_mcp.source import OpenFootballClient  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
     adjust_for_fixture,
     fixture_multipliers,
+    matches_played,
+    per_match,
     upcoming_opponents,
 )
 
@@ -126,7 +128,69 @@ def gather(round_number: int) -> dict:
         "differentials": mcp.find_differentials(limit=10, min_matches=1),
         "exposure": mcp.squad_exposure(round_number=round_number),
         "grid": fixture_grid(stored, round_number),
+        "table": mcp.primeira_liga(),
+        "market": market_leaders(stored),
         "as_of": national.get("as_of", ""),
+    }
+
+
+def market_leaders(stored: dict) -> dict:
+    """Who is scoring most per match, and who the country has picked.
+
+    Both answers come from the same market read the differentials already need,
+    so this costs nothing extra. The ownership half is the counterweight to the
+    differentials table: it says how far the squad already sits inside the
+    consensus, which is what a differential is a move away from.
+    """
+    market = [p for pos in Position for p in mcp._market.search(pos)]
+    counts = matches_played(mcp._market.fixtures())
+    mine = set(stored["players"])
+
+    best = {}
+    for pos in Position:
+        ranked = []
+        for player in market:
+            if player.position is not pos:
+                continue
+            played = counts.get(player.club, 0)
+            rate = per_match(player.points_total, played)
+            if played >= 2 and rate is not None:
+                ranked.append(
+                    {
+                        "name": player.name,
+                        "club": player.club,
+                        "rate": round(rate, 1),
+                        "value": player.value,
+                        "owned": round(player.owned_percent, 1),
+                        "mine": player.id in mine,
+                    }
+                )
+        ranked.sort(key=lambda r: (-r["rate"], -r["owned"]))
+        best[pos.value] = ranked[:3]
+
+    owned = sorted(market, key=lambda p: -p.owned_percent)[:5]
+    return {
+        "best": best,
+        "most_owned": [
+            {
+                "name": p.name,
+                "club": p.club,
+                "owned": round(p.owned_percent, 1),
+                "mine": p.id in mine,
+            }
+            for p in owned
+        ],
+        "mine_in_top_owned": sum(1 for p in owned if p.id in mine),
+        "podium_slots_mine": sum(
+            1 for rows in best.values() for r in rows if r["mine"]
+        ),
+        "podium_slots": sum(len(rows) for rows in best.values()),
+        "never_played": sum(
+            1
+            for p in market
+            if counts.get(p.club, 0) > 0 and p.points_total == -counts.get(p.club, 0)
+        ),
+        "market_size": len(market),
     }
 
 
@@ -478,7 +542,19 @@ def differentials_section(data: dict) -> str:
         f"{pos} {vals['slope']:.2f}"
         for pos, vals in sorted(result.get("fit", {}).items())
     )
-    return f"""      <p class="lede">A posse prevê a pontuação melhor do que qualquer
+    market = data["market"]
+    consensus = ""
+    if market["mine_in_top_owned"]:
+        names = ", ".join(
+            esc(p["name"]) for p in market["most_owned"] if p["mine"]
+        )
+        consensus = (
+            f"Os <strong>{market['mine_in_top_owned']} jogadores mais escolhidos "
+            f"do país</strong> são meus — {names}. O plantel é o consenso "
+            "nacional, e é por isso que empata com quem está à frente em vez de "
+            "recuperar: não se ganha terreno a jogar as mesmas cartas. "
+        )
+    return f"""      <p class="lede">{consensus}A posse prevê a pontuação melhor do que qualquer
       outra coisa no mercado — de <strong>−0,15</strong> pontos por jogo abaixo de
       1% de posse até <strong>5,33</strong> acima de 30%. Por isso comprar quem
       ninguém tem é mau negócio. O que interessa é o resíduo: quem rende acima da
@@ -549,6 +625,88 @@ def ledger_section(data: dict) -> str:
 {chr(10).join(body)}
           </tbody>
         </table>
+      </div>"""
+
+
+def liga_section(data: dict) -> str:
+    """The real league table, which is the ground everything else stands on."""
+    result = data["table"]
+    rows = result.get("table") or []
+    if not rows:
+        return f'      <p class="lede">{esc(result.get("detail", "sem tabela"))}.</p>'
+    mine = {row["club"] for row in data["stored"]["players"].values()}
+    body = []
+    for r in rows:
+        held = sum(1 for p in data["stored"]["players"].values() if p["club"] == r["club"])
+        body.append(
+            f"""            <tr class="{'is-me' if r['club'] in mine else ''}">
+              <td class="fig rank">{r['position']}</td>
+              <td class="name">{esc(r['club'])}{f'<span class="sub">{held} teus</span>' if held else ''}</td>
+              <td class="fig">{r['played']}</td>
+              <td class="fig">{r['won']}</td>
+              <td class="fig">{r['drawn']}</td>
+              <td class="fig">{r['lost']}</td>
+              <td class="fig muted">{r['goals_for']}–{r['goals_against']}</td>
+              <td class="fig {'up' if r['goal_difference'] > 0 else 'down' if r['goal_difference'] < 0 else ''}">{r['goal_difference']:+}</td>
+              <td class="fig strong">{r['points']}</td>
+            </tr>"""
+        )
+    uneven = (
+        " Repara na coluna <strong>J</strong> antes da ordem: o Sp. Braga e o "
+        "Gil Vicente têm um jogo a menos, e uma tabela que escondesse isso "
+        "cometia o mesmo erro que um total de pontos sem o seu denominador."
+        if result.get("uneven_matches")
+        else ""
+    )
+    return f"""      <p class="lede">Calculada do calendário, não pedida ao site —
+      {result['matches_scored']} jogos disputados.{uneven}</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr>
+            <th class="fig">#</th><th>Clube</th><th class="fig">J</th>
+            <th class="fig">V</th><th class="fig">E</th><th class="fig">D</th>
+            <th class="fig">Golos</th><th class="fig">DG</th><th class="fig">P</th>
+          </tr></thead>
+          <tbody>
+{chr(10).join(body)}
+          </tbody>
+        </table>
+      </div>"""
+
+
+def best_section(data: dict) -> str:
+    """The market's top scorers per position, and how much of it is already his."""
+    market = data["market"]
+    best = market["best"]
+    cols = []
+    for pos in ("GK", "DEF", "MID", "FWD"):
+        rows = best.get(pos) or []
+        entries = chr(10).join(
+            f"""            <tr>
+              <td class="name">{esc(r['name'])}{'<span class="cap">teu</span>' if r['mine'] else ''}<span class="sub">{esc(r['club'])} · {r['owned']:.0f}% posse</span></td>
+              <td class="fig strong">{r['rate']:.1f}</td>
+            </tr>"""
+            for r in rows
+        )
+        cols.append(
+            f"""        <div>
+          <h3>{POS_PT[pos]}</h3>
+          <table class="data">
+            <tbody>
+{entries}
+            </tbody>
+          </table>
+        </div>"""
+        )
+    share = market["never_played"] / market["market_size"]
+    return f"""      <p class="lede">Pontos por jogo entre quem tem pelo menos dois
+      jogos. Tens <strong>{market['podium_slots_mine']} dos
+      {market['podium_slots']}</strong> lugares do pódio — o plantel não é o
+      problema. Vale a pena lembrar o pano de fundo: <strong>{market['never_played']}
+      dos {market['market_size']}</strong> jogadores do mercado ({share:.0%}) ainda não
+      pisaram o relvado esta época.</p>
+      <div class="quad">
+{chr(10).join(cols)}
       </div>"""
 
 
@@ -868,6 +1026,9 @@ tr.is-dead td, tr.is-dead .name {{ color: var(--dim); font-weight: 400; }}
 .dist-end.right {{ left: auto; right: 0; }}
 .dist-me {{ position: absolute; transform: translateX(-50%); color: var(--red); font-weight: 600; white-space: nowrap; }}
 
+.quad {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0 30px; }}
+.quad h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0 0 2px; border-bottom: 1px solid var(--rule); padding-bottom: 4px; }}
+.quad .cap {{ margin-left: 6px; }}
 .questions {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }}
 .q h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }}
 .q-state {{ margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }}
@@ -900,6 +1061,11 @@ a {{ color: var(--red); }}
     </section>
 
     <section>
+      <h2>Os melhores até agora</h2><div class="rule"></div>
+{best_section(data)}
+    </section>
+
+    <section>
       <h2>Quem rende mais do que a posse dele</h2><div class="rule"></div>
 {differentials_section(data)}
     </section>
@@ -912,6 +1078,11 @@ a {{ color: var(--red); }}
     <section>
       <h2>A liga privada</h2><div class="rule"></div>
 {league_section(data, public)}
+    </section>
+
+    <section>
+      <h2>A Primeira Liga</h2><div class="rule"></div>
+{liga_section(data)}
     </section>
 
     <section>

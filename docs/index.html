@@ -199,6 +199,9 @@ tr.is-dead td, tr.is-dead .name { color: var(--dim); font-weight: 400; }
 .dist-end.right { left: auto; right: 0; }
 .dist-me { position: absolute; transform: translateX(-50%); color: var(--red); font-weight: 600; white-space: nowrap; }
 
+.quad { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0 30px; }
+.quad h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0 0 2px; border-bottom: 1px solid var(--rule); padding-bottom: 4px; }
+.quad .cap { margin-left: 6px; }
 .questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }
 .q h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }
 .q-state { margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }
@@ -549,8 +552,96 @@ a { color: var(--red); }
     </section>
 
     <section>
+      <h2>Os melhores até agora</h2><div class="rule"></div>
+      <p class="lede">Pontos por jogo entre quem tem pelo menos dois
+      jogos. Tens <strong>8 dos
+      12</strong> lugares do pódio — o plantel não é o
+      problema. Vale a pena lembrar o pano de fundo: <strong>210
+      dos 498</strong> jogadores do mercado (42%) ainda não
+      pisaram o relvado esta época.</p>
+      <div class="quad">
+        <div>
+          <h3>GR</h3>
+          <table class="data">
+            <tbody>
+            <tr>
+              <td class="name">Diogo Costa<span class="cap">teu</span><span class="sub">FC Porto · 27% posse</span></td>
+              <td class="fig strong">7.0</td>
+            </tr>
+            <tr>
+              <td class="name">Arruabarrena<span class="sub">Arouca · 12% posse</span></td>
+              <td class="fig strong">6.5</td>
+            </tr>
+            <tr>
+              <td class="name">Alfonso Pastor<span class="cap">teu</span><span class="sub">Marítimo · 18% posse</span></td>
+              <td class="fig strong">4.0</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>DEF</h3>
+          <table class="data">
+            <tbody>
+            <tr>
+              <td class="name">Jose Fontán<span class="cap">teu</span><span class="sub">Arouca · 14% posse</span></td>
+              <td class="fig strong">8.0</td>
+            </tr>
+            <tr>
+              <td class="name">Nehuén Pérez<span class="cap">teu</span><span class="sub">FC Porto · 6% posse</span></td>
+              <td class="fig strong">6.5</td>
+            </tr>
+            <tr>
+              <td class="name">Javi Sánchez<span class="cap">teu</span><span class="sub">Arouca · 23% posse</span></td>
+              <td class="fig strong">6.0</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>MED</h3>
+          <table class="data">
+            <tbody>
+            <tr>
+              <td class="name">Raphael Guzzo<span class="cap">teu</span><span class="sub">Marítimo · 26% posse</span></td>
+              <td class="fig strong">8.5</td>
+            </tr>
+            <tr>
+              <td class="name">Samu<span class="cap">teu</span><span class="sub">V. Guimarães · 32% posse</span></td>
+              <td class="fig strong">5.5</td>
+            </tr>
+            <tr>
+              <td class="name">Altimira<span class="sub">Sporting · 11% posse</span></td>
+              <td class="fig strong">5.0</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>AVA</h3>
+          <table class="data">
+            <tbody>
+            <tr>
+              <td class="name">Pavlidis<span class="cap">teu</span><span class="sub">Benfica · 50% posse</span></td>
+              <td class="fig strong">15.0</td>
+            </tr>
+            <tr>
+              <td class="name">Gonçalo Paciência<span class="sub">Santa Clara · 20% posse</span></td>
+              <td class="fig strong">7.0</td>
+            </tr>
+            <tr>
+              <td class="name">Barbero<span class="sub">Arouca · 12% posse</span></td>
+              <td class="fig strong">7.0</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section>
       <h2>Quem rende mais do que a posse dele</h2><div class="rule"></div>
-      <p class="lede">A posse prevê a pontuação melhor do que qualquer
+      <p class="lede">Os <strong>5 jogadores mais escolhidos do país</strong> são meus — Pavlidis, Zalazar, Finn van Breemen, Lucão, Santi García. O plantel é o consenso nacional, e é por isso que empata com quem está à frente em vez de recuperar: não se ganha terreno a jogar as mesmas cartas. A posse prevê a pontuação melhor do que qualquer
       outra coisa no mercado — de <strong>−0,15</strong> pontos por jogo abaixo de
       1% de posse até <strong>5,33</strong> acima de 30%. Por isso comprar quem
       ninguém tem é mau negócio. O que interessa é o resíduo: quem rende acima da
@@ -599,7 +690,7 @@ a { color: var(--red); }
               <td class="fig">0.3%</td>
               <td class="fig">4.5</td>
               <td class="fig muted">0.7</td>
-              <td class="fig up strong">+3.79</td>
+              <td class="fig up strong">+3.77</td>
               <td class="fig">500 000</td>
               <td class="sub">2</td>
             </tr>
@@ -646,10 +737,10 @@ a { color: var(--red); }
             <tr>
               <td class="name">Maurice Boakye<span class="sub">Marítimo</span></td>
               <td class="sub">AVA</td>
-              <td class="fig">1.1%</td>
+              <td class="fig">1.2%</td>
               <td class="fig">5.0</td>
               <td class="fig muted">1.7</td>
-              <td class="fig up strong">+3.28</td>
+              <td class="fig up strong">+3.27</td>
               <td class="fig">500 000</td>
               <td class="sub">2</td>
             </tr>
@@ -964,6 +1055,221 @@ a { color: var(--red); }
     </section>
 
     <section>
+      <h2>A Primeira Liga</h2><div class="rule"></div>
+      <p class="lede">Calculada do calendário, não pedida ao site —
+      17 jogos disputados. Repara na coluna <strong>J</strong> antes da ordem: o Sp. Braga e o Gil Vicente têm um jogo a menos, e uma tabela que escondesse isso cometia o mesmo erro que um total de pontos sem o seu denominador.</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr>
+            <th class="fig">#</th><th>Clube</th><th class="fig">J</th>
+            <th class="fig">V</th><th class="fig">E</th><th class="fig">D</th>
+            <th class="fig">Golos</th><th class="fig">DG</th><th class="fig">P</th>
+          </tr></thead>
+          <tbody>
+            <tr class="is-me">
+              <td class="fig rank">1</td>
+              <td class="name">Arouca<span class="sub">3 teus</span></td>
+              <td class="fig">2</td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">0</td>
+              <td class="fig muted">5–0</td>
+              <td class="fig up">+5</td>
+              <td class="fig strong">6</td>
+            </tr>
+            <tr class="is-me">
+              <td class="fig rank">2</td>
+              <td class="name">FC Porto<span class="sub">3 teus</span></td>
+              <td class="fig">2</td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">0</td>
+              <td class="fig muted">4–0</td>
+              <td class="fig up">+4</td>
+              <td class="fig strong">6</td>
+            </tr>
+            <tr class="is-me">
+              <td class="fig rank">3</td>
+              <td class="name">Marítimo<span class="sub">3 teus</span></td>
+              <td class="fig">2</td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">0</td>
+              <td class="fig muted">3–1</td>
+              <td class="fig up">+2</td>
+              <td class="fig strong">6</td>
+            </tr>
+            <tr class="is-me">
+              <td class="fig rank">4</td>
+              <td class="name">Benfica<span class="sub">1 teus</span></td>
+              <td class="fig">2</td>
+              <td class="fig">1</td>
+              <td class="fig">1</td>
+              <td class="fig">0</td>
+              <td class="fig muted">9–2</td>
+              <td class="fig up">+7</td>
+              <td class="fig strong">4</td>
+            </tr>
+            <tr class="is-me">
+              <td class="fig rank">5</td>
+              <td class="name">Nacional<span class="sub">1 teus</span></td>
+              <td class="fig">2</td>
+              <td class="fig">1</td>
+              <td class="fig">1</td>
+              <td class="fig">0</td>
+              <td class="fig muted">4–2</td>
+              <td class="fig up">+2</td>
+              <td class="fig strong">4</td>
+            </tr>
+            <tr class="is-me">
+              <td class="fig rank">6</td>
+              <td class="name">Sporting<span class="sub">2 teus</span></td>
+              <td class="fig">2</td>
+              <td class="fig">1</td>
+              <td class="fig">1</td>
+              <td class="fig">0</td>
+              <td class="fig muted">5–4</td>
+              <td class="fig up">+1</td>
+              <td class="fig strong">4</td>
+            </tr>
+            <tr class="">
+              <td class="fig rank">7</td>
+              <td class="name">Santa Clara</td>
+              <td class="fig">2</td>
+              <td class="fig">1</td>
+              <td class="fig">1</td>
+              <td class="fig">0</td>
+              <td class="fig muted">3–2</td>
+              <td class="fig up">+1</td>
+              <td class="fig strong">4</td>
+            </tr>
+            <tr class="is-me">
+              <td class="fig rank">8</td>
+              <td class="name">Gil Vicente<span class="sub">5 teus</span></td>
+              <td class="fig">1</td>
+              <td class="fig">1</td>
+              <td class="fig">0</td>
+              <td class="fig">0</td>
+              <td class="fig muted">1–0</td>
+              <td class="fig up">+1</td>
+              <td class="fig strong">3</td>
+            </tr>
+            <tr class="">
+              <td class="fig rank">9</td>
+              <td class="name">E. Amadora</td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig muted">4–4</td>
+              <td class="fig ">+0</td>
+              <td class="fig strong">2</td>
+            </tr>
+            <tr class="is-me">
+              <td class="fig rank">10</td>
+              <td class="name">Sp. Braga<span class="sub">2 teus</span></td>
+              <td class="fig">1</td>
+              <td class="fig">0</td>
+              <td class="fig">1</td>
+              <td class="fig">0</td>
+              <td class="fig muted">2–2</td>
+              <td class="fig ">+0</td>
+              <td class="fig strong">1</td>
+            </tr>
+            <tr class="">
+              <td class="fig rank">11</td>
+              <td class="name">Académico</td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">1</td>
+              <td class="fig">1</td>
+              <td class="fig muted">2–3</td>
+              <td class="fig down">-1</td>
+              <td class="fig strong">1</td>
+            </tr>
+            <tr class="is-me">
+              <td class="fig rank">12</td>
+              <td class="name">Famalicão<span class="sub">1 teus</span></td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">1</td>
+              <td class="fig">1</td>
+              <td class="fig muted">2–3</td>
+              <td class="fig down">-1</td>
+              <td class="fig strong">1</td>
+            </tr>
+            <tr class="">
+              <td class="fig rank">13</td>
+              <td class="name">Alverca</td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">1</td>
+              <td class="fig">1</td>
+              <td class="fig muted">2–4</td>
+              <td class="fig down">-2</td>
+              <td class="fig strong">1</td>
+            </tr>
+            <tr class="is-me">
+              <td class="fig rank">14</td>
+              <td class="name">Estoril<span class="sub">1 teus</span></td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">1</td>
+              <td class="fig">1</td>
+              <td class="fig muted">1–3</td>
+              <td class="fig down">-2</td>
+              <td class="fig strong">1</td>
+            </tr>
+            <tr class="">
+              <td class="fig rank">15</td>
+              <td class="name">Moreirense</td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">1</td>
+              <td class="fig">1</td>
+              <td class="fig muted">2–6</td>
+              <td class="fig down">-4</td>
+              <td class="fig strong">1</td>
+            </tr>
+            <tr class="is-me">
+              <td class="fig rank">16</td>
+              <td class="name">V. Guimarães<span class="sub">1 teus</span></td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">0</td>
+              <td class="fig">2</td>
+              <td class="fig muted">2–4</td>
+              <td class="fig down">-2</td>
+              <td class="fig strong">0</td>
+            </tr>
+            <tr class="">
+              <td class="fig rank">17</td>
+              <td class="name">Rio Ave</td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">0</td>
+              <td class="fig">2</td>
+              <td class="fig muted">0–3</td>
+              <td class="fig down">-3</td>
+              <td class="fig strong">0</td>
+            </tr>
+            <tr class="">
+              <td class="fig rank">18</td>
+              <td class="name">Casa Pia</td>
+              <td class="fig">2</td>
+              <td class="fig">0</td>
+              <td class="fig">0</td>
+              <td class="fig">2</td>
+              <td class="fig muted">0–8</td>
+              <td class="fig down">-8</td>
+              <td class="fig strong">0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
       <h2>Por resolver</h2><div class="rule"></div>
       <div class="questions">
         <div class="q">
@@ -990,7 +1296,7 @@ a { color: var(--red); }
     </section>
 
     <footer>
-      <span>Lido 2026-08-20 13:54 UTC. Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
+      <span>Lido 2026-08-20 14:06 UTC. Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
       <span><code>scripts/build_dashboard.py</code></span>
     </footer>
   </div>

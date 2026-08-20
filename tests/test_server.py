@@ -100,6 +100,7 @@ def test_everything_is_registered_on_the_server():
         "standings",
         "find_differentials",
         "squad_exposure",
+        "primeira_liga",
         "squad_value",
         "club_strength",
         "project_points",

@@ -58,6 +58,7 @@ from .stats import (
     differential_rows,
     fixture_exposure,
     last_scored_round,
+    league_table,
     matches_played,
     never_played,
     ownership_baseline,
@@ -531,6 +532,41 @@ def project_price(player_id: str, round_points: int) -> dict[str, Any]:
         "change": change,
         "value_after": project_new_price(player.value, round_points),
         "in_regulation": not 1 <= round_points <= 3,
+    }
+
+
+@server.tool()
+def primeira_liga() -> dict[str, Any]:
+    """The real league table, folded out of the calendar.
+
+    Nothing extra is fetched — the calendar already carries scores for played
+    matches, so this is arithmetic over data the server holds anyway.
+
+    `played` is reported per club and is not the same for everyone: one
+    postponement leaves two clubs a match behind, and a table that hid that
+    would repeat the mistake of a points total without its denominator. Read
+    the column before reading the order.
+    """
+    try:
+        fixtures = _market.fixtures()
+    except SiteError as exc:
+        return {"detail": str(exc)}
+
+    rows = league_table(fixtures)
+    if not rows:
+        return {"detail": "no match has been played yet"}
+    behind = sorted({r["played"] for r in rows})
+    return {
+        "as_of": _now_iso(),
+        "source": "ligarecord",
+        "matches_scored": sum(r["played"] for r in rows) // 2,
+        "table": rows,
+        "uneven_matches": len(behind) > 1,
+        "note": (
+            "clubs are on different match counts — compare with `played` in view"
+            if len(behind) > 1
+            else "every club has played the same number of matches"
+        ),
     }
 
 
