@@ -33,9 +33,11 @@ from liga_record_mcp.source import (  # noqa: E402
     LigaRecordClient,
     ManualSquadSource,
     OpenFootballClient,
+    load_coaches,
 )
 from liga_record_mcp.stats import (  # noqa: E402
     adjust_for_fixture,
+    project_coach,
     club_price_index,
     clubs_playing_in,
     fixture_multipliers,
@@ -46,6 +48,12 @@ from liga_record_mcp.stats import (  # noqa: E402
 
 LOG_PATH = ROOT / "data" / "projections.json"
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
+COACHES_PATH = ROOT / "data" / "coaches.yaml"
+
+#: The coach on the sheet. A coach scores every round (§6.15, §6.17) and the
+#: eighteen spanned 14 points to -2 after two, so leaving him out of the record
+#: was leaving out roughly seven points a round of spread.
+CHOSEN_COACH = "890"  # Farioli, FC Porto
 
 
 def league_rates(records):
@@ -139,6 +147,47 @@ def snapshot(market, history, squad, round_number):
     return rows
 
 
+def coach_snapshot(history, counts, round_number):
+    """The chosen coach, with what is expected of him this round.
+
+    His actual score cannot be computed from the calendar. Fitting the eighteen
+    against wins, draws, clean sheets and margins reaches r-squared 0.85 with
+    errors up to 3.8 and no integer structure — the residual behaves like the
+    editorial rating that dominates a player's score. So this records the
+    projection and the total he starts from, and `--settle` reads the new total
+    out of the hand-maintained coach file.
+    """
+    coaches = load_coaches(COACHES_PATH)
+    chosen = next((c for c in coaches if c.id == CHOSEN_COACH), None)
+    if chosen is None:
+        raise SystemExit(f"coach {CHOSEN_COACH} is not in {COACHES_PATH}")
+
+    records = history.club_records()
+    league_ga, league_gf = league_rates(records)
+    rates = [
+        c.points_total / counts[c.club] for c in coaches if counts.get(c.club, 0) > 0
+    ]
+    baseline = sum(rates) / len(rates) if rates else 0.0
+
+    detail = project_coach(
+        chosen.points_total,
+        counts.get(chosen.club, 0),
+        records.get(chosen.club),
+        baseline,
+        league_ga,
+        league_gf,
+    )
+    return {
+        "id": chosen.id,
+        "name": chosen.name,
+        "club": chosen.club,
+        "points_before": chosen.points_total,
+        "league_baseline_rate": round(baseline, 2),
+        **detail,
+        "actual": None,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -184,6 +233,31 @@ def main() -> None:
             row["error"] = round(found.points_round - row["projected"], 2)
             settled += 1
 
+        coach = stored.get("coach")
+        if coach and coach.get("actual") is None:
+            if coach["club"] in playing:
+                current = next(
+                    (c for c in load_coaches(COACHES_PATH) if c.id == coach["id"]), None
+                )
+                if current is None:
+                    print(f"  coach {coach['name']} is no longer in the coach file")
+                elif current.points_total == coach["points_before"]:
+                    print(
+                        f"  coach {coach['name']}: the file still reads "
+                        f"{current.points_total} — refresh data/coaches.yaml from the "
+                        "site, then run --settle again"
+                    )
+                else:
+                    coach["actual"] = current.points_total - coach["points_before"]
+                    coach["error"] = round(coach["actual"] - coach["projected_rate"], 2)
+                    print(
+                        f"  coach {coach['name']}: {coach['actual']:+} "
+                        f"(projected {coach['projected_rate']}, "
+                        f"error {coach['error']:+.2f})"
+                    )
+            else:
+                pending.append(f"{coach['name']} (treinador)")
+
         stored["settled_at"] = now
         stored["fully_settled"] = not pending
         LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
@@ -204,18 +278,40 @@ def main() -> None:
         return
 
     if key in log["rounds"]:
+        stored = log["rounds"][key]
+        # The first version of this script had no coach. Adding one to a round
+        # that has not kicked off is still a prediction; adding one afterwards
+        # would not be, so the round's own fixtures decide whether it is allowed.
+        if "coach" not in stored and not clubs_playing_in(market.fixtures(), int(key)):
+            stored["coach"] = coach_snapshot(
+                OpenFootballClient(timeout=60.0),
+                matches_played(market.fixtures()),
+                int(key),
+            )
+            LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
+            coach = stored["coach"]
+            print(
+                f"round {key} already had its players; added the coach "
+                f"({coach['name']}, {coach['club']}, projected "
+                f"{coach['projected_rate']}/round) — no match of this round "
+                "has been played, so it is still a prediction"
+            )
+            return
         raise SystemExit(
             f"round {key} is already on file, recorded {log['rounds'][key]['recorded_at']}.\n"
             "Refusing to overwrite — a projection rewritten after the fact proves nothing.\n"
             "Use --settle to add the results instead."
         )
 
-    rows = snapshot(market, OpenFootballClient(timeout=60.0), squad,
-                    snapshot_of_squad.round_number)
+    history = OpenFootballClient(timeout=60.0)
+    rows = snapshot(market, history, squad, snapshot_of_squad.round_number)
     log["rounds"][key] = {
         "recorded_at": now,
         "squad_value": squad.value(),
         "players": rows,
+        "coach": coach_snapshot(
+            history, matches_played(market.fixtures()), snapshot_of_squad.round_number
+        ),
     }
     LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
 

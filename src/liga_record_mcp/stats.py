@@ -512,6 +512,76 @@ def differential_rows(
     return rows
 
 
+# --------------------------------------------------------------------------
+# The coach
+#
+# A coach is selected every round and scores every round (§6.15, §6.17), and
+# for two rounds this project ignored him entirely — he was checked for
+# legality and then left out of every projection, every record and every total.
+# The spread is not small: after two rounds the eighteen ran from 14 points
+# down to -2, roughly seven points a round between the best and the worst.
+#
+# His points cannot be reconstructed from the calendar. Fitting them against
+# wins, draws, clean sheets, margins and goals gives r-squared 0.85 with errors
+# up to 3.8 and no integer structure — if the score were computed from results
+# that fit would be exact. The residual behaves like the editorial rating that
+# makes up most of a player's score, which no public source publishes.
+#
+# So the coach is projected here and settled from the hand-maintained file,
+# never computed. What is measurable is measured; the rest is admitted.
+# --------------------------------------------------------------------------
+
+#: A coach's return rides on the result, which is defence and attack in equal
+#: measure — unlike a defender, who lives off the clean sheet alone.
+COACH_DEFENSIVE_SHARE = 0.5
+
+
+def project_coach(
+    points_total: int,
+    matches: int,
+    record: ClubRecord | None,
+    league_baseline: float,
+    league_goals_against: float,
+    league_goals_for: float,
+    *,
+    prior_strength: float = PRIOR_STRENGTH,
+) -> dict[str, object]:
+    """Blend a coach's observed rate with what his club's history implies.
+
+    Same shrinkage as `project`: a hot start over two rounds is worth about a
+    third, the club record the rest. `league_baseline` is the mean coach rate
+    across the eighteen, which is the only sensible anchor — there is no
+    positional structure to fall back on.
+    """
+    observed = per_match(points_total, matches)
+    defensive, has_history = club_factor(
+        record, Position.GK, league_goals_against, league_goals_for
+    )
+    attacking, _ = club_factor(
+        record, Position.FWD, league_goals_against, league_goals_for
+    )
+    strength = (
+        COACH_DEFENSIVE_SHARE * defensive + (1 - COACH_DEFENSIVE_SHARE) * attacking
+    )
+    prior = league_baseline * strength
+
+    if observed is None:
+        projected, weight = prior, 0.0
+    else:
+        weight = matches / (matches + prior_strength)
+        projected = weight * observed + (1 - weight) * prior
+
+    return {
+        "matches": matches,
+        "observed_rate": None if observed is None else round(observed, 2),
+        "prior_rate": round(prior, 2),
+        "projected_rate": round(projected, 2),
+        "weight_on_form": round(weight, 2),
+        "club_strength": round(strength, 2),
+        "club_has_history": has_history,
+    }
+
+
 def rate_rows(
     players: Sequence[Player], matches_by_club: dict[str, int]
 ) -> list[dict[str, object]]:

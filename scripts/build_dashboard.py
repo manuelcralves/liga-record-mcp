@@ -301,7 +301,16 @@ def sheet_section(data: dict) -> str:
           </li>"""
         )
 
+    coach = data["stored"].get("coach")
     total = sum(rows[p]["projected"] for p in XI) + rows[CAPTAIN]["projected"]
+    if coach:
+        total += coach["projected_rate"]
+    coach_line = (
+        f'{esc(coach["name"])} <span class="muted">{esc(coach["club"])}</span>'
+        f'<span class="coach-proj">{coach["projected_rate"]:.1f}</span>'
+        if coach
+        else f'{esc(COACH[0])} <span class="muted">{esc(COACH[1])}</span>'
+    )
     return f"""      <div class="sheet">
         <div class="sheet-main">
 {chr(10).join(blocks)}
@@ -312,9 +321,9 @@ def sheet_section(data: dict) -> str:
 {chr(10).join(bench)}
           </ul>
           <dl class="sheet-meta">
-            <dt>Treinador</dt><dd>{esc(COACH[0])} <span class="muted">{esc(COACH[1])}</span></dd>
+            <dt>Treinador</dt><dd>{coach_line}</dd>
             <dt>Formação</dt><dd>3-4-3</dd>
-            <dt>Projetado</dt><dd class="num">{total:.1f} <span class="muted">com capitão</span></dd>
+            <dt>Projetado</dt><dd class="num">{total:.1f} <span class="muted">onze, capitão e treinador</span></dd>
           </dl>
         </aside>
       </div>"""
@@ -676,6 +685,7 @@ h2 {{
 .sheet-meta dt {{ font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); align-self: center; }}
 .sheet-meta dd {{ margin: 0; font-weight: 600; }}
 .muted {{ color: var(--ink-soft); font-weight: 400; }}
+.coach-proj {{ float: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; color: var(--ink-soft); }}
 
 .table-wrap {{ overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; box-shadow: var(--shadow); }}
 table.ledger {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
