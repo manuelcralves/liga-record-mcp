@@ -130,6 +130,7 @@ def gather(round_number: int) -> dict:
         "grid": fixture_grid(stored, round_number),
         "table": mcp.primeira_liga(),
         "market": market_leaders(stored),
+        "ratings": mcp.editorial_ratings(),
         "as_of": national.get("as_of", ""),
     }
 
@@ -710,6 +711,121 @@ def best_section(data: dict) -> str:
       </div>"""
 
 
+def in_portuguese(candidate: str) -> str:
+    """Turn a candidate reading into Portuguese for the page.
+
+    stats.py speaks English like the rest of the code, so the translation
+    belongs here — the model and the page never have to agree on a language.
+
+    Built from match objects rather than regex backreferences: an earlier
+    version wrote \1 into the file as a control byte and silently dropped every
+    number, leaving rows reading 'nota  e  golo(s)'.
+    """
+    import re
+
+    rules = (
+        (r"rating (\S+) plus (\d+) goals?", "nota {0} e {1} golo(s)"),
+        (r"rating (\S+) and a straight red", "nota {0} e vermelho direto"),
+        (r"rating (\S+) and a second yellow", "nota {0} e segundo amarelo"),
+        (r"rating (\S+) and an own goal", "nota {0} e autogolo"),
+        (r"rating (\S+), blank after 75 minutes",
+         "nota {0}, em branco após 75 minutos"),
+        (r"^rating (\S+)$", "nota {0}"),
+    )
+    for pattern, template in rules:
+        found = re.search(pattern, candidate)
+        if found:
+            return template.format(*found.groups())
+
+    plain = {
+        "nothing in §10.3 explains this": "nada na §10.3 explica isto",
+        "not used (§10.3(i))": "não utilizado (§10.3(i))",
+        "or used, with rating and events netting to -1":
+            "ou utilizado, com nota e eventos a somar −1",
+    }
+    return plain.get(candidate, candidate)
+
+
+def ratings_section(data: dict) -> str:
+    """The Record's own mark, recovered by subtracting what the calendar owes.
+
+    The rating was treated as unreachable here for weeks. It is not: §10.1 and
+    §10.3 are published, so the objective half is arithmetic and what remains
+    is the writers' mark. This is the only place on the page showing a number
+    Record produced rather than one this project reasoned its way to.
+    """
+    result = data["ratings"]
+    rows = result.get("players") or []
+    if not rows:
+        return f'      <p class="lede">{esc(result.get("detail", "sem jornada pontuada"))}.</p>'
+
+    squad = set(data["stored"]["players"])
+    mine = [r for r in rows if r["id"] in squad]
+    if not mine:
+        return '      <p class="lede">Nenhum jogador do plantel jogou esta jornada.</p>'
+
+    body = []
+    for row in sorted(mine, key=lambda r: -r["points_round"]):
+        if not row["used"]:
+            rating, reading = '<span class="muted">—</span>', "não utilizado"
+        elif row["certain"]:
+            rating = f'<span class="strong">{row["rating"]}</span>'
+            reading = "nota lida"
+        else:
+            rating = '<span class="muted">—</span>'
+            reading = esc(in_portuguese(row["candidates"][0]))
+        objective = (
+            f'{row["objective"]:+}' if row["used"] else '<span class="muted">—</span>'
+        )
+        body.append(
+            f"""            <tr>
+              <td class="name">{esc(row['name'])}<span class="sub">{esc(row['club'])}</span></td>
+              <td class="sub">{POS_PT[row['position']]}</td>
+              <td class="fig strong">{row['points_round']}</td>
+              <td class="fig muted">{objective}</td>
+              <td class="fig">{rating}</td>
+              <td class="sub">{reading}</td>
+            </tr>"""
+        )
+
+    spread = ""
+    counts = {}
+    for row in rows:
+        if row["rating"] is not None:
+            counts[row["rating"]] = counts.get(row["rating"], 0) + 1
+    if counts:
+        top = max(counts.values())
+        bars = "".join(
+            f'<span class="tick"><span class="tick-bar" style="height:{counts.get(v, 0) / top * 100:.0f}%"></span>'
+            f'<span class="tick-n">{counts.get(v, 0)}</span>'
+            f'<span class="tick-v">{v}</span></span>'
+            for v in (0, 1, 2, 3, 4, 7)
+        )
+        spread = f"""      <div class="spread">
+        <p class="spread-label">As {result['read']} notas lidas em todo o mercado, média {result['mean_rating']}</p>
+        <div class="ticks">{bars}</div>
+      </div>"""
+
+    return f"""      <p class="lede">A Record avalia cada jogador de <strong>0 a 5</strong>,
+      publica só o total, e o 5 vale 7 pontos (§10.1). Subtraindo o que o
+      calendário deve — vitória, baliza a zero, golos sofridos, Jogador da
+      Semana — o que sobra é a nota. Golos e cartões escondem-se lá dentro,
+      portanto só se afirma uma nota quando mais nada a explica. Jogador da
+      Semana desta jornada: <strong>{esc(result['player_of_the_week'] or '—')}</strong>.</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr>
+            <th>Jogador</th><th>Pos</th><th class="fig">Pontos</th>
+            <th class="fig">Calendário</th><th class="fig">Nota</th><th>Leitura</th>
+          </tr></thead>
+          <tbody>
+{chr(10).join(body)}
+          </tbody>
+        </table>
+      </div>
+{spread}"""
+
+
 def league_distribution(data: dict) -> str:
     """The league's shape without its members.
 
@@ -1029,6 +1145,13 @@ tr.is-dead td, tr.is-dead .name {{ color: var(--dim); font-weight: 400; }}
 .quad {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0 30px; }}
 .quad h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0 0 2px; border-bottom: 1px solid var(--rule); padding-bottom: 4px; }}
 .quad .cap {{ margin-left: 6px; }}
+.spread {{ margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rule); }}
+.spread-label {{ margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }}
+.ticks {{ display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); grid-template-rows: 76px auto auto; gap: 0 14px; max-width: 460px; }}
+.tick {{ display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }}
+.tick-bar {{ width: 100%; background: var(--red); align-self: end; min-height: 2px; }}
+.tick-n {{ font-size: 12px; font-variant-numeric: tabular-nums; color: var(--dim); padding-top: 4px; }}
+.tick-v {{ font-family: "Instrument Serif", Georgia, serif; font-size: 19px; padding-top: 2px; }}
 .questions {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }}
 .q h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }}
 .q-state {{ margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }}
@@ -1068,6 +1191,11 @@ a {{ color: var(--red); }}
     <section>
       <h2>Quem rende mais do que a posse dele</h2><div class="rule"></div>
 {differentials_section(data)}
+    </section>
+
+    <section>
+      <h2>A nota do Record</h2><div class="rule"></div>
+{ratings_section(data)}
     </section>
 
     <section>
