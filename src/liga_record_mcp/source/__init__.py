@@ -33,6 +33,7 @@ from .live import (
     SiteError,
     parse_fixtures,
     parse_market_player,
+    parse_standing,
 )
 from .manual import ManualSquadSource, load_coaches
 
@@ -60,4 +61,5 @@ __all__ = [
     "save_appearances",
     "parse_fixtures",
     "parse_market_player",
+    "parse_standing",
 ]

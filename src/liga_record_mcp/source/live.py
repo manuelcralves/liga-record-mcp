@@ -24,11 +24,12 @@ from __future__ import annotations
 import re
 import time
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 from bs4 import BeautifulSoup
 
-from ..models import MIN_PRICE, Fixture, MarketPlayer, Position
+from ..models import MIN_PRICE, Fixture, MarketPlayer, Position, TeamStanding
 
 #: The site's own codes. Our Position enum stays English; this is the boundary.
 POSITION_CODE: dict[Position, str] = {
@@ -84,6 +85,35 @@ def parse_market_player(row: dict[str, Any]) -> MarketPlayer:
         )
     except KeyError as exc:
         raise MarketError(f"market row is missing {exc}") from exc
+
+
+def _int_or_none(raw: Any) -> int | None:
+    """Ranking fields arrive as strings, and as "" before a round is scored."""
+    if raw in (None, "", "-"):
+        return None
+    try:
+        return int(str(raw).strip())
+    except ValueError:
+        return None
+
+
+def parse_standing(row: dict[str, Any]) -> TeamStanding:
+    """Turn one ranking row into a TeamStanding."""
+    try:
+        return TeamStanding(
+            team_id=int(row["IdTeam"]),
+            team_name=row["NameTeam"],
+            user_name=row.get("NameUser") or "",
+            points_total=_int_or_none(row.get("PointsTotal")) or 0,
+            points_round=_int_or_none(row.get("PointsRound")) or 0,
+            position=_int_or_none(row.get("Position")) or 0,
+            position_round=_int_or_none(row.get("PositionRound")),
+            position_change=_int_or_none(row.get("PositionChange")),
+            formation=row.get("TeamFormation") or None,
+            region=row.get("Region") or "",
+        )
+    except KeyError as exc:
+        raise MarketError(f"ranking row is missing {exc}") from exc
 
 
 # --------------------------------------------------------------------------
@@ -195,6 +225,11 @@ class LigaRecordClient:
     BASE_URL = "https://liga.record.pt"
     SEARCH_PATH = "/common/services/playersearch.ashx"
     CALENDAR_PATH = "/info/calendario.aspx"
+    #: Both ranking services are POST, but a POST here is still a query: it
+    #: reads a leaderboard and changes nothing. The read-only rule this module
+    #: keeps is about not mutating a team, not about the HTTP verb.
+    RANKING_PATH = "/common/services/teams_getranking_search.ashx"
+    LEAGUE_RANKING_PATH = "/common/services/teamsleague_getranking.ashx"
     name = "ligarecord"
 
     def __init__(
@@ -222,6 +257,71 @@ class LigaRecordClient:
         parsed = parse_fixtures(self._fetch_text(self.CALENDAR_PATH))
         self._fixtures = (now + self.fixtures_ttl, parsed)
         return parsed
+
+    def standings(
+        self,
+        *,
+        team: str = "",
+        league_guid: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+        round_number: int | None = None,
+    ) -> tuple[list[TeamStanding], int]:
+        """A leaderboard page, and how many pages there are.
+
+        With `league_guid` this reads one private league; without it, the
+        national ranking. `team` filters by name, which is the only way to find
+        a specific entry without walking thousands of pages.
+
+        The page count is returned rather than discarded because a position is
+        meaningless without it — 6598th is a different story out of 19 000 than
+        out of 7000.
+        """
+        query = {
+            "page": str(page),
+            "pagesize": str(page_size),
+            "round": "" if round_number is None else str(round_number),
+            "type": "total",
+            "team": team,
+            "sex": "",
+            "region": "",
+            "club": "",
+            "getpagecount": "1",
+        }
+        if league_guid:
+            path = f"{self.LEAGUE_RANKING_PATH}?guid={league_guid}"
+            url = f"{self.base_url}{path}&" + urlencode(query)
+        else:
+            url = f"{self.base_url}{self.RANKING_PATH}?" + urlencode(query)
+
+        try:
+            response = httpx.post(
+                url,
+                timeout=self.timeout,
+                headers={
+                    "User-Agent": "liga-record-mcp (personal use)",
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+                follow_redirects=True,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except httpx.HTTPError as exc:
+            raise SiteError(f"could not reach the ranking: {exc}") from exc
+        except ValueError as exc:
+            raise SiteError(
+                f"the ranking returned {response.headers.get('content-type')}, not JSON"
+            ) from exc
+
+        # The service answers with two objects: the page, then its count.
+        if not isinstance(payload, list) or not payload:
+            raise SiteError("the ranking came back in an unfamiliar shape")
+        rows = payload[0].get("Teams") or []
+        pages = 0
+        for part in payload[1:]:
+            if isinstance(part, dict) and "PageCount" in part:
+                pages = int(part["PageCount"] or 0)
+        return [parse_standing(r) for r in rows], pages
 
     def _fetch_text(self, path: str) -> str:
         try:

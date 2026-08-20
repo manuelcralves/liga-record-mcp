@@ -179,6 +179,38 @@ class Fixture(BaseModel):
         return club == self.home
 
 
+class TeamStanding(BaseModel):
+    """One entry in a Liga Record leaderboard.
+
+    The only measure of whether any of this is working. Every projection in
+    this project is an argument about the future; a position is a fact about
+    the present, and it is the number the participant actually cares about.
+
+    `position_change` is signed the way the site reports it: positive means
+    dropping down the table, because the position number grew.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    team_id: int
+    team_name: str
+    user_name: str
+    points_total: int
+    points_round: int
+    position: int
+    position_round: int | None = None
+    position_change: int | None = None
+    formation: str | None = None
+    region: str = ""
+
+    @property
+    def moved_up(self) -> bool | None:
+        """True if the team climbed, None if the site gave no movement."""
+        if self.position_change is None or self.position_change == 0:
+            return None
+        return self.position_change < 0
+
+
 class ClubRecord(BaseModel):
     """A club's results over one or more completed seasons.
 

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import unicodedata
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -142,6 +143,11 @@ def _fold(text: str) -> str:
         for c in unicodedata.normalize("NFD", text.lower())
         if unicodedata.category(c) != "Mn"
     )
+
+
+def _now_iso() -> str:
+    """Timestamp for data read live rather than from a snapshot."""
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _provenance(snapshot: SquadSnapshot) -> dict[str, Any]:
@@ -516,6 +522,67 @@ def project_price(player_id: str, round_points: int) -> dict[str, Any]:
         "value_after": project_new_price(player.value, round_points),
         "in_regulation": not 1 <= round_points <= 3,
     }
+
+
+@server.tool()
+def standings(
+    team: str = "",
+    league_guid: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> dict[str, Any]:
+    """Where a team actually stands — nationally, or in one private league.
+
+    Everything else this server produces is a projection: an argument about
+    what should happen. This is the only tool that reports what did.
+
+    Pass `team` to find a specific entry by name; without it you get the top of
+    the table. `league_guid` switches to a private league, and comes from the
+    league's own page on the site — it is not discoverable from here, because
+    reading a participant's leagues needs their login.
+
+    A position is reported together with the size of the field, since one
+    without the other says very little.
+    """
+    try:
+        rows, pages = _market.standings(
+            team=team, league_guid=league_guid, page=page, page_size=page_size
+        )
+    except SiteError as exc:
+        return {"detail": str(exc)}
+
+    scope = "private league" if league_guid else "national"
+    out: dict[str, Any] = {
+        "as_of": _now_iso(),
+        "source": "ligarecord",
+        "scope": scope,
+        "page": page,
+        "pages": pages,
+        "teams": [
+            {
+                "position": r.position,
+                "team": r.team_name,
+                "user": r.user_name,
+                "points_total": r.points_total,
+                "points_round": r.points_round,
+                "position_round": r.position_round,
+                "position_change": r.position_change,
+                "formation": r.formation,
+            }
+            for r in rows
+        ],
+    }
+    # Only an unfiltered query walks the whole field; with `team` set the page
+    # count describes the matches for that name, which says nothing about how
+    # many teams are playing.
+    if pages and not league_guid and not team:
+        out["field_size_estimate"] = pages * page_size
+        out["field_size_note"] = (
+            "pages x page_size, so the last page is partial and this is an upper bound"
+        )
+    if not rows:
+        out["detail"] = "no team matched" if team else "the ranking came back empty"
+    return out
 
 
 @server.tool()

@@ -189,12 +189,13 @@ def test_html_instead_of_json_is_refused(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_the_client_is_read_only():
-    """The buy/sell endpoints are known and deliberately absent.
+    """The mutating endpoints are known and deliberately absent.
 
     Reading the site's own JavaScript revealed team_buysellplayer.ashx and
-    team_renegociateplayer.ashx. A tool that can spend a budget is a different
-    risk class from one that reads, so this pins the decision rather than
-    leaving it to memory.
+    team_renegociateplayer.ashx, and later the sheet setters — team_captain,
+    team_manager, team_changename. A tool that can spend a budget or change a
+    line-up is a different risk class from one that reads, so this pins the
+    decision rather than leaving it to memory.
     """
     import inspect
 
@@ -202,9 +203,37 @@ def test_the_client_is_read_only():
 
     source = inspect.getsource(live)
     body = source[source.index("class LigaRecordClient") :]
-    for endpoint in ("buysellplayer", "renegociateplayer", "team_import"):
+    for endpoint in (
+        "buysellplayer",
+        "renegociateplayer",
+        "team_import",
+        "team_captain",
+        "team_manager",
+        "team_changename",
+    ):
         assert endpoint not in body, f"{endpoint} must not be callable from the client"
     assert "SEARCH_PATH" in body
+
+
+def test_every_post_the_client_makes_is_a_query():
+    """The rankings are POST, which is the site's choice, not a mutation.
+
+    Once one POST exists in the client, "we never POST" stops being the guard.
+    The guard becomes: every POST goes to a ranking service, which reads a
+    leaderboard and changes nothing.
+    """
+    import inspect
+    import re
+
+    from liga_record_mcp.source import live
+
+    body = inspect.getsource(live)
+    body = body[body.index("class LigaRecordClient") :]
+    for call in re.finditer(r"httpx\.post\(\s*([A-Za-z_][\w.]*)", body):
+        target = call.group(1)
+        assert target == "url", f"unexpected POST target {target!r}"
+    assert body.count("httpx.post(") == 1, "a new POST needs its own justification"
+    assert "RANKING_PATH" in body and "LEAGUE_RANKING_PATH" in body
 
 
 def test_market_player_still_enforces_the_price_floor():

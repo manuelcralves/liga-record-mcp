@@ -14,7 +14,8 @@ import pytest
 from helpers import make_squad, squad_document, write_squad_file
 
 from liga_record_mcp import server as mcp_server
-from liga_record_mcp.models import Squad
+from liga_record_mcp.models import Squad, TeamStanding
+from liga_record_mcp.source import SiteError
 
 XI = (
     "GK1",
@@ -50,6 +51,9 @@ def offline(monkeypatch: pytest.MonkeyPatch) -> None:
 
         def fixtures(self):
             return []
+
+        def standings(self, **kwargs):
+            return [], 0
 
     monkeypatch.setattr(mcp_server, "_market", Offline())
 
@@ -93,6 +97,7 @@ def test_everything_is_registered_on_the_server():
         "get_fixtures",
         "squad_fixtures",
         "list_coaches",
+        "standings",
         "squad_value",
         "club_strength",
         "project_points",
@@ -576,3 +581,51 @@ def test_get_squad_says_when_rates_are_missing(monkeypatch):
     monkeypatch.setattr(mcp_server, "_market", Broken())
     result = mcp_server.get_squad()
     assert "not comparable across clubs" in result["rates_unavailable"]
+
+
+def test_standings_reports_an_empty_field_without_pretending(monkeypatch):
+    """No rows is an answer; it must not be dressed up as a ranking."""
+    result = mcp_server.standings(team="nobody")
+
+    assert result["teams"] == []
+    assert "no team matched" in result["detail"]
+    assert "field_size_estimate" not in result
+
+
+def test_standings_sizes_the_field_only_when_unfiltered(monkeypatch):
+    """6598th means nothing without knowing how many are playing.
+
+    Filtering by name makes the page count describe the name matches, not the
+    field, so the estimate must not be reported in that case.
+    """
+
+    class Ranked:
+        def standings(self, *, team="", **kwargs):
+            row = TeamStanding(
+                team_id=1, team_name="Melro", user_name="u",
+                points_total=87, points_round=38, position=6598,
+            )
+            return [row], 1909
+
+    monkeypatch.setattr(mcp_server, "_market", Ranked())
+
+    unfiltered = mcp_server.standings()
+    assert unfiltered["field_size_estimate"] == 1909 * 20
+
+    filtered = mcp_server.standings(team="Melro")
+    assert "field_size_estimate" not in filtered
+    assert filtered["teams"][0]["position"] == 6598
+
+
+def test_standings_reports_a_site_failure_as_detail(monkeypatch):
+    """An unreachable ranking must not look like an empty table."""
+
+    class Broken:
+        def standings(self, **kwargs):
+            raise SiteError("could not reach the ranking: timeout")
+
+    monkeypatch.setattr(mcp_server, "_market", Broken())
+    result = mcp_server.standings()
+
+    assert "could not reach" in result["detail"]
+    assert "teams" not in result
