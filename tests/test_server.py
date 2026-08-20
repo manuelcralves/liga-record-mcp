@@ -108,7 +108,7 @@ def test_everything_is_registered_on_the_server():
         "appearance_history",
     }
     assert resources == {"ligarecord://regulamento", "ligarecord://squad"}
-    assert prompts == {"pick_starting_xi", "plan_transfers"}
+    assert prompts == {"pick_starting_xi", "plan_transfers", "settle_the_round"}
 
 
 def test_get_squad_reports_money_and_provenance():
@@ -695,3 +695,27 @@ def test_national_wins_over_an_explicit_guid_too(monkeypatch):
 
     monkeypatch.setattr(mcp_server, "_market", Ranked())
     assert mcp_server.standings(league_guid="x", national=True)["scope"] == "national"
+
+
+def test_the_prompts_carry_the_traps_that_cost_us():
+    """A prompt is where hard-won knowledge is kept, or it is decoration.
+
+    Each of these cost this project real time to learn, and a prompt that
+    omits them invites the same mistake from a fresh session.
+    """
+    sheet = mcp_server.pick_starting_xi()
+    assert "points_per_match" in sheet and "points_total" in sheet
+    assert "squad_fixtures" in sheet          # late kickoffs
+    assert "§11.3" in sheet                   # the cheaper starter is covered first
+    assert "squad_exposure" in sheet          # a quarter of the squad in one match
+    assert "list_coaches" in sheet            # the coach is not an afterthought
+    assert "validate_selection" in sheet
+
+    transfers = mcp_server.plan_transfers()
+    assert "never_played" in transfers        # 42% of the market
+    assert "find_differentials" in transfers
+    assert "check_market_transfer" in transfers
+
+    settle = mcp_server.settle_the_round()
+    assert "record_appearances" in settle
+    assert "pending" in settle                # a postponed 0 is not a result

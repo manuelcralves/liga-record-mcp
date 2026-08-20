@@ -303,6 +303,18 @@ def main() -> None:
             "Use --settle to add the results instead."
         )
 
+    # The whole value of this file is that every row was written before anyone
+    # kicked a ball. Run by hand that is obvious; run on a schedule it is not,
+    # and a job that fires late would quietly file a prediction it already knew
+    # the answer to.
+    started = clubs_playing_in(market.fixtures(), snapshot_of_squad.round_number)
+    if started:
+        raise SystemExit(
+            f"round {key} has already begun — {len(started)} clubs have played.\n"
+            "Refusing to record: a projection written after kickoff is not a "
+            "prediction.\nUse --settle to add the results instead."
+        )
+
     history = OpenFootballClient(timeout=60.0)
     rows = snapshot(market, history, squad, snapshot_of_squad.round_number)
     log["rounds"][key] = {
