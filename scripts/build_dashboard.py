@@ -9,6 +9,14 @@ arrived. A blank reads as zero, and a zero here would be a lie — it is exactly
 the confusion between "pending" and "scored" that cost this project a day.
 Unsettled rows carry an explicit pending state instead.
 
+The page is two designs with a hinge between them. The top is broadcast
+graphics — heavy condensed type, huge figures, solid colour blocks — and it is
+a fixed dark panel that ignores the reader's theme, the way a front page's
+photograph is the photograph whatever paper it is printed on. Below a heavy
+rule it becomes a results page: no boxes, no shadows, hierarchy carried
+entirely by rules and type weight, because thirty league rows and a
+twenty-three-row fixture grid need a density the broadcast idiom cannot give.
+
     python scripts/build_dashboard.py              # private, full league table
     python scripts/build_dashboard.py --public     # docs/index.html, no other people
 """
@@ -46,6 +54,7 @@ XI = "38800 41584 41670 43052 42725 21459 43500 33728 42896 42920 42142".split()
 BENCH = "42398 42937 42893 43430".split()
 CAPTAIN = "42896"
 COACH = "Farioli", "FC Porto"
+GRID_ROUNDS = 5
 
 
 def esc(value) -> str:
@@ -66,7 +75,7 @@ def gather(round_number: int) -> dict:
 
     guid = os.environ.get("LIGA_RECORD_LEAGUE")
     league = mcp.standings(league_guid=guid, page_size=50) if guid else None
-    national = mcp.standings(team="Melro")
+    national = mcp.standings(team="Melro", national=True)
 
     me = None
     if league and league.get("teams"):
@@ -87,35 +96,38 @@ def gather(round_number: int) -> dict:
     if me is None:
         raise SystemExit("could not find the team Melro in either ranking")
 
-    field = mcp.standings(page_size=20).get("field_size_estimate")
+    # A position without the size of the field says very little, and the hero
+    # prints it as a headline figure. A transient failure here used to render an
+    # em-dash and say nothing — the same silent degradation the league check
+    # above exists to prevent.
+    sized = mcp.standings(page_size=20, national=True)
+    field = sized.get("field_size_estimate")
+    if not field:
+        raise SystemExit(
+            "the national ranking gave no field size: "
+            f"{sized.get('detail', 'no page count and no reason given')}"
+        )
 
     history = []
     if HISTORY_PATH.exists():
         raw = json.loads(HISTORY_PATH.read_text(encoding="utf-8"))["rounds"]
-        for key, entry in sorted(raw.items(), key=lambda kv: int(kv[0])):
+        for round_key, entry in sorted(raw.items(), key=lambda kv: int(kv[0])):
             row = entry["teams"].get(str(MY_TEAM_ID))
             if row:
-                history.append({"round": int(key), **row})
-
-    differentials = mcp.find_differentials(limit=10, min_matches=1)
-    exposure = mcp.squad_exposure(round_number=round_number)
-    grid = fixture_grid(stored, round_number)
+                history.append({"round": int(round_key), **row})
 
     return {
         "round": round_number,
         "stored": stored,
-        "exposure": exposure,
-        "grid": grid,
         "league": (league or {}).get("teams") or [],
         "me": me,
         "field": field,
         "history": history,
-        "differentials": differentials,
+        "differentials": mcp.find_differentials(limit=10, min_matches=1),
+        "exposure": mcp.squad_exposure(round_number=round_number),
+        "grid": fixture_grid(stored, round_number),
         "as_of": national.get("as_of", ""),
     }
-
-
-GRID_ROUNDS = 5
 
 
 def fixture_grid(stored: dict, from_round: int) -> list[dict]:
@@ -154,14 +166,13 @@ def fixture_grid(stored: dict, from_round: int) -> list[dict]:
             projected = adjust_for_fixture(
                 row["season_rate"], position, defensive, attacking
             )
-            edge = projected - row["season_rate"]
             cells.append(
                 {
                     "round": rnd,
                     "opponent": opponent,
                     "at_home": at_home,
                     "projected": round(projected, 1),
-                    "edge": round(edge, 2),
+                    "edge": round(projected - row["season_rate"], 2),
                 }
             )
         rows.append({"id": player_id, **row, "cells": cells})
@@ -169,18 +180,240 @@ def fixture_grid(stored: dict, from_round: int) -> list[dict]:
     return rows
 
 
+# --------------------------------------------------------------------------
+# The broadcast panel
+# --------------------------------------------------------------------------
+
+
+def hero(data: dict, public: bool = False) -> str:
+    """Masthead, the figures that matter, and the season's form so far.
+
+    Deliberately loud and deliberately sparse: five numbers and nothing to
+    read. Everything that needs density lives below the hinge.
+    """
+    me, league, field = data["me"], data["league"], data["field"]
+    rounds = data["history"]
+
+    lead = ""
+    if league:
+        leader = league[0]
+        gap = leader["points_total"] - me["points_total"]
+        # The gap is Manuel's own number; the name attached to it is not his to
+        # publish, so the public build states the total without the team.
+        note = (
+            f"o líder tem {leader['points_total']}"
+            if public
+            else f"{esc(leader['team'])} tem {leader['points_total']}"
+        )
+        lead = f"""      <div class="fig-block">
+        <span class="fig-label">Para o 1.º</span>
+        <span class="fig-value hot">−{gap}</span>
+        <span class="fig-note">{note}</span>
+      </div>"""
+
+    bars = ""
+    if rounds:
+        top = max(r["points_round"] for r in rounds) or 1
+        slots = []
+        for i, row in enumerate(rounds):
+            # Emitted even when empty: a column with one child fewer than its
+            # neighbour sits on a different baseline, which reads as a data
+            # difference rather than a missing label.
+            move = '<span class="move"></span>'
+            if i:
+                delta = row["position"] - rounds[i - 1]["position"]
+                if delta:
+                    # Position grew means the team fell down the table.
+                    arrow, cls = ("▼", "down") if delta > 0 else ("▲", "up")
+                    move = f'<span class="move {cls}">{arrow} {group(abs(delta))}</span>'
+            slots.append(
+                f"""          <div class="bar-slot">
+            <div class="bar{' lead' if row['points_round'] == top else ''}" style="height:{max(9, row['points_round'] / top * 100):.1f}%"><span class="bar-value">{row['points_round']}</span></div>
+            <span class="bar-round">J{row['round']} · {group(row['position'])}.º</span>
+            {move}
+          </div>"""
+            )
+        first, last = rounds[0], rounds[-1]
+        swing = last["position"] - first["position"]
+        story = (
+            f"lugares {'perdidos' if swing > 0 else 'ganhos'} entre a jornada "
+            f"{first['round']} e a {last['round']}"
+            if swing
+            else "sem movimento na tabela nacional"
+        )
+        bars = f"""    <div class="form">
+      <div class="form-bars">
+{chr(10).join(slots)}
+      </div>
+      <div class="form-story">
+        <span class="form-figure">{'▼' if swing > 0 else '▲'} {group(abs(swing))}</span>
+        <span class="form-note">{story}</span>
+      </div>
+    </div>"""
+
+    place = me.get("position_league")
+    return f"""  <section class="bcast">
+    <div class="mast">
+      <div class="mast-name"><span>Melro</span></div>
+      <div class="mast-meta">
+        <span class="mast-tag">Liga Record</span>
+        <span class="mast-round">Jornada {data['round']}</span>
+      </div>
+    </div>
+
+    <div class="hero">
+      <span class="hero-figure">{place if place else '—'}</span>
+      <div class="hero-side">
+        <span class="hero-of">de {len(league) if league else '—'}</span>
+        <span class="hero-label">na liga privada</span>
+      </div>
+    </div>
+
+    <div class="figs">
+      <div class="fig-block">
+        <span class="fig-label">No país</span>
+        <span class="fig-value">{group(me['position'])}.º</span>
+        <span class="fig-note">de cerca de {group(field) if field else '—'}</span>
+      </div>
+      <div class="fig-block">
+        <span class="fig-label">Pontos</span>
+        <span class="fig-value">{me['points_total']}</span>
+        <span class="fig-note">em duas jornadas</span>
+      </div>
+{lead}
+    </div>
+{bars}
+  </section>"""
+
+
+# --------------------------------------------------------------------------
+# The results page
+# --------------------------------------------------------------------------
+
+
+def sheet_section(data: dict) -> str:
+    rows = data["stored"]["players"]
+    coach = data["stored"].get("coach")
+    groups = []
+    for pos in ("GK", "DEF", "MID", "FWD"):
+        members = sorted(
+            ((p, rows[p]) for p in XI if rows[p]["position"] == pos),
+            key=lambda kv: -kv[1]["projected"],
+        )
+        if not members:
+            continue
+        entries = []
+        for pid, row in members:
+            marks = []
+            if pid == CAPTAIN:
+                marks.append('<span class="cap">C</span>')
+            if "SET" in (row["kickoff"] or ""):
+                marks.append(f'<span class="late">{esc(row["kickoff"])}</span>')
+            where = "casa" if row["at_home"] else "fora"
+            entries.append(
+                f"""            <tr>
+              <td class="name">{esc(row['name'])} {''.join(marks)}<span class="sub">{esc(row['club'])} · {where} v {esc(row['opponent'])}</span></td>
+              <td class="fig strong">{row['projected']:.1f}</td>
+            </tr>"""
+            )
+        groups.append(
+            f"""        <tbody>
+          <tr><th colspan="2" class="pos-row">{POS_PT[pos]}</th></tr>
+{chr(10).join(entries)}
+        </tbody>"""
+        )
+
+    bench = []
+    for n, pid in enumerate(BENCH, 1):
+        row = rows[pid]
+        bench.append(
+            f"""            <tr>
+              <td class="ord">{n}</td>
+              <td class="name">{esc(row['name'])}<span class="sub">{POS_PT[row['position']]}</span></td>
+              <td class="fig">{row['projected']:.1f}</td>
+            </tr>"""
+        )
+
+    total = sum(rows[p]["projected"] for p in XI) + rows[CAPTAIN]["projected"]
+    coach_row = f"{esc(COACH[0])} <span class=\"muted\">{esc(COACH[1])}</span>"
+    if coach:
+        total += coach["projected_rate"]
+        coach_row = (
+            f"{esc(coach['name'])} <span class=\"muted\">{esc(coach['club'])} · "
+            f"{coach['projected_rate']:.1f}</span>"
+        )
+
+    return f"""      <p class="lede">Escalada antes do fecho. Os dois jogadores
+      marcados têm o jogo desta jornada em setembro — o Benfica a 9, o Sp. Braga
+      a 10 — portanto os pontos deles chegam semanas depois dos outros.</p>
+      <div class="cols">
+        <div>
+          <table class="sheet">
+{chr(10).join(groups)}
+          </table>
+        </div>
+        <div class="rail">
+          <h3>Suplentes</h3>
+          <p class="rail-note">Por ordem de entrada.</p>
+          <table class="sheet">
+            <tbody>
+{chr(10).join(bench)}
+            </tbody>
+          </table>
+          <dl class="facts">
+            <dt>Formação</dt><dd>3-4-3</dd>
+            <dt>Treinador</dt><dd>{coach_row}</dd>
+            <dt>Total</dt><dd><span class="big">{total:.1f}</span> <span class="muted">com capitão e treinador</span></dd>
+          </dl>
+        </div>
+      </div>"""
+
+
+def exposure_section(data: dict) -> str:
+    matches = (data["exposure"] or {}).get("matches") or []
+    if not matches:
+        return '      <p class="lede">Sem exposição calculada.</p>'
+    top = matches[0]
+    hedged = data["exposure"].get("hedged_against_itself") or []
+    rows = []
+    for m in matches:
+        names = [p["name"] for p in m["home_players"]] + [
+            p["name"] for p in m["away_players"]
+        ]
+        flag = '<span class="late">dos dois lados</span>' if m["both_sides"] else ""
+        rows.append(
+            f"""            <tr>
+              <td class="lead-fig">{m['count']}</td>
+              <td class="name">{esc(m['home'])} <span class="muted">v</span> {esc(m['away'])} {flag}<span class="sub">{esc(', '.join(names))}</span></td>
+            </tr>"""
+        )
+    warning = (
+        f"Tens jogadores dos dois lados em {len(hedged)} "
+        f"{'jogo' if len(hedged) == 1 else 'jogos'}: a manutenção de baliza é "
+        "mutuamente exclusiva, portanto isso amortece um mau resultado tanto "
+        "quanto trava um bom."
+        if hedged
+        else "Não tens jogadores a defrontarem-se."
+    )
+    return f"""      <p class="lede">O maior risco não é um jogador, é um jogo:
+      <strong>{top['count']} dos 23</strong> jogam o {esc(top['home'])}–{esc(top['away'])}.
+      Foi assim que a segunda jornada se perdeu — dez jogadores num só jogo, que
+      foi adiado. {warning}</p>
+      <div class="scroll">
+        <table class="data expo">
+          <tbody>
+{chr(10).join(rows)}
+          </tbody>
+        </table>
+      </div>"""
+
+
 def grid_section(data: dict) -> str:
     rows = data["grid"]
     if not rows:
-        return '      <p class="section-note">Sem calendário para as jornadas seguintes.</p>'
-    rounds = []
-    for row in rows:
-        for cell in row["cells"]:
-            if cell["round"] not in rounds:
-                rounds.append(cell["round"])
-    rounds.sort()
-
-    head = "".join(f'<th class="num">J{r}</th>' for r in rounds)
+        return '      <p class="lede">Sem calendário para as jornadas seguintes.</p>'
+    rounds = sorted({c["round"] for r in rows for c in r["cells"]})
+    head = "".join(f'<th class="fig">J{r}</th>' for r in rounds)
     body = []
     for row in rows:
         by_round = {c["round"]: c for c in row["cells"]}
@@ -188,28 +421,28 @@ def grid_section(data: dict) -> str:
         for rnd in rounds:
             cell = by_round.get(rnd)
             if cell is None:
-                cells.append('<td class="grid-cell"><span class="muted">—</span></td>')
+                cells.append('<td class="cell"><span class="muted">—</span></td>')
                 continue
             edge = cell["edge"]
-            tone = "easy" if edge > 0.25 else "hard" if edge < -0.25 else "even"
+            tone = "easy" if edge > 0.25 else "hard" if edge < -0.25 else ""
             where = "vs" if cell["at_home"] else "@"
             cells.append(
-                f'<td class="grid-cell {tone}" title="{esc(cell["opponent"])}">'
-                f'<span class="grid-opp">{where} {esc(cell["opponent"][:11])}</span>'
-                f'<span class="grid-proj">{cell["projected"]:.1f}</span></td>'
+                f'<td class="cell {tone}"><span class="cell-opp">{where} '
+                f'{esc(cell["opponent"][:11])}</span>'
+                f'<span class="cell-fig">{cell["projected"]:.1f}</span></td>'
             )
         body.append(
             f"""            <tr>
-              <td class="cell-name">{esc(row['name'])}<span class="cell-club">{esc(row['club'])}</span></td>
-              <td><span class="pos-chip">{POS_PT[row['position']]}</span></td>
+              <td class="name">{esc(row['name'])}<span class="sub">{esc(row['club'])}</span></td>
+              <td class="sub">{POS_PT[row['position']]}</td>
               {''.join(cells)}
             </tr>"""
         )
-    return f"""      <p class="section-note">As próximas {len(rounds)} jornadas de cada
-      jogador, com o mesmo ajuste ao adversário que a folha usa — verde é melhor
-      que a média dele, vermelho é pior. <em>@</em> é fora de casa.</p>
-      <div class="table-wrap">
-        <table class="ledger grid">
+    return f"""      <p class="lede">As próximas {len(rounds)} jornadas de cada
+      jogador, com o mesmo ajuste ao adversário que a folha usa. Verde é melhor
+      que a média dele, vermelho é pior; <strong>@</strong> é fora de casa.</p>
+      <div class="scroll">
+        <table class="data grid">
           <thead><tr><th>Jogador</th><th>Pos</th>{head}</tr></thead>
           <tbody>
 {chr(10).join(body)}
@@ -218,332 +451,100 @@ def grid_section(data: dict) -> str:
       </div>"""
 
 
-def exposure_section(data: dict) -> str:
-    result = data["exposure"]
-    matches = result.get("matches") or []
-    if not matches:
-        return '      <p class="section-note">Sem exposição calculada.</p>'
-    top = matches[0]
-    hedged = result.get("hedged_against_itself") or []
-    items = []
-    for m in matches:
-        names = [p["name"] for p in m["home_players"]] + [p["name"] for p in m["away_players"]]
-        badge = (
-            '<span class="badge badge-late">ambos os lados</span>'
-            if m["both_sides"]
-            else ""
-        )
-        items.append(
-            f"""          <li class="expo">
-            <span class="expo-count">{m['count']}</span>
-            <span class="expo-match">{esc(m['home'])} <span class="muted">v</span> {esc(m['away'])} {badge}
-              <span class="expo-names">{esc(', '.join(names))}</span></span>
-          </li>"""
-        )
-    warning = (
-        f"Tens jogadores dos dois lados em {len(hedged)} "
-        f"{'jogo' if len(hedged) == 1 else 'jogos'} — a manutenção de baliza é "
-        "mutuamente exclusiva, portanto isso amortece um mau resultado e trava um bom."
-        if hedged
-        else "Não tens jogadores a defrontarem-se."
-    )
-    return f"""      <p class="section-note">O maior risco não é um jogador, é um
-      jogo: <em>{top['count']} dos 23</em> jogam o {esc(top['home'])}–{esc(top['away'])}.
-      Foi assim que a jornada 2 se perdeu — dez jogadores num só jogo, que foi
-      adiado. {warning}</p>
-      <div class="expo-box">
-        <ul class="expo-list">
-{chr(10).join(items)}
-        </ul>
-      </div>"""
-
-
-def history_section(data: dict) -> str:
-    """Points per round, with the national position each one left behind."""
-    rounds = data["history"]
-    if not rounds:
-        return """      <p class="section-note">Sem histórico registado —
-      corre <code>scripts/record_history.py</code>.</p>"""
-
-    top = max(r["points_round"] for r in rounds) or 1
-    bars = []
-    for i, row in enumerate(rounds):
-        height = max(4, row["points_round"] / top * 100)
-        move = ""
-        if i:
-            delta = row["position"] - rounds[i - 1]["position"]
-            if delta:
-                # Position grew means the team fell down the table.
-                arrow, cls = ("▼", "down") if delta > 0 else ("▲", "up")
-                move = f'<span class="move {cls}">{arrow} {group(abs(delta))}</span>'
-        bars.append(
-            f"""          <div class="bar-slot">
-            <span class="bar-value">{row['points_round']}</span>
-            <div class="bar" style="height:{height:.1f}%"></div>
-            <span class="bar-round">J{row['round']}</span>
-            <span class="bar-pos">{group(row['position'])}.º</span>
-            {move}
-          </div>"""
-        )
-
-    first, last = rounds[0], rounds[-1]
-    swing = last["position"] - first["position"]
-    story = (
-        f"Da jornada {first['round']} à {last['round']} a posição nacional "
-        f"{'caiu' if swing > 0 else 'subiu'} {group(abs(swing))} lugares."
-        if swing
-        else "A posição nacional não se moveu."
-    )
-    return f"""      <p class="section-note">{story} A barra é o que rendeu cada
-      jornada; por baixo, a posição no país depois dela.</p>
-      <div class="chart">
-        <div class="bars">
-{chr(10).join(bars)}
-        </div>
-      </div>"""
-
-
 def differentials_section(data: dict) -> str:
-    """Players out-producing the attention they get."""
     result = data["differentials"]
     rows = result.get("players") or []
     if not rows:
-        return f"""      <p class="section-note">Sem candidatos —
-      {esc(result.get('detail', 'nada devolvido'))}.</p>"""
-
+        return (
+            '      <p class="lede">Sem candidatos — '
+            f'{esc(result.get("detail", "nada devolvido"))}.</p>'
+        )
     body = []
     for row in rows:
         thin = row["matches_played"] < 2
-        flag = (
-            '<span class="pending"><span class="dot"></span>1 jogo</span>'
-            if thin
-            else f'<span class="num">{row["matches_played"]}</span>'
-        )
         body.append(
             f"""            <tr>
-              <td class="cell-name">{esc(row['name'])}<span class="cell-club">{esc(row['club'])}</span></td>
-              <td><span class="pos-chip">{POS_PT[row['position']]}</span></td>
-              <td class="num">{row['owned_percent']:.1f}%</td>
-              <td class="num">{row['observed_rate']:.1f}</td>
-              <td class="num">{row['expected_rate']:.1f}</td>
-              <td class="num strong delta over">+{row['residual']:.2f}</td>
-              <td class="num">{group(row['value'])}</td>
-              <td>{flag}</td>
+              <td class="name">{esc(row['name'])}<span class="sub">{esc(row['club'])}</span></td>
+              <td class="sub">{POS_PT[row['position']]}</td>
+              <td class="fig">{row['owned_percent']:.1f}%</td>
+              <td class="fig">{row['observed_rate']:.1f}</td>
+              <td class="fig muted">{row['expected_rate']:.1f}</td>
+              <td class="fig up strong">+{row['residual']:.2f}</td>
+              <td class="fig">{group(row['value'])}</td>
+              <td class="sub">{'1 jogo' if thin else row['matches_played']}</td>
             </tr>"""
         )
-    fit = result.get("fit", {})
     slopes = " · ".join(
-        f"{pos} {vals['slope']:.2f}" for pos, vals in sorted(fit.items())
+        f"{pos} {vals['slope']:.2f}"
+        for pos, vals in sorted(result.get("fit", {}).items())
     )
-    return f"""      <p class="section-note">A posse prevê a pontuação melhor do que
-      qualquer outra coisa no mercado — de <em>−0,15</em> pontos por jogo abaixo
-      de 1% de posse até <em>5,33</em> acima de 30%. Por isso comprar quem
-      ninguém tem é mau negócio. O que interessa é o <em>resíduo</em>: quem
-      rende acima da linha que a sua posse e posição preveem. Declive por
-      posição: {esc(slopes)}.</p>
-      <div class="table-wrap">
-        <table class="ledger">
-          <thead>
-            <tr>
-              <th>Jogador</th><th>Pos</th><th class="num">Posse</th>
-              <th class="num">Rende</th><th class="num">Esperado</th>
-              <th class="num">Resíduo</th><th class="num">Preço</th><th>Jogos</th>
-            </tr>
-          </thead>
+    return f"""      <p class="lede">A posse prevê a pontuação melhor do que qualquer
+      outra coisa no mercado — de <strong>−0,15</strong> pontos por jogo abaixo de
+      1% de posse até <strong>5,33</strong> acima de 30%. Por isso comprar quem
+      ninguém tem é mau negócio. O que interessa é o resíduo: quem rende acima da
+      linha que a sua posse e a sua posição preveem. Declive por posição: {esc(slopes)}.</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr>
+            <th>Jogador</th><th>Pos</th><th class="fig">Posse</th>
+            <th class="fig">Rende</th><th class="fig">Esperado</th>
+            <th class="fig">Resíduo</th><th class="fig">Preço</th><th>Jogos</th>
+          </tr></thead>
           <tbody>
 {chr(10).join(body)}
           </tbody>
         </table>
       </div>
-      <p class="section-note" style="margin-top:14px">{esc(result.get('caveat', ''))}</p>"""
-
-
-def summary_cards(data: dict, public: bool = False) -> str:
-    me, league, field = data["me"], data["league"], data["field"]
-    if me is None:
-        return ""
-    live = [t for t in league if t["points_total"] > 0]
-    cards = [
-        (
-            "Na liga privada",
-            f"{me['position_league']}<span class=\"of\">.º de {len(league)}</span>"
-            if me.get("position_league")
-            else "—",
-            f"{len(live)} equipas com pontos" if league else "",
-        ),
-        (
-            "No país",
-            group(me["position"]) + "<span class=\"of\">.º</span>",
-            f"de cerca de {group(field)}" if field else "",
-        ),
-        ("Pontos", f"{me['points_total']}", "acumulados em 2 jornadas"),
-    ]
-    if league:
-        leader = league[0]
-        # The gap is Manuel's own number; the name attached to it is not his to
-        # publish, so the public build states the total without the team.
-        note = (
-            f"o 1.º tem {leader['points_total']}"
-            if public
-            else f"{esc(leader['team'])} tem {leader['points_total']}"
-        )
-        cards.append(
-            (
-                "Atraso para o 1.º",
-                f"−{leader['points_total'] - me['points_total']}",
-                note,
-            )
-        )
-    return "\n".join(
-        f"""      <article class="card">
-        <p class="card-label">{esc(label)}</p>
-        <p class="card-value">{value}</p>
-        <p class="card-note">{note}</p>
-      </article>"""
-        for label, value, note in cards
-    )
-
-
-def sheet_section(data: dict) -> str:
-    rows = data["stored"]["players"]
-    groups: dict[str, list] = {"GK": [], "DEF": [], "MID": [], "FWD": []}
-    for pid in XI:
-        row = rows[pid]
-        groups[row["position"]].append((pid, row))
-
-    blocks = []
-    for pos in ("GK", "DEF", "MID", "FWD"):
-        members = sorted(groups[pos], key=lambda kv: -kv[1]["projected"])
-        if not members:
-            continue
-        lines = []
-        for pid, row in members:
-            late = "SET" in (row["kickoff"] or "")
-            marks = []
-            if pid == CAPTAIN:
-                marks.append('<span class="badge badge-cap" title="Capitão">C</span>')
-            if late:
-                marks.append(
-                    f'<span class="badge badge-late">{esc(row["kickoff"])}</span>'
-                )
-            where = "casa" if row["at_home"] else "fora"
-            lines.append(
-                f"""          <li class="player{' is-late' if late else ''}">
-            <span class="player-name">{esc(row['name'])} {''.join(marks)}</span>
-            <span class="player-fixture">{esc(row['club'])} · {where} v {esc(row['opponent'])}</span>
-            <span class="player-proj">{row['projected']:.1f}</span>
-          </li>"""
-            )
-        blocks.append(
-            f"""        <div class="line">
-          <h3 class="line-label">{POS_PT[pos]}</h3>
-          <ul class="line-list">
-{chr(10).join(lines)}
-          </ul>
-        </div>"""
-        )
-
-    bench = []
-    for n, pid in enumerate(BENCH, 1):
-        row = rows[pid]
-        bench.append(
-            f"""          <li class="sub">
-            <span class="sub-order">{n}</span>
-            <span class="sub-name">{esc(row['name'])}</span>
-            <span class="sub-pos">{POS_PT[row['position']]}</span>
-            <span class="sub-proj">{row['projected']:.1f}</span>
-          </li>"""
-        )
-
-    coach = data["stored"].get("coach")
-    total = sum(rows[p]["projected"] for p in XI) + rows[CAPTAIN]["projected"]
-    if coach:
-        total += coach["projected_rate"]
-    coach_line = (
-        f'{esc(coach["name"])} <span class="muted">{esc(coach["club"])}</span>'
-        f'<span class="coach-proj">{coach["projected_rate"]:.1f}</span>'
-        if coach
-        else f'{esc(COACH[0])} <span class="muted">{esc(COACH[1])}</span>'
-    )
-    return f"""      <div class="sheet">
-        <div class="sheet-main">
-{chr(10).join(blocks)}
-        </div>
-        <aside class="sheet-side">
-          <h3 class="line-label">Suplentes <span class="hint">ordem de entrada</span></h3>
-          <ul class="sub-list">
-{chr(10).join(bench)}
-          </ul>
-          <dl class="sheet-meta">
-            <dt>Treinador</dt><dd>{coach_line}</dd>
-            <dt>Formação</dt><dd>3-4-3</dd>
-            <dt>Projetado</dt><dd><span class="num">{total:.1f}</span> <span class="muted">com capitão e treinador</span></dd>
-          </dl>
-        </aside>
-      </div>"""
+      <p class="footnote">{esc(result.get('caveat', ''))}</p>"""
 
 
 def ledger_section(data: dict) -> str:
     rows = data["stored"]["players"]
     starters, subs = set(XI), set(BENCH)
     ordered = sorted(
-        rows.items(),
-        key=lambda kv: (ORDER[kv[1]["position"]], -kv[1]["projected"]),
+        rows.items(), key=lambda kv: (ORDER[kv[1]["position"]], -kv[1]["projected"])
     )
     body = []
     for pid, row in ordered:
-        if pid in starters:
-            role, role_class = "Titular", "role-xi"
-        elif pid in subs:
-            role, role_class = "Suplente", "role-sub"
-        else:
-            role, role_class = "Fora", "role-out"
-
+        role = "Titular" if pid in starters else "Suplente" if pid in subs else "Fora"
         if row["actual"] is None:
-            result = '<span class="pending"><span class="dot"></span>por jogar</span>'
+            result = '<span class="pending">por jogar</span>'
             error = '<span class="muted">—</span>'
         else:
             diff = row.get("error", 0)
-            sign = "over" if diff >= 0 else "under"
-            result = f'<span class="num strong">{row["actual"]}</span>'
-            error = f'<span class="num delta {sign}">{diff:+.1f}</span>'
-
-        late = "SET" in (row["kickoff"] or "")
+            result = f'<span class="strong">{row["actual"]}</span>'
+            error = f'<span class="{"up" if diff >= 0 else "down"}">{diff:+.1f}</span>'
         fixture = f"{'casa' if row['at_home'] else 'fora'} v {esc(row['opponent'])}"
-        if late:
-            fixture += f' <span class="badge badge-late">{esc(row["kickoff"])}</span>'
-
+        if "SET" in (row["kickoff"] or ""):
+            fixture += f' <span class="late">{esc(row["kickoff"])}</span>'
         body.append(
             f"""            <tr>
-              <td class="cell-name">{esc(row['name'])}<span class="cell-club">{esc(row['club'])}</span></td>
-              <td><span class="pos-chip">{POS_PT[row['position']]}</span></td>
-              <td><span class="role {role_class}">{role}</span></td>
-              <td class="cell-fixture">{fixture}</td>
-              <td class="num">{row['season_rate']:.1f}</td>
-              <td class="num strong">{row['projected']:.1f}</td>
-              <td>{result}</td>
-              <td>{error}</td>
+              <td class="name">{esc(row['name'])}<span class="sub">{esc(row['club'])}</span></td>
+              <td class="sub">{POS_PT[row['position']]}</td>
+              <td class="role{' is-xi' if role == 'Titular' else ''}">{role}</td>
+              <td class="sub">{fixture}</td>
+              <td class="fig muted">{row['season_rate']:.1f}</td>
+              <td class="fig strong">{row['projected']:.1f}</td>
+              <td class="fig">{result}</td>
+              <td class="fig">{error}</td>
             </tr>"""
         )
-
     settled = sum(1 for r in rows.values() if r["actual"] is not None)
     note = (
         f"{settled} de {len(rows)} liquidados"
         if settled
         else "Nenhum jogo desta jornada foi disputado ainda"
     )
-    return f"""      <p class="section-note">{note}. A coluna <em>real</em> só é preenchida
-      depois de o clube de cada jogador ter jogado — um clube com jogo adiado fica
-      pendente, nunca a zero.</p>
-      <div class="table-wrap">
-        <table class="ledger">
-          <thead>
-            <tr>
-              <th>Jogador</th><th>Pos</th><th>Papel</th><th>Jogo</th>
-              <th class="num">Época</th><th class="num">Projetado</th>
-              <th>Real</th><th>Erro</th>
-            </tr>
-          </thead>
+    return f"""      <p class="lede">{note}. A coluna <strong>real</strong> só é
+      preenchida depois de o clube de cada jogador ter jogado — um clube com jogo
+      adiado fica pendente, nunca a zero.</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr>
+            <th>Jogador</th><th>Pos</th><th>Papel</th><th>Jogo</th>
+            <th class="fig">Época</th><th class="fig">Projetado</th>
+            <th class="fig">Real</th><th class="fig">Erro</th>
+          </tr></thead>
           <tbody>
 {chr(10).join(body)}
           </tbody>
@@ -566,27 +567,22 @@ def league_distribution(data: dict) -> str:
     top, mine = max(totals), me["points_total"]
     live = [t for t in totals if t > 0]
     span = top or 1
-
-    marks = []
-    for value in totals:
-        left = value / span * 100
-        is_me = value == mine
-        marks.append(
-            f'<span class="mark{" is-me" if is_me else ""}" '
-            f'style="left:{left:.2f}%"'
-            f'{" title=\"Melro\"" if is_me else ""}></span>'
-        )
-    return f"""      <p class="section-note">Trinta equipas, {len(live)} com pontos.
-      Cada marca é uma equipa; a vermelha é a minha. Os nomes ficam de fora —
-      são de outras pessoas.</p>
+    marks = "\n".join(
+        f'          <span class="mark{" is-me" if v == mine else ""}" '
+        f'style="left:{v / span * 100:.2f}%"></span>'
+        for v in totals
+    )
+    return f"""      <p class="lede">Trinta equipas, {len(live)} com pontos. Cada
+      marca é uma equipa; a vermelha é a minha. Os nomes ficam de fora — são de
+      outras pessoas.</p>
       <div class="dist">
         <div class="dist-track">
-{chr(10).join('          ' + m for m in marks)}
+{marks}
         </div>
         <div class="dist-axis">
-          <span>0</span>
+          <span class="dist-end">0</span>
           <span class="dist-me" style="left:{mine / span * 100:.2f}%">{mine} · eu</span>
-          <span>{top}</span>
+          <span class="dist-end right">{top}</span>
         </div>
       </div>"""
 
@@ -596,26 +592,26 @@ def league_section(data: dict, public: bool = False) -> str:
     if public:
         return league_distribution(data)
     if not league:
-        return """      <p class="section-note">A liga privada não foi lida — defina
+        return """      <p class="lede">A liga privada não foi lida — define
       <code>LIGA_RECORD_LEAGUE</code> no ambiente com o guid da liga.</p>"""
     body = []
     for t in league:
         mine = t["team"] == "Melro"
         dead = t["points_total"] == 0
-        classes = " ".join(c for c in ("is-me" if mine else "", "is-dead" if dead else "") if c)
+        classes = " ".join(
+            c for c in ("is-me" if mine else "", "is-dead" if dead else "") if c
+        )
         body.append(
             f"""            <tr class="{classes}">
-              <td class="num rank">{t['position_league']}</td>
-              <td class="cell-name">{esc(t['team'])}<span class="cell-club">{esc(t['user'])}</span></td>
-              <td class="num strong">{t['points_total']}</td>
-              <td class="num">{group(t['position'])}</td>
+              <td class="fig rank">{t['position_league']}</td>
+              <td class="name">{esc(t['team'])}<span class="sub">{esc(t['user'])}</span></td>
+              <td class="fig strong">{t['points_total']}</td>
+              <td class="fig muted">{group(t['position'])}</td>
             </tr>"""
         )
-    return f"""      <div class="table-wrap">
-        <table class="ledger league">
-          <thead>
-            <tr><th class="num">#</th><th>Equipa</th><th class="num">Pontos</th><th class="num">No país</th></tr>
-          </thead>
+    return f"""      <div class="scroll">
+        <table class="data">
+          <thead><tr><th class="fig">#</th><th>Equipa</th><th class="fig">Pontos</th><th class="fig">No país</th></tr></thead>
           <tbody>
 {chr(10).join(body)}
           </tbody>
@@ -627,10 +623,10 @@ OPEN_QUESTIONS = [
     (
         "Um jogo adiado devolve os pontos?",
         "Por verificar",
-        "Quando um jogo não se realiza, os 57 jogadores dos dois clubes ficam a "
-        "0 — enquanto 48,5% dos jogadores dos clubes que jogaram estão a −1. O "
-        "−1 é o código para «não jogou», portanto o 0 parece ser «ainda não "
-        "atribuído». É leitura, não é prova.",
+        "Quando um jogo não se realiza, os 57 jogadores dos dois clubes ficam a 0 "
+        "— enquanto 48,5% dos jogadores dos clubes que jogaram estão a −1. O −1 é "
+        "o código para «não jogou», portanto o 0 parece ser «ainda não atribuído». "
+        "É leitura, não é prova.",
     ),
     (
         "Sp. Braga–Gil Vicente da jornada 2",
@@ -638,6 +634,14 @@ OPEN_QUESTIONS = [
         "Adiado a 16 de agosto por um surto gastrointestinal no plantel do Braga. "
         "A Liga Portugal ainda não marcou nova data. Dez dos 23 jogadores do "
         "plantel dessa jornada eram destes dois clubes.",
+    ),
+    (
+        "Pontuação do treinador",
+        "Não calculável",
+        "Ajustada contra vitórias, empates, manutenções de baliza e margens chega "
+        "a R² 0,85, com desvios até 3,8 e sem estrutura inteira. Uma pontuação "
+        "calculada dos resultados encaixaria exatamente. O resíduo comporta-se "
+        "como a nota editorial que domina a pontuação dos jogadores.",
     ),
     (
         "Modelo de preços",
@@ -650,18 +654,14 @@ OPEN_QUESTIONS = [
 
 
 def questions_section() -> str:
-    items = []
-    for title, state, body in OPEN_QUESTIONS:
-        items.append(
-            f"""        <article class="question">
-          <div class="question-head">
-            <h3>{esc(title)}</h3>
-            <span class="state"><span class="dot"></span>{esc(state)}</span>
-          </div>
+    return "\n".join(
+        f"""        <div class="q">
+          <h3>{esc(title)}</h3>
+          <p class="q-state">{esc(state)}</p>
           <p>{body}</p>
-        </article>"""
-        )
-    return "\n".join(items)
+        </div>"""
+        for title, state, body in OPEN_QUESTIONS
+    )
 
 
 def render(data: dict, public: bool = False) -> str:
@@ -670,63 +670,47 @@ def render(data: dict, public: bool = False) -> str:
     return f"""<title>Melro · Liga Record</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Instrument+Serif&display=swap">
 <style>
+/* Paper, below the hinge. The reader's theme moves these and nothing else. */
+/* Declared so the browser knows this page handles its own themes. Without it
+   Chrome's automatic dark mode forces a scheme on top of ours, and it reaches
+   inside tables: on a light ground the paper stayed light while every table
+   inherited dark ink, which renders the player names invisible. */
 :root {{
-  --paper:      #f2f5f4;
-  --surface:    #ffffff;
-  --surface-2:  #eef1f0;
-  --ink:        #14181d;
-  --ink-soft:   #59636b;
-  --ink-faint:  #8d979d;
-  --rule:       #dbe1e0;
-  --rule-firm:  #c2cbc9;
-  --accent:     #c8102e;
-  --accent-ink: #ffffff;
-  --pending:    #a8701a;
-  --pending-bg: #f6ecdb;
-  --settled:    #2f6b4f;
-  --over:       #2f6b4f;
-  --under:      #b03a2e;
-  --shadow:     0 1px 2px rgba(20, 24, 29, .06), 0 8px 24px rgba(20, 24, 29, .05);
+  color-scheme: light;
+  --paper: #eceae5;
+  --ink:   #16150f;
+  --dim:   #6a6860;
+  --rule:  #c9c6bd;
+  --hair:  #dcd9d1;
+  --wash:  #e3e0d9;
+  --red:   #a8112a;
+  --green: #1f6b4a;
 }}
 @media (prefers-color-scheme: dark) {{
   :root:not([data-theme="light"]) {{
-    --paper:      #0f1216;
-    --surface:    #171c21;
-    --surface-2:  #1e242a;
-    --ink:        #e7ebea;
-    --ink-soft:   #9aa4aa;
-    --ink-faint:  #6d777d;
-    --rule:       #2a3138;
-    --rule-firm:  #3b444c;
-    --accent:     #ef4a5f;
-    --accent-ink: #14181d;
-    --pending:    #d9a441;
-    --pending-bg: #2c2418;
-    --settled:    #5aa87f;
-    --over:       #5aa87f;
-    --under:      #e2705f;
-    --shadow:     0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+    color-scheme: dark;
+    --paper: #14140f;
+    --ink:   #efece4;
+    --dim:   #918e85;
+    --rule:  #3a3931;
+    --hair:  #2a2923;
+    --wash:  #1e1e17;
+    --red:   #e0374f;
+    --green: #4fa87c;
   }}
 }}
 :root[data-theme="dark"] {{
-  --paper:      #0f1216;
-  --surface:    #171c21;
-  --surface-2:  #1e242a;
-  --ink:        #e7ebea;
-  --ink-soft:   #9aa4aa;
-  --ink-faint:  #6d777d;
-  --rule:       #2a3138;
-  --rule-firm:  #3b444c;
-  --accent:     #ef4a5f;
-  --accent-ink: #14181d;
-  --pending:    #d9a441;
-  --pending-bg: #2c2418;
-  --settled:    #5aa87f;
-  --over:       #5aa87f;
-  --under:      #e2705f;
-  --shadow:     0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  color-scheme: dark;
+  --paper: #14140f;
+  --ink:   #efece4;
+  --dim:   #918e85;
+  --rule:  #3a3931;
+  --hair:  #2a2923;
+  --wash:  #1e1e17;
+  --red:   #e0374f;
+  --green: #4fa87c;
 }}
 
 * {{ box-sizing: border-box; }}
@@ -734,258 +718,214 @@ body {{
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 16px;
-  line-height: 1.55;
+  font-family: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  font-size: 16.5px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }}
-.wrap {{ max-width: 1080px; margin: 0 auto; padding: 40px 24px 72px; }}
+.page {{ max-width: 1020px; margin: 0 auto; }}
+.body {{ padding: 0 32px 64px; }}
 
-.masthead {{
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;
-  padding-bottom: 18px; border-bottom: 2px solid var(--ink);
+/* ------------------------------------------------------------------ *
+ * The broadcast panel. A fixed graphic: it does not follow the        *
+ * reader's theme, the way a front page's photograph is the photograph *
+ * whatever paper it is printed on.                                    *
+ * ------------------------------------------------------------------ */
+.bcast {{
+  --bg:   #0a0d14;
+  --sunk: #141a27;
+  --bink: #ffffff;
+  --bdim: #8b95a8;
+  --hot:  #ff2d46;
+  --mint: #00d9a3;
+  background: var(--bg); color: var(--bink); padding-bottom: 32px;
 }}
-.masthead h1 {{
-  font-family: Archivo, "IBM Plex Sans", sans-serif;
-  font-weight: 700; font-size: clamp(30px, 5vw, 44px);
-  letter-spacing: -.025em; margin: 0; text-wrap: balance;
+.mast {{ display: flex; align-items: stretch; height: 82px; }}
+.mast-name {{
+  background: var(--hot); display: flex; align-items: center;
+  padding: 0 40px 0 32px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 22px) 100%, 0 100%);
 }}
-.masthead .rule-tag {{
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 12px; letter-spacing: .09em; text-transform: uppercase;
-  color: var(--accent-ink); background: var(--accent);
-  padding: 3px 9px; border-radius: 2px;
-}}
-.masthead .stamp {{
-  margin-left: auto; font-family: "IBM Plex Mono", monospace;
-  font-size: 12px; color: var(--ink-faint);
-}}
+.mast-name span {{ font-family: Anton, Impact, "Arial Narrow", sans-serif; font-size: 44px; line-height: 1; }}
+.mast-meta {{ flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 20px; padding: 0 32px; }}
+.mast-tag {{ font-size: 12.5px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: var(--bdim); }}
+.mast-round {{ font-family: Anton, Impact, sans-serif; font-size: 25px; letter-spacing: .04em; }}
 
-section {{ margin-top: 44px; }}
-h2 {{
-  font-family: Archivo, sans-serif; font-weight: 600;
-  font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--ink-soft); margin: 0 0 16px;
-  padding-bottom: 8px; border-bottom: 1px solid var(--rule);
-}}
-.section-note {{
-  margin: 0 0 18px; max-width: 65ch;
-  color: var(--ink-soft); font-size: 14.5px;
-}}
-.section-note em {{ color: var(--ink); font-style: normal; font-weight: 600; }}
+.hero {{ display: flex; align-items: flex-end; gap: 26px; padding: 30px 32px 0; }}
+.hero-figure {{ font-family: Anton, Impact, sans-serif; font-size: 178px; line-height: .78; letter-spacing: -.03em; color: var(--hot); }}
+.hero-side {{ display: flex; flex-direction: column; gap: 3px; padding-bottom: 15px; }}
+.hero-of {{ font-family: Anton, Impact, sans-serif; font-size: 38px; line-height: 1; }}
+.hero-label {{ font-size: 16px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }}
 
-.cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-top: 24px; }}
-.card {{
-  background: var(--surface); border: 1px solid var(--rule);
-  border-radius: 3px; padding: 16px 18px 14px; box-shadow: var(--shadow);
-}}
-.card-label {{
-  margin: 0; font-family: "IBM Plex Mono", monospace; font-size: 11px;
-  letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint);
-}}
-.card-value {{
-  margin: 6px 0 2px; font-family: Archivo, sans-serif; font-weight: 700;
-  font-size: 38px; line-height: 1; letter-spacing: -.03em;
-  font-variant-numeric: tabular-nums;
-}}
-.card-value .of {{ font-size: 15px; font-weight: 500; color: var(--ink-soft); letter-spacing: 0; }}
-.card-note {{ margin: 0; font-size: 13px; color: var(--ink-soft); }}
+.figs {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 3px; padding: 28px 32px 0; }}
+.fig-block {{ background: var(--sunk); padding: 15px 19px 13px; }}
+.fig-label {{ display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }}
+.fig-value {{ display: block; font-family: Anton, Impact, sans-serif; font-size: 40px; line-height: 1.15; font-variant-numeric: tabular-nums; }}
+.fig-value.hot {{ color: var(--hot); }}
+.fig-note {{ display: block; font-size: 14.5px; color: var(--bdim); }}
 
-.sheet {{ display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); gap: 18px; align-items: start; }}
-@media (max-width: 760px) {{ .sheet {{ grid-template-columns: 1fr; }} }}
-.sheet-main, .sheet-side {{
-  background: var(--surface); border: 1px solid var(--rule);
-  border-radius: 3px; padding: 6px 18px 18px; box-shadow: var(--shadow);
-}}
-.line + .line {{ margin-top: 4px; }}
-.line-label {{
-  font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint);
-  margin: 16px 0 6px;
-}}
-.line-label .hint {{ text-transform: none; letter-spacing: 0; color: var(--ink-faint); font-weight: 400; }}
-.line-list, .sub-list {{ list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }}
-.player {{
-  display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0 12px; padding: 7px 0; border-top: 1px solid var(--rule);
-}}
-.player-name {{ grid-column: 1; grid-row: 1; font-weight: 600; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }}
-.player-fixture {{ grid-column: 1; grid-row: 2; font-size: 13px; color: var(--ink-soft); }}
-.player-proj {{
-  grid-column: 2; grid-row: 1 / span 2; align-self: center; justify-self: end;
-  font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 17px;
-  font-variant-numeric: tabular-nums;
-}}
-.player.is-late .player-proj {{ color: var(--pending); }}
-
-.badge {{
-  font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600;
-  letter-spacing: .04em; padding: 2px 6px; border-radius: 2px; white-space: nowrap;
-}}
-.badge-cap {{ background: var(--accent); color: var(--accent-ink); }}
-.badge-late {{ background: var(--pending-bg); color: var(--pending); border: 1px solid currentColor; }}
-
-.sub {{ display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--rule); }}
-.sub-order {{
-  font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
-  width: 20px; height: 20px; display: grid; place-items: center;
-  border: 1px solid var(--rule-firm); border-radius: 50%; color: var(--ink-soft);
-}}
-.sub-name {{ font-weight: 500; font-size: 14.5px; }}
-.sub-pos {{ font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); }}
-.sub-proj {{ font-family: "IBM Plex Mono", monospace; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--ink-soft); }}
-
-.sheet-meta {{ margin: 20px 0 0; padding-top: 14px; border-top: 2px solid var(--ink); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: 14px; }}
-.sheet-meta dt {{ font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); align-self: center; }}
-.sheet-meta dd {{ margin: 0; font-weight: 600; min-width: 0; }}
-.muted {{ color: var(--ink-soft); font-weight: 400; }}
-.coach-proj {{ float: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; color: var(--ink-soft); }}
-
-.table-wrap {{ overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; box-shadow: var(--shadow); }}
-table.ledger {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
-.ledger th {{
-  text-align: left; font-family: "IBM Plex Mono", monospace; font-weight: 500;
-  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--ink-faint); padding: 11px 12px; border-bottom: 1px solid var(--rule-firm);
-  white-space: nowrap; background: var(--surface-2);
-}}
-.ledger td {{ padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: middle; }}
-.ledger tr:last-child td {{ border-bottom: none; }}
-.num {{ text-align: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }}
-th.num {{ text-align: right; }}
-.strong {{ font-weight: 600; }}
-.cell-name {{ font-weight: 600; min-width: 150px; }}
-.cell-club {{ display: block; font-weight: 400; font-size: 12.5px; color: var(--ink-faint); }}
-.cell-fixture {{ font-size: 13px; color: var(--ink-soft); white-space: nowrap; }}
-
-.pos-chip {{ font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-soft); border: 1px solid var(--rule-firm); border-radius: 2px; padding: 1px 5px; }}
-.role {{ font-size: 12.5px; white-space: nowrap; }}
-.role-xi {{ font-weight: 600; }}
-.role-xi::before {{ content: ""; display: inline-block; width: 3px; height: 11px; background: var(--accent); margin-right: 6px; vertical-align: -1px; }}
-.role-sub {{ color: var(--ink-soft); }}
-.role-out {{ color: var(--ink-faint); }}
-
-.pending {{ display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--pending); background: var(--pending-bg); border-radius: 2px; padding: 2px 8px; white-space: nowrap; }}
-.dot {{ width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }}
-.delta.over {{ color: var(--over); }}
-.delta.under {{ color: var(--under); }}
-
-.league .rank {{ width: 44px; color: var(--ink-soft); }}
-.league tr.is-me td {{ background: var(--surface-2); }}
-.league tr.is-me td:first-child {{ box-shadow: inset 3px 0 0 var(--accent); font-weight: 700; color: var(--ink); }}
-.league tr.is-me .cell-name {{ font-weight: 700; }}
-.league tr.is-dead td {{ color: var(--ink-faint); }}
-.league tr.is-dead .cell-name {{ font-weight: 400; }}
-
-.dist {{ background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 26px 22px 14px; box-shadow: var(--shadow); }}
-.dist-track {{ position: relative; height: 34px; border-bottom: 1px solid var(--rule-firm); }}
-.mark {{ position: absolute; bottom: 0; width: 2px; height: 20px; background: var(--rule-firm); transform: translateX(-1px); border-radius: 1px; }}
-.mark.is-me {{ background: var(--accent); height: 34px; width: 3px; }}
-.dist-axis {{ position: relative; height: 22px; margin-top: 7px; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); }}
-.dist-axis > span:first-child {{ position: absolute; left: 0; }}
-.dist-axis > span:last-child {{ position: absolute; right: 0; }}
-.dist-me {{ position: absolute; transform: translateX(-50%); color: var(--accent); font-weight: 600; white-space: nowrap; }}
-.chart {{ background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 22px 22px 16px; box-shadow: var(--shadow); }}
-.bars {{ display: grid; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); grid-template-rows: auto 130px auto auto auto; gap: 0 10px; overflow-x: auto; }}
+.form {{ display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px; padding: 28px 32px 0; }}
+.form-bars {{ display: grid; grid-auto-flow: column; grid-auto-columns: 126px; grid-template-rows: 140px auto auto; gap: 0 3px; }}
 .bar-slot {{ display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }}
-.bar-value {{ font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; margin-bottom: 5px; }}
-.bar {{ width: 100%; max-width: 62px; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 4px; align-self: end; }}
-.bar-round {{ font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .06em; color: var(--ink-soft); margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--rule-firm); width: 100%; text-align: center; }}
-.bar-pos {{ font-family: "IBM Plex Mono", monospace; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-faint); margin-top: 3px; }}
-.move {{ display: block; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; line-height: 1.4; margin-top: 2px; white-space: nowrap; min-height: 1.4em; }}
-.move.up {{ color: var(--over); }}
-.move.down {{ color: var(--under); }}
-.grid td.grid-cell {{ text-align: center; padding: 7px 8px; min-width: 92px; }}
-.grid-opp {{ display: block; font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; }}
-.grid-proj {{ display: block; font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }}
-.grid-cell.easy {{ background: color-mix(in srgb, var(--over) 12%, transparent); }}
-.grid-cell.easy .grid-proj {{ color: var(--over); }}
-.grid-cell.hard {{ background: color-mix(in srgb, var(--under) 12%, transparent); }}
-.grid-cell.hard .grid-proj {{ color: var(--under); }}
-.expo-box {{ background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; box-shadow: var(--shadow); padding: 4px 18px 14px; }}
-.expo-list {{ list-style: none; margin: 0; padding: 0; }}
-.expo {{ display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: baseline; padding: 11px 0; border-top: 1px solid var(--rule); }}
-.expo:first-child {{ border-top: none; }}
-.expo-count {{ font-family: Archivo, sans-serif; font-weight: 700; font-size: 24px; font-variant-numeric: tabular-nums; min-width: 28px; text-align: right; }}
-.expo-match {{ font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }}
-.expo-names {{ flex-basis: 100%; font-weight: 400; font-size: 13px; color: var(--ink-soft); }}
-.questions {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }}
-.question {{ background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--pending); border-radius: 3px; padding: 15px 17px; box-shadow: var(--shadow); }}
-.question-head {{ display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; }}
-.question h3 {{ font-family: Archivo, sans-serif; font-size: 15.5px; font-weight: 600; margin: 0; text-wrap: balance; }}
-.question .state {{ display: inline-flex; align-items: center; gap: 5px; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--pending); white-space: nowrap; }}
-.question p {{ margin: 0; font-size: 13.5px; color: var(--ink-soft); }}
+.bar {{ width: 100%; background: var(--sunk); display: flex; align-items: flex-start; justify-content: center; padding-top: 9px; align-self: end; }}
+.bar.lead {{ background: var(--hot); }}
+.bar-value {{ font-family: Anton, Impact, sans-serif; font-size: 44px; line-height: 1; }}
+.bar-round {{ font-size: 12.5px; font-weight: 600; letter-spacing: .08em; color: var(--bdim); padding-top: 7px; }}
+.move {{ display: block; font-size: 12px; font-weight: 600; line-height: 1.4; min-height: 1.4em; }}
+.move.down {{ color: var(--hot); }}
+.move.up {{ color: var(--mint); }}
+.form-story {{
+  background: var(--sunk); display: flex; flex-direction: column;
+  justify-content: center; gap: 1px; padding: 0 28px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 26px 100%);
+}}
+.form-figure {{ font-family: Anton, Impact, sans-serif; font-size: 46px; line-height: 1; color: var(--hot); }}
+.form-note {{ font-size: 15.5px; color: var(--bdim); }}
 
-footer {{ margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--ink-faint); display: flex; flex-wrap: wrap; gap: 6px 18px; }}
-footer code {{ font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-soft); }}
-a {{ color: var(--accent); }}
-:focus-visible {{ outline: 2px solid var(--accent); outline-offset: 2px; }}
+/* The hinge: graphics above, type below. */
+.hinge {{ height: 5px; background: var(--ink); }}
+
+/* ------------------------------------------------------------------ *
+ * The results page. No boxes, no shadows: rules and weight only.      *
+ * ------------------------------------------------------------------ */
+section {{ padding-top: 34px; }}
+h2 {{
+  font-family: "Instrument Serif", Georgia, serif; font-weight: 400;
+  font-size: 31px; line-height: 1.1; margin: 0 0 3px; letter-spacing: -.01em;
+  text-wrap: balance;
+}}
+.rule {{ height: 2px; background: var(--ink); margin-bottom: 14px; }}
+.lede {{ margin: 0 0 16px; max-width: 68ch; color: var(--dim); }}
+.lede strong {{ color: var(--ink); font-weight: 600; }}
+.footnote {{ margin: 12px 0 0; font-size: 14.5px; color: var(--dim); max-width: 68ch; }}
+code {{ font-family: ui-monospace, monospace; font-size: 14px; }}
+
+.cols {{ display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0 34px; }}
+@media (max-width: 780px) {{ .cols {{ grid-template-columns: 1fr; gap: 28px; }} .rail {{ border-left: none; padding-left: 0; }} }}
+.rail {{ border-left: 1px solid var(--rule); padding-left: 26px; }}
+.rail h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 23px; margin: 0; }}
+.rail-note {{ margin: 0 0 4px; font-size: 14px; color: var(--dim); }}
+
+.scroll {{ overflow-x: auto; }}
+table {{ width: 100%; border-collapse: collapse; }}
+th {{
+  text-align: left; font-size: 11.5px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--dim); padding: 0 12px 6px 0;
+  border-bottom: 1px solid var(--rule); white-space: nowrap;
+}}
+td {{ padding: 8px 12px 8px 0; border-bottom: 1px solid var(--hair); vertical-align: baseline; }}
+tbody tr:last-child td {{ border-bottom: none; }}
+.fig {{ text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }}
+th.fig {{ text-align: right; }}
+.name {{ font-weight: 600; }}
+.sub {{ font-size: 14px; color: var(--dim); font-weight: 400; }}
+td.name .sub {{ display: block; }}
+.muted {{ color: var(--dim); font-weight: 400; }}
+.strong {{ font-weight: 600; }}
+.up {{ color: var(--green); }}
+.down {{ color: var(--red); }}
+.pending {{ font-size: 14px; color: var(--dim); font-style: italic; }}
+
+.pos-row {{
+  font-family: "Instrument Serif", Georgia, serif; font-size: 17px;
+  font-weight: 400; letter-spacing: .03em; text-transform: none;
+  color: var(--ink); border-bottom: 1px solid var(--rule); padding-top: 18px;
+}}
+.ord {{ color: var(--dim); font-size: 13px; width: 16px; padding-right: 8px; }}
+.cap, .late {{ font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 1px 5px; white-space: nowrap; }}
+.cap {{ background: var(--red); color: #fff; }}
+.late {{ color: var(--red); border: 1px solid currentColor; }}
+.role.is-xi {{ font-weight: 600; }}
+.role.is-xi::before {{ content: ""; display: inline-block; width: 3px; height: 11px; background: var(--red); margin-right: 7px; vertical-align: -1px; }}
+
+.lead-fig {{ font-family: "Instrument Serif", Georgia, serif; font-size: 30px; width: 46px; text-align: right; padding-right: 16px; }}
+
+.facts {{ margin: 20px 0 0; padding-top: 12px; border-top: 2px solid var(--ink); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 14px; font-size: 15px; }}
+.facts dt {{ font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }}
+.facts dd {{ margin: 0; font-weight: 600; min-width: 0; }}
+.facts .big {{ font-family: "Instrument Serif", Georgia, serif; font-size: 29px; font-weight: 400; }}
+
+.grid td.cell {{ text-align: center; min-width: 92px; padding: 6px 8px; }}
+.cell-opp {{ display: block; font-size: 12px; color: var(--dim); white-space: nowrap; }}
+.cell-fig {{ display: block; font-weight: 600; font-variant-numeric: tabular-nums; }}
+.cell.easy {{ background: color-mix(in srgb, var(--green) 13%, transparent); }}
+.cell.easy .cell-fig {{ color: var(--green); }}
+.cell.hard {{ background: color-mix(in srgb, var(--red) 13%, transparent); }}
+.cell.hard .cell-fig {{ color: var(--red); }}
+
+tr.is-me td {{ background: var(--wash); }}
+tr.is-me .name {{ font-weight: 700; }}
+tr.is-me td:first-child {{ box-shadow: inset 3px 0 0 var(--red); }}
+tr.is-dead td, tr.is-dead .name {{ color: var(--dim); font-weight: 400; }}
+.rank {{ width: 38px; color: var(--dim); }}
+
+.dist {{ padding: 6px 0 0; }}
+.dist-track {{ position: relative; height: 34px; border-bottom: 1px solid var(--rule); }}
+.mark {{ position: absolute; bottom: 0; width: 2px; height: 20px; background: var(--rule); transform: translateX(-1px); }}
+.mark.is-me {{ background: var(--red); height: 34px; width: 3px; }}
+.dist-axis {{ position: relative; height: 22px; margin-top: 6px; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }}
+.dist-end {{ position: absolute; left: 0; }}
+.dist-end.right {{ left: auto; right: 0; }}
+.dist-me {{ position: absolute; transform: translateX(-50%); color: var(--red); font-weight: 600; white-space: nowrap; }}
+
+.questions {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }}
+.q h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }}
+.q-state {{ margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }}
+.q p {{ margin: 0; font-size: 14.5px; color: var(--dim); }}
+
+footer {{ margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 13.5px; color: var(--dim); display: flex; flex-wrap: wrap; gap: 4px 20px; }}
+a {{ color: var(--red); }}
+:focus-visible {{ outline: 2px solid var(--red); outline-offset: 2px; }}
 @media (prefers-reduced-motion: reduce) {{ * {{ animation: none !important; transition: none !important; }} }}
 </style>
 
-<div class="wrap">
-  <header class="masthead">
-    <h1>Melro</h1>
-    <span class="rule-tag">Jornada {data['round']}</span>
-    <span class="stamp">lido {esc(stamp)} UTC</span>
-  </header>
+<div class="page">
+{hero(data, public)}
+  <div class="hinge"></div>
+  <div class="body">
 
-  <section>
-    <h2>Onde estamos</h2>
-    <div class="cards">
-{summary_cards(data, public)}
-    </div>
-  </section>
-
-  <section>
-    <h2>A época até agora</h2>
-{history_section(data)}
-  </section>
-
-  <section>
-    <h2>A folha entregue</h2>
-    <p class="section-note">Escalada antes do fecho. Os dois jogadores marcados
-    a âmbar têm o jogo da jornada {data['round']} em setembro — o Benfica a 9, o
-    Sp. Braga a 10 — portanto os pontos deles chegam semanas depois dos outros.</p>
+    <section>
+      <h2>A folha entregue</h2><div class="rule"></div>
 {sheet_section(data)}
-  </section>
+    </section>
 
-  <section>
-    <h2>Projetado contra real</h2>
-{ledger_section(data)}
-  </section>
-
-  <section>
-    <h2>Onde está o risco</h2>
+    <section>
+      <h2>Onde está o risco</h2><div class="rule"></div>
 {exposure_section(data)}
-  </section>
+    </section>
 
-  <section>
-    <h2>As próximas jornadas</h2>
+    <section>
+      <h2>As próximas jornadas</h2><div class="rule"></div>
 {grid_section(data)}
-  </section>
+    </section>
 
-  <section>
-    <h2>Quem rende mais do que a posse dele</h2>
+    <section>
+      <h2>Quem rende mais do que a posse dele</h2><div class="rule"></div>
 {differentials_section(data)}
-  </section>
+    </section>
 
-  <section>
-    <h2>A liga privada</h2>
+    <section>
+      <h2>Projetado contra real</h2><div class="rule"></div>
+{ledger_section(data)}
+    </section>
+
+    <section>
+      <h2>A liga privada</h2><div class="rule"></div>
 {league_section(data, public)}
-  </section>
+    </section>
 
-  <section>
-    <h2>Por resolver</h2>
-    <div class="questions">
+    <section>
+      <h2>Por resolver</h2><div class="rule"></div>
+      <div class="questions">
 {questions_section()}
-    </div>
-  </section>
+      </div>
+    </section>
 
-  <footer>
-    <span>Projeções registadas a {esc(recorded)} UTC, antes do primeiro pontapé.</span>
-    <span><code>scripts/build_dashboard.py</code></span>
-  </footer>
+    <footer>
+      <span>Lido {esc(stamp)} UTC. Projeções registadas a {esc(recorded)} UTC, antes do primeiro pontapé.</span>
+      <span><code>scripts/build_dashboard.py</code></span>
+    </footer>
+  </div>
 </div>
 """
 
@@ -1008,7 +948,10 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render(data, public=args.public), encoding="utf-8")
     settled = sum(1 for r in data["stored"]["players"].values() if r["actual"] is not None)
-    print(f"wrote {out} — round {args.round}, {settled}/23 settled, {len(data['league'])} in the league")
+    print(
+        f"wrote {out} — round {args.round}, {settled}/23 settled, "
+        f"{len(data['league'])} in the league"
+    )
 
 
 if __name__ == "__main__":

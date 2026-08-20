@@ -1,0 +1,30 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "A · Transmissão", "x": 0, "y": 0, "w": 900, "h": 1180 },
+    { "file": "Diario.dc.html", "title": "B · Diário desportivo", "x": 1000, "y": 0, "w": 900, "h": 1180 }
+  ],
+  "annotations": [
+    {
+      "id": "direccao-a",
+      "x": 0,
+      "y": -180,
+      "w": 420,
+      "text": "A — TRANSMISSÃO\n\nGrafismo de emissão desportiva: condensada pesada (Anton), números enormes, blocos de cor sólidos, cortes na diagonal.\n\nA favor: energia, hierarquia inequívoca, inconfundivelmente desporto.\nContra: come espaço — pouca densidade por ecrã, e uma tabela de 30 linhas não cabe neste registo sem perder a força."
+    },
+    {
+      "id": "direccao-b",
+      "x": 1000,
+      "y": -180,
+      "w": 420,
+      "text": "B — DIÁRIO DESPORTIVO\n\nPágina de resultados impressa: sem caixas nem sombras, hierarquia só por filetes e peso. Instrument Serif no display, Plex Condensed nos dados.\n\nA favor: densidade altíssima, lê-se como jornal, envelhece bem.\nContra: mais sóbria — pede leitura, não salta à vista num telemóvel de relance."
+    },
+    {
+      "id": "nota-tema",
+      "x": 500,
+      "y": 1230,
+      "w": 400,
+      "text": "Cada uma abre no tema onde a direção vive: A no escuro (emissão), B no claro (papel). O selector de tema em cima de cada artboard troca."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

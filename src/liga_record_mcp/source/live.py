@@ -44,6 +44,12 @@ POSITION_FROM_CODE: dict[str, Position] = {c: p for p, c in POSITION_CODE.items(
 MARKET_MIN_VALUE = MIN_PRICE
 MARKET_MAX_VALUE = 12_000_000
 
+#: The ranking service is intermittently unreachable; a single refusal is
+#: not an answer. Three tries with a widening pause has cleared every
+#: failure seen so far.
+RANKING_ATTEMPTS = 3
+RANKING_BACKOFF = 1.5
+
 ORDER_BY = ("points", "teams")
 ORDER_DIR = ("desc", "asc")
 
@@ -295,24 +301,39 @@ class LigaRecordClient:
         else:
             url = f"{self.base_url}{self.RANKING_PATH}?" + urlencode(query)
 
-        try:
-            response = httpx.post(
-                url,
-                timeout=self.timeout,
-                headers={
-                    "User-Agent": "liga-record-mcp (personal use)",
-                    "X-Requested-With": "XMLHttpRequest",
-                },
-                follow_redirects=True,
-            )
-            response.raise_for_status()
-            payload = response.json()
-        except httpx.HTTPError as exc:
-            raise SiteError(f"could not reach the ranking: {exc}") from exc
-        except ValueError as exc:
-            raise SiteError(
-                f"the ranking returned {response.headers.get('content-type')}, not JSON"
-            ) from exc
+        # The site drops connections. Over this project it has failed twice with
+        # an SSL handshake timeout and once returned a body with no page count,
+        # each time succeeding seconds later. A caller that treats one refusal
+        # as the answer either fails a whole page build or, worse, renders the
+        # gap as a dash — so transport failures are retried here rather than
+        # tolerated upstream.
+        last: Exception | None = None
+        for attempt in range(RANKING_ATTEMPTS):
+            try:
+                response = httpx.post(
+                    url,
+                    timeout=self.timeout,
+                    headers={
+                        "User-Agent": "liga-record-mcp (personal use)",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                    follow_redirects=True,
+                )
+                response.raise_for_status()
+                payload = response.json()
+                break
+            except httpx.HTTPError as exc:
+                last = SiteError(f"could not reach the ranking: {exc}")
+            except ValueError as exc:
+                # HTML where JSON belongs is a login redirect, not a blip.
+                raise SiteError(
+                    f"the ranking returned {response.headers.get('content-type')}, "
+                    "not JSON"
+                ) from exc
+            if attempt + 1 < RANKING_ATTEMPTS:
+                time.sleep(RANKING_BACKOFF * (attempt + 1))
+        else:
+            raise last or SiteError("could not reach the ranking")
 
         # The service answers with two objects: the page, then its count.
         if not isinstance(payload, list) or not payload:

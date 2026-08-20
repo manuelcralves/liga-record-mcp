@@ -1,0 +1,165 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #a8112a; } a:hover { color: #7d0c20; }
+    .np { --paper: #eceae5; --ink: #16150f; --dim: #6a6860; --rule: #c9c6bd;
+          --hair: #dcd9d1; --red: #a8112a; }
+    .np.dark { --paper: #14140f; --ink: #efece4; --dim: #8f8c84; --rule: #38372f;
+               --hair: #2a2923; --red: #e0374f; }
+    .np table { border-collapse: collapse; width: 100%; }
+    .np td, .np th { padding: 7px 0; text-align: left; }
+    .np .fig { font-variant-numeric: tabular-nums; text-align: right; }
+  </style>
+</helmet>
+<div class="np {{themeClass}}" style="background: var(--paper); color: var(--ink); font-family: 'IBM Plex Sans Condensed', 'Arial Narrow', sans-serif; width: 900px; min-height: 1180px; padding: 42px 46px 52px;">
+
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding-bottom: 8px;">
+    <span style="font-family: 'Instrument Serif', Georgia, serif; font-size: 82px; line-height: .86; letter-spacing: -.015em;">Melro</span>
+    <span style="font-size: 12px; font-weight: 600; letter-spacing: .24em; text-transform: uppercase; color: var(--dim); padding-bottom: 10px;">Liga Record · Época 2026/27</span>
+  </div>
+  <div style="height: 4px; background: var(--ink);"></div>
+  <div style="display: flex; justify-content: space-between; padding: 9px 0 0; font-size: 12px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--red);">
+    <span>Jornada 3 · a folha e a classificação</span>
+    <span style="color: var(--dim);">Projeções por confirmar</span>
+  </div>
+  <div style="height: 1px; background: var(--rule); margin-top: 9px;"></div>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 0 38px; padding-top: 26px;">
+
+    <div>
+      <p style="margin: 0 0 4px; font-size: 13px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--dim);">Na liga privada</p>
+      <div style="display: flex; align-items: baseline; gap: 14px;">
+        <span style="font-family: 'Instrument Serif', Georgia, serif; font-size: 116px; line-height: .82; letter-spacing: -.03em;">13.º</span>
+        <span style="font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-size: 34px; color: var(--dim);">de trinta</span>
+      </div>
+      <p style="margin: 18px 0 0; font-size: 17px; line-height: 1.5; max-width: 46ch;">
+        Vinte e uma equipas com pontos, nove ainda por estrear. O líder soma
+        <strong>150</strong> — uma diferença de <strong style="color: var(--red);">63 pontos</strong>
+        ao fim de duas jornadas, cerca de trinta por jornada.
+      </p>
+    </div>
+
+    <div style="border-left: 1px solid var(--rule); padding-left: 26px;">
+      <p style="margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--dim);">No país</p>
+      <span style="font-family: 'Instrument Serif', Georgia, serif; font-size: 58px; line-height: 1;">6598.º</span>
+      <p style="margin: 6px 0 0; font-size: 16px; color: var(--dim);">entre cerca de 19 100 equipas</p>
+      <div style="height: 1px; background: var(--hair); margin: 18px 0;"></div>
+      <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--dim);">Pontos</p>
+      <span style="font-family: 'Instrument Serif', Georgia, serif; font-size: 58px; line-height: 1;">87</span>
+      <p style="margin: 6px 0 0; font-size: 16px; color: var(--dim);">acumulados em duas jornadas</p>
+    </div>
+  </div>
+
+  <div style="height: 1px; background: var(--rule); margin: 32px 0 0;"></div>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 38px; padding-top: 22px;">
+
+    <div>
+      <p style="margin: 0 0 2px; font-family: 'Instrument Serif', Georgia, serif; font-size: 30px;">A época até agora</p>
+      <div style="height: 2px; background: var(--ink); margin-bottom: 6px;"></div>
+      <table style="font-size: 16px;">
+        <thead>
+          <tr style="border-bottom: 1px solid var(--rule);">
+            <th style="font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim);">Jornada</th>
+            <th class="fig" style="font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim);">Pontos</th>
+            <th class="fig" style="font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim);">No país</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid var(--hair);">
+            <td style="font-weight: 600;">Primeira</td>
+            <td class="fig" style="font-weight: 600;">49</td>
+            <td class="fig">1 246.º</td>
+          </tr>
+          <tr style="border-bottom: 1px solid var(--hair);">
+            <td style="font-weight: 600;">Segunda</td>
+            <td class="fig" style="font-weight: 600;">38</td>
+            <td class="fig">6 598.º</td>
+          </tr>
+          <tr>
+            <td colspan="3" style="padding-top: 10px; font-size: 16px; color: var(--red); font-weight: 600;">▼ 5 352 lugares perdidos</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin: 12px 0 0; font-size: 16px; line-height: 1.5; color: var(--dim);">
+        A queda coincide com a jornada em que dez dos vinte e três jogadores
+        pertenciam aos dois clubes do jogo adiado.
+      </p>
+    </div>
+
+    <div>
+      <p style="margin: 0 0 2px; font-family: 'Instrument Serif', Georgia, serif; font-size: 30px;">A folha entregue</p>
+      <div style="height: 2px; background: var(--ink); margin-bottom: 6px;"></div>
+      <table style="font-size: 16px;">
+        <tbody>
+          <tr style="border-bottom: 1px solid var(--hair);">
+            <td style="font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); width: 40%;">Formação</td>
+            <td style="font-weight: 600;">3-4-3</td>
+          </tr>
+          <tr style="border-bottom: 1px solid var(--hair);">
+            <td style="font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim);">Capitão</td>
+            <td><strong>Pavlidis</strong> <span style="color: var(--dim);">Benfica · 9,2</span></td>
+          </tr>
+          <tr style="border-bottom: 1px solid var(--hair);">
+            <td style="font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim);">Treinador</td>
+            <td><strong>Farioli</strong> <span style="color: var(--dim);">FC Porto · 5,7</span></td>
+          </tr>
+          <tr>
+            <td style="font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); padding-top: 12px;">Total projetado</td>
+            <td style="padding-top: 12px;"><span style="font-family: 'Instrument Serif', Georgia, serif; font-size: 40px; line-height: 1;">69,3</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="height: 1px; background: var(--rule); margin: 30px 0 0;"></div>
+
+  <div style="padding-top: 22px;">
+    <p style="margin: 0 0 2px; font-family: 'Instrument Serif', Georgia, serif; font-size: 30px;">Onde está o risco</p>
+    <div style="height: 2px; background: var(--ink); margin-bottom: 14px;"></div>
+    <div style="display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 26px; align-items: start;">
+      <span style="font-family: 'Instrument Serif', Georgia, serif; font-size: 92px; line-height: .8; color: var(--red);">6</span>
+      <div>
+        <p style="margin: 0 0 6px; font-size: 21px; font-weight: 600;">dos vinte e três jogam o FC Porto–Arouca</p>
+        <p style="margin: 0 0 12px; font-size: 16px; line-height: 1.5; color: var(--dim); max-width: 62ch;">
+          Três de cada lado. A manutenção de baliza é mutuamente exclusiva, portanto
+          esta exposição amortece um mau resultado tanto quanto trava um bom — o que
+          é aceitável desde que seja deliberado.
+        </p>
+        <table style="font-size: 15px;">
+          <tbody>
+            <tr style="border-top: 1px solid var(--hair);">
+              <td style="width: 46%;">FC Porto <span style="color: var(--dim);">— Diogo Costa, Nehuén Pérez, Zaidu</span></td>
+              <td>Arouca <span style="color: var(--dim);">— Fontán, Javi Sánchez, Esgaio</span></td>
+            </tr>
+            <tr style="border-top: 1px solid var(--hair);">
+              <td>Gil Vicente <span style="color: var(--dim);">— cinco jogadores</span></td>
+              <td>V. Guimarães–Nacional <span style="color: var(--dim);">— dos dois lados</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"themeClass":{"editor":"enum","options":["","dark"],"default":"","section":"Tema"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: this.props.themeClass ?? '' };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,63 +1,47 @@
 <title>Melro · Liga Record</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Instrument+Serif&display=swap">
 <style>
+/* Paper, below the hinge. The reader's theme moves these and nothing else. */
+/* Declared so the browser knows this page handles its own themes. Without it
+   Chrome's automatic dark mode forces a scheme on top of ours, and it reaches
+   inside tables: on a light ground the paper stayed light while every table
+   inherited dark ink, which renders the player names invisible. */
 :root {
-  --paper:      #f2f5f4;
-  --surface:    #ffffff;
-  --surface-2:  #eef1f0;
-  --ink:        #14181d;
-  --ink-soft:   #59636b;
-  --ink-faint:  #8d979d;
-  --rule:       #dbe1e0;
-  --rule-firm:  #c2cbc9;
-  --accent:     #c8102e;
-  --accent-ink: #ffffff;
-  --pending:    #a8701a;
-  --pending-bg: #f6ecdb;
-  --settled:    #2f6b4f;
-  --over:       #2f6b4f;
-  --under:      #b03a2e;
-  --shadow:     0 1px 2px rgba(20, 24, 29, .06), 0 8px 24px rgba(20, 24, 29, .05);
+  color-scheme: light;
+  --paper: #eceae5;
+  --ink:   #16150f;
+  --dim:   #6a6860;
+  --rule:  #c9c6bd;
+  --hair:  #dcd9d1;
+  --wash:  #e3e0d9;
+  --red:   #a8112a;
+  --green: #1f6b4a;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper:      #0f1216;
-    --surface:    #171c21;
-    --surface-2:  #1e242a;
-    --ink:        #e7ebea;
-    --ink-soft:   #9aa4aa;
-    --ink-faint:  #6d777d;
-    --rule:       #2a3138;
-    --rule-firm:  #3b444c;
-    --accent:     #ef4a5f;
-    --accent-ink: #14181d;
-    --pending:    #d9a441;
-    --pending-bg: #2c2418;
-    --settled:    #5aa87f;
-    --over:       #5aa87f;
-    --under:      #e2705f;
-    --shadow:     0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+    color-scheme: dark;
+    --paper: #14140f;
+    --ink:   #efece4;
+    --dim:   #918e85;
+    --rule:  #3a3931;
+    --hair:  #2a2923;
+    --wash:  #1e1e17;
+    --red:   #e0374f;
+    --green: #4fa87c;
   }
 }
 :root[data-theme="dark"] {
-  --paper:      #0f1216;
-  --surface:    #171c21;
-  --surface-2:  #1e242a;
-  --ink:        #e7ebea;
-  --ink-soft:   #9aa4aa;
-  --ink-faint:  #6d777d;
-  --rule:       #2a3138;
-  --rule-firm:  #3b444c;
-  --accent:     #ef4a5f;
-  --accent-ink: #14181d;
-  --pending:    #d9a441;
-  --pending-bg: #2c2418;
-  --settled:    #5aa87f;
-  --over:       #5aa87f;
-  --under:      #e2705f;
-  --shadow:     0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  color-scheme: dark;
+  --paper: #14140f;
+  --ink:   #efece4;
+  --dim:   #918e85;
+  --rule:  #3a3931;
+  --hair:  #2a2923;
+  --wash:  #1e1e17;
+  --red:   #e0374f;
+  --green: #4fa87c;
 }
 
 * { box-sizing: border-box; }
@@ -65,937 +49,879 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 16px;
-  line-height: 1.55;
+  font-family: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  font-size: 16.5px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
-.wrap { max-width: 1080px; margin: 0 auto; padding: 40px 24px 72px; }
+.page { max-width: 1020px; margin: 0 auto; }
+.body { padding: 0 32px 64px; }
 
-.masthead {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;
-  padding-bottom: 18px; border-bottom: 2px solid var(--ink);
+/* ------------------------------------------------------------------ *
+ * The broadcast panel. A fixed graphic: it does not follow the        *
+ * reader's theme, the way a front page's photograph is the photograph *
+ * whatever paper it is printed on.                                    *
+ * ------------------------------------------------------------------ */
+.bcast {
+  --bg:   #0a0d14;
+  --sunk: #141a27;
+  --bink: #ffffff;
+  --bdim: #8b95a8;
+  --hot:  #ff2d46;
+  --mint: #00d9a3;
+  background: var(--bg); color: var(--bink); padding-bottom: 32px;
 }
-.masthead h1 {
-  font-family: Archivo, "IBM Plex Sans", sans-serif;
-  font-weight: 700; font-size: clamp(30px, 5vw, 44px);
-  letter-spacing: -.025em; margin: 0; text-wrap: balance;
+.mast { display: flex; align-items: stretch; height: 82px; }
+.mast-name {
+  background: var(--hot); display: flex; align-items: center;
+  padding: 0 40px 0 32px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 22px) 100%, 0 100%);
 }
-.masthead .rule-tag {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 12px; letter-spacing: .09em; text-transform: uppercase;
-  color: var(--accent-ink); background: var(--accent);
-  padding: 3px 9px; border-radius: 2px;
-}
-.masthead .stamp {
-  margin-left: auto; font-family: "IBM Plex Mono", monospace;
-  font-size: 12px; color: var(--ink-faint);
-}
+.mast-name span { font-family: Anton, Impact, "Arial Narrow", sans-serif; font-size: 44px; line-height: 1; }
+.mast-meta { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 20px; padding: 0 32px; }
+.mast-tag { font-size: 12.5px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: var(--bdim); }
+.mast-round { font-family: Anton, Impact, sans-serif; font-size: 25px; letter-spacing: .04em; }
 
-section { margin-top: 44px; }
-h2 {
-  font-family: Archivo, sans-serif; font-weight: 600;
-  font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--ink-soft); margin: 0 0 16px;
-  padding-bottom: 8px; border-bottom: 1px solid var(--rule);
-}
-.section-note {
-  margin: 0 0 18px; max-width: 65ch;
-  color: var(--ink-soft); font-size: 14.5px;
-}
-.section-note em { color: var(--ink); font-style: normal; font-weight: 600; }
+.hero { display: flex; align-items: flex-end; gap: 26px; padding: 30px 32px 0; }
+.hero-figure { font-family: Anton, Impact, sans-serif; font-size: 178px; line-height: .78; letter-spacing: -.03em; color: var(--hot); }
+.hero-side { display: flex; flex-direction: column; gap: 3px; padding-bottom: 15px; }
+.hero-of { font-family: Anton, Impact, sans-serif; font-size: 38px; line-height: 1; }
+.hero-label { font-size: 16px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }
 
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-top: 24px; }
-.card {
-  background: var(--surface); border: 1px solid var(--rule);
-  border-radius: 3px; padding: 16px 18px 14px; box-shadow: var(--shadow);
-}
-.card-label {
-  margin: 0; font-family: "IBM Plex Mono", monospace; font-size: 11px;
-  letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint);
-}
-.card-value {
-  margin: 6px 0 2px; font-family: Archivo, sans-serif; font-weight: 700;
-  font-size: 38px; line-height: 1; letter-spacing: -.03em;
-  font-variant-numeric: tabular-nums;
-}
-.card-value .of { font-size: 15px; font-weight: 500; color: var(--ink-soft); letter-spacing: 0; }
-.card-note { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 3px; padding: 28px 32px 0; }
+.fig-block { background: var(--sunk); padding: 15px 19px 13px; }
+.fig-label { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }
+.fig-value { display: block; font-family: Anton, Impact, sans-serif; font-size: 40px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.fig-value.hot { color: var(--hot); }
+.fig-note { display: block; font-size: 14.5px; color: var(--bdim); }
 
-.sheet { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr); gap: 18px; align-items: start; }
-@media (max-width: 760px) { .sheet { grid-template-columns: 1fr; } }
-.sheet-main, .sheet-side {
-  background: var(--surface); border: 1px solid var(--rule);
-  border-radius: 3px; padding: 6px 18px 18px; box-shadow: var(--shadow);
-}
-.line + .line { margin-top: 4px; }
-.line-label {
-  font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
-  letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint);
-  margin: 16px 0 6px;
-}
-.line-label .hint { text-transform: none; letter-spacing: 0; color: var(--ink-faint); font-weight: 400; }
-.line-list, .sub-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.player {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0 12px; padding: 7px 0; border-top: 1px solid var(--rule);
-}
-.player-name { grid-column: 1; grid-row: 1; font-weight: 600; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.player-fixture { grid-column: 1; grid-row: 2; font-size: 13px; color: var(--ink-soft); }
-.player-proj {
-  grid-column: 2; grid-row: 1 / span 2; align-self: center; justify-self: end;
-  font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 17px;
-  font-variant-numeric: tabular-nums;
-}
-.player.is-late .player-proj { color: var(--pending); }
-
-.badge {
-  font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600;
-  letter-spacing: .04em; padding: 2px 6px; border-radius: 2px; white-space: nowrap;
-}
-.badge-cap { background: var(--accent); color: var(--accent-ink); }
-.badge-late { background: var(--pending-bg); color: var(--pending); border: 1px solid currentColor; }
-
-.sub { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--rule); }
-.sub-order {
-  font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600;
-  width: 20px; height: 20px; display: grid; place-items: center;
-  border: 1px solid var(--rule-firm); border-radius: 50%; color: var(--ink-soft);
-}
-.sub-name { font-weight: 500; font-size: 14.5px; }
-.sub-pos { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); }
-.sub-proj { font-family: "IBM Plex Mono", monospace; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
-
-.sheet-meta { margin: 20px 0 0; padding-top: 14px; border-top: 2px solid var(--ink); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: 14px; }
-.sheet-meta dt { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); align-self: center; }
-.sheet-meta dd { margin: 0; font-weight: 600; min-width: 0; }
-.muted { color: var(--ink-soft); font-weight: 400; }
-.coach-proj { float: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
-
-.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; box-shadow: var(--shadow); }
-table.ledger { width: 100%; border-collapse: collapse; font-size: 14px; }
-.ledger th {
-  text-align: left; font-family: "IBM Plex Mono", monospace; font-weight: 500;
-  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--ink-faint); padding: 11px 12px; border-bottom: 1px solid var(--rule-firm);
-  white-space: nowrap; background: var(--surface-2);
-}
-.ledger td { padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
-.ledger tr:last-child td { border-bottom: none; }
-.num { text-align: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
-th.num { text-align: right; }
-.strong { font-weight: 600; }
-.cell-name { font-weight: 600; min-width: 150px; }
-.cell-club { display: block; font-weight: 400; font-size: 12.5px; color: var(--ink-faint); }
-.cell-fixture { font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
-
-.pos-chip { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-soft); border: 1px solid var(--rule-firm); border-radius: 2px; padding: 1px 5px; }
-.role { font-size: 12.5px; white-space: nowrap; }
-.role-xi { font-weight: 600; }
-.role-xi::before { content: ""; display: inline-block; width: 3px; height: 11px; background: var(--accent); margin-right: 6px; vertical-align: -1px; }
-.role-sub { color: var(--ink-soft); }
-.role-out { color: var(--ink-faint); }
-
-.pending { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--pending); background: var(--pending-bg); border-radius: 2px; padding: 2px 8px; white-space: nowrap; }
-.dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
-.delta.over { color: var(--over); }
-.delta.under { color: var(--under); }
-
-.league .rank { width: 44px; color: var(--ink-soft); }
-.league tr.is-me td { background: var(--surface-2); }
-.league tr.is-me td:first-child { box-shadow: inset 3px 0 0 var(--accent); font-weight: 700; color: var(--ink); }
-.league tr.is-me .cell-name { font-weight: 700; }
-.league tr.is-dead td { color: var(--ink-faint); }
-.league tr.is-dead .cell-name { font-weight: 400; }
-
-.dist { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 26px 22px 14px; box-shadow: var(--shadow); }
-.dist-track { position: relative; height: 34px; border-bottom: 1px solid var(--rule-firm); }
-.mark { position: absolute; bottom: 0; width: 2px; height: 20px; background: var(--rule-firm); transform: translateX(-1px); border-radius: 1px; }
-.mark.is-me { background: var(--accent); height: 34px; width: 3px; }
-.dist-axis { position: relative; height: 22px; margin-top: 7px; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); }
-.dist-axis > span:first-child { position: absolute; left: 0; }
-.dist-axis > span:last-child { position: absolute; right: 0; }
-.dist-me { position: absolute; transform: translateX(-50%); color: var(--accent); font-weight: 600; white-space: nowrap; }
-.chart { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 22px 22px 16px; box-shadow: var(--shadow); }
-.bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); grid-template-rows: auto 130px auto auto auto; gap: 0 10px; overflow-x: auto; }
+.form { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px; padding: 28px 32px 0; }
+.form-bars { display: grid; grid-auto-flow: column; grid-auto-columns: 126px; grid-template-rows: 140px auto auto; gap: 0 3px; }
 .bar-slot { display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }
-.bar-value { font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; margin-bottom: 5px; }
-.bar { width: 100%; max-width: 62px; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 4px; align-self: end; }
-.bar-round { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .06em; color: var(--ink-soft); margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--rule-firm); width: 100%; text-align: center; }
-.bar-pos { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-faint); margin-top: 3px; }
-.move { display: block; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; line-height: 1.4; margin-top: 2px; white-space: nowrap; min-height: 1.4em; }
-.move.up { color: var(--over); }
-.move.down { color: var(--under); }
-.grid td.grid-cell { text-align: center; padding: 7px 8px; min-width: 92px; }
-.grid-opp { display: block; font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; }
-.grid-proj { display: block; font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
-.grid-cell.easy { background: color-mix(in srgb, var(--over) 12%, transparent); }
-.grid-cell.easy .grid-proj { color: var(--over); }
-.grid-cell.hard { background: color-mix(in srgb, var(--under) 12%, transparent); }
-.grid-cell.hard .grid-proj { color: var(--under); }
-.expo-box { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; box-shadow: var(--shadow); padding: 4px 18px 14px; }
-.expo-list { list-style: none; margin: 0; padding: 0; }
-.expo { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: baseline; padding: 11px 0; border-top: 1px solid var(--rule); }
-.expo:first-child { border-top: none; }
-.expo-count { font-family: Archivo, sans-serif; font-weight: 700; font-size: 24px; font-variant-numeric: tabular-nums; min-width: 28px; text-align: right; }
-.expo-match { font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
-.expo-names { flex-basis: 100%; font-weight: 400; font-size: 13px; color: var(--ink-soft); }
-.questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }
-.question { background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--pending); border-radius: 3px; padding: 15px 17px; box-shadow: var(--shadow); }
-.question-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
-.question h3 { font-family: Archivo, sans-serif; font-size: 15.5px; font-weight: 600; margin: 0; text-wrap: balance; }
-.question .state { display: inline-flex; align-items: center; gap: 5px; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--pending); white-space: nowrap; }
-.question p { margin: 0; font-size: 13.5px; color: var(--ink-soft); }
+.bar { width: 100%; background: var(--sunk); display: flex; align-items: flex-start; justify-content: center; padding-top: 9px; align-self: end; }
+.bar.lead { background: var(--hot); }
+.bar-value { font-family: Anton, Impact, sans-serif; font-size: 44px; line-height: 1; }
+.bar-round { font-size: 12.5px; font-weight: 600; letter-spacing: .08em; color: var(--bdim); padding-top: 7px; }
+.move { display: block; font-size: 12px; font-weight: 600; line-height: 1.4; min-height: 1.4em; }
+.move.down { color: var(--hot); }
+.move.up { color: var(--mint); }
+.form-story {
+  background: var(--sunk); display: flex; flex-direction: column;
+  justify-content: center; gap: 1px; padding: 0 28px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 26px 100%);
+}
+.form-figure { font-family: Anton, Impact, sans-serif; font-size: 46px; line-height: 1; color: var(--hot); }
+.form-note { font-size: 15.5px; color: var(--bdim); }
 
-footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--ink-faint); display: flex; flex-wrap: wrap; gap: 6px 18px; }
-footer code { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--ink-soft); }
-a { color: var(--accent); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The hinge: graphics above, type below. */
+.hinge { height: 5px; background: var(--ink); }
+
+/* ------------------------------------------------------------------ *
+ * The results page. No boxes, no shadows: rules and weight only.      *
+ * ------------------------------------------------------------------ */
+section { padding-top: 34px; }
+h2 {
+  font-family: "Instrument Serif", Georgia, serif; font-weight: 400;
+  font-size: 31px; line-height: 1.1; margin: 0 0 3px; letter-spacing: -.01em;
+  text-wrap: balance;
+}
+.rule { height: 2px; background: var(--ink); margin-bottom: 14px; }
+.lede { margin: 0 0 16px; max-width: 68ch; color: var(--dim); }
+.lede strong { color: var(--ink); font-weight: 600; }
+.footnote { margin: 12px 0 0; font-size: 14.5px; color: var(--dim); max-width: 68ch; }
+code { font-family: ui-monospace, monospace; font-size: 14px; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0 34px; }
+@media (max-width: 780px) { .cols { grid-template-columns: 1fr; gap: 28px; } .rail { border-left: none; padding-left: 0; } }
+.rail { border-left: 1px solid var(--rule); padding-left: 26px; }
+.rail h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 23px; margin: 0; }
+.rail-note { margin: 0 0 4px; font-size: 14px; color: var(--dim); }
+
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; font-size: 11.5px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--dim); padding: 0 12px 6px 0;
+  border-bottom: 1px solid var(--rule); white-space: nowrap;
+}
+td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--hair); vertical-align: baseline; }
+tbody tr:last-child td { border-bottom: none; }
+.fig { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th.fig { text-align: right; }
+.name { font-weight: 600; }
+.sub { font-size: 14px; color: var(--dim); font-weight: 400; }
+td.name .sub { display: block; }
+.muted { color: var(--dim); font-weight: 400; }
+.strong { font-weight: 600; }
+.up { color: var(--green); }
+.down { color: var(--red); }
+.pending { font-size: 14px; color: var(--dim); font-style: italic; }
+
+.pos-row {
+  font-family: "Instrument Serif", Georgia, serif; font-size: 17px;
+  font-weight: 400; letter-spacing: .03em; text-transform: none;
+  color: var(--ink); border-bottom: 1px solid var(--rule); padding-top: 18px;
+}
+.ord { color: var(--dim); font-size: 13px; width: 16px; padding-right: 8px; }
+.cap, .late { font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 1px 5px; white-space: nowrap; }
+.cap { background: var(--red); color: #fff; }
+.late { color: var(--red); border: 1px solid currentColor; }
+.role.is-xi { font-weight: 600; }
+.role.is-xi::before { content: ""; display: inline-block; width: 3px; height: 11px; background: var(--red); margin-right: 7px; vertical-align: -1px; }
+
+.lead-fig { font-family: "Instrument Serif", Georgia, serif; font-size: 30px; width: 46px; text-align: right; padding-right: 16px; }
+
+.facts { margin: 20px 0 0; padding-top: 12px; border-top: 2px solid var(--ink); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 14px; font-size: 15px; }
+.facts dt { font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.facts dd { margin: 0; font-weight: 600; min-width: 0; }
+.facts .big { font-family: "Instrument Serif", Georgia, serif; font-size: 29px; font-weight: 400; }
+
+.grid td.cell { text-align: center; min-width: 92px; padding: 6px 8px; }
+.cell-opp { display: block; font-size: 12px; color: var(--dim); white-space: nowrap; }
+.cell-fig { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cell.easy { background: color-mix(in srgb, var(--green) 13%, transparent); }
+.cell.easy .cell-fig { color: var(--green); }
+.cell.hard { background: color-mix(in srgb, var(--red) 13%, transparent); }
+.cell.hard .cell-fig { color: var(--red); }
+
+tr.is-me td { background: var(--wash); }
+tr.is-me .name { font-weight: 700; }
+tr.is-me td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+tr.is-dead td, tr.is-dead .name { color: var(--dim); font-weight: 400; }
+.rank { width: 38px; color: var(--dim); }
+
+.dist { padding: 6px 0 0; }
+.dist-track { position: relative; height: 34px; border-bottom: 1px solid var(--rule); }
+.mark { position: absolute; bottom: 0; width: 2px; height: 20px; background: var(--rule); transform: translateX(-1px); }
+.mark.is-me { background: var(--red); height: 34px; width: 3px; }
+.dist-axis { position: relative; height: 22px; margin-top: 6px; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.dist-end { position: absolute; left: 0; }
+.dist-end.right { left: auto; right: 0; }
+.dist-me { position: absolute; transform: translateX(-50%); color: var(--red); font-weight: 600; white-space: nowrap; }
+
+.questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }
+.q h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }
+.q-state { margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }
+.q p { margin: 0; font-size: 14.5px; color: var(--dim); }
+
+footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 13.5px; color: var(--dim); display: flex; flex-wrap: wrap; gap: 4px 20px; }
+a { color: var(--red); }
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 
-<div class="wrap">
-  <header class="masthead">
-    <h1>Melro</h1>
-    <span class="rule-tag">Jornada 3</span>
-    <span class="stamp">lido 2026-08-20 11:36 UTC</span>
-  </header>
-
-  <section>
-    <h2>Onde estamos</h2>
-    <div class="cards">
-      <article class="card">
-        <p class="card-label">Na liga privada</p>
-        <p class="card-value">13<span class="of">.º de 30</span></p>
-        <p class="card-note">21 equipas com pontos</p>
-      </article>
-      <article class="card">
-        <p class="card-label">No país</p>
-        <p class="card-value">6 598<span class="of">.º</span></p>
-        <p class="card-note"></p>
-      </article>
-      <article class="card">
-        <p class="card-label">Pontos</p>
-        <p class="card-value">87</p>
-        <p class="card-note">acumulados em 2 jornadas</p>
-      </article>
-      <article class="card">
-        <p class="card-label">Atraso para o 1.º</p>
-        <p class="card-value">−63</p>
-        <p class="card-note">o 1.º tem 150</p>
-      </article>
+<div class="page">
+  <section class="bcast">
+    <div class="mast">
+      <div class="mast-name"><span>Melro</span></div>
+      <div class="mast-meta">
+        <span class="mast-tag">Liga Record</span>
+        <span class="mast-round">Jornada 3</span>
+      </div>
     </div>
-  </section>
 
-  <section>
-    <h2>A época até agora</h2>
-      <p class="section-note">Da jornada 1 à 2 a posição nacional caiu 5 352 lugares. A barra é o que rendeu cada
-      jornada; por baixo, a posição no país depois dela.</p>
-      <div class="chart">
-        <div class="bars">
+    <div class="hero">
+      <span class="hero-figure">13</span>
+      <div class="hero-side">
+        <span class="hero-of">de 30</span>
+        <span class="hero-label">na liga privada</span>
+      </div>
+    </div>
+
+    <div class="figs">
+      <div class="fig-block">
+        <span class="fig-label">No país</span>
+        <span class="fig-value">6 598.º</span>
+        <span class="fig-note">de cerca de 19 100</span>
+      </div>
+      <div class="fig-block">
+        <span class="fig-label">Pontos</span>
+        <span class="fig-value">87</span>
+        <span class="fig-note">em duas jornadas</span>
+      </div>
+      <div class="fig-block">
+        <span class="fig-label">Para o 1.º</span>
+        <span class="fig-value hot">−63</span>
+        <span class="fig-note">o líder tem 150</span>
+      </div>
+    </div>
+    <div class="form">
+      <div class="form-bars">
           <div class="bar-slot">
-            <span class="bar-value">49</span>
-            <div class="bar" style="height:100.0%"></div>
-            <span class="bar-round">J1</span>
-            <span class="bar-pos">1 246.º</span>
-            
+            <div class="bar lead" style="height:100.0%"><span class="bar-value">49</span></div>
+            <span class="bar-round">J1 · 1 246.º</span>
+            <span class="move"></span>
           </div>
           <div class="bar-slot">
-            <span class="bar-value">38</span>
-            <div class="bar" style="height:77.6%"></div>
-            <span class="bar-round">J2</span>
-            <span class="bar-pos">6 598.º</span>
+            <div class="bar" style="height:77.6%"><span class="bar-value">38</span></div>
+            <span class="bar-round">J2 · 6 598.º</span>
             <span class="move down">▼ 5 352</span>
           </div>
-        </div>
       </div>
+      <div class="form-story">
+        <span class="form-figure">▼ 5 352</span>
+        <span class="form-note">lugares perdidos entre a jornada 1 e a 2</span>
+      </div>
+    </div>
   </section>
+  <div class="hinge"></div>
+  <div class="body">
 
-  <section>
-    <h2>A folha entregue</h2>
-    <p class="section-note">Escalada antes do fecho. Os dois jogadores marcados
-    a âmbar têm o jogo da jornada 3 em setembro — o Benfica a 9, o
-    Sp. Braga a 10 — portanto os pontos deles chegam semanas depois dos outros.</p>
-      <div class="sheet">
-        <div class="sheet-main">
-        <div class="line">
-          <h3 class="line-label">GR</h3>
-          <ul class="line-list">
-          <li class="player">
-            <span class="player-name">Diogo Costa </span>
-            <span class="player-fixture">FC Porto · casa v Arouca</span>
-            <span class="player-proj">4.2</span>
-          </li>
-          </ul>
+    <section>
+      <h2>A folha entregue</h2><div class="rule"></div>
+      <p class="lede">Escalada antes do fecho. Os dois jogadores
+      marcados têm o jogo desta jornada em setembro — o Benfica a 9, o Sp. Braga
+      a 10 — portanto os pontos deles chegam semanas depois dos outros.</p>
+      <div class="cols">
+        <div>
+          <table class="sheet">
+        <tbody>
+          <tr><th colspan="2" class="pos-row">GR</th></tr>
+            <tr>
+              <td class="name">Diogo Costa <span class="sub">FC Porto · casa v Arouca</span></td>
+              <td class="fig strong">4.2</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">DEF</th></tr>
+            <tr>
+              <td class="name">Nehuén Pérez <span class="sub">FC Porto · casa v Arouca</span></td>
+              <td class="fig strong">4.0</td>
+            </tr>
+            <tr>
+              <td class="name">Zaidu <span class="sub">FC Porto · casa v Arouca</span></td>
+              <td class="fig strong">3.3</td>
+            </tr>
+            <tr>
+              <td class="name">Léo Santos <span class="sub">Nacional · fora v V. Guimarães</span></td>
+              <td class="fig strong">2.8</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">MED</th></tr>
+            <tr>
+              <td class="name">Zalazar <span class="sub">Sporting · casa v Alverca</span></td>
+              <td class="fig strong">6.0</td>
+            </tr>
+            <tr>
+              <td class="name">Raphael Guzzo <span class="sub">Marítimo · casa v Académico</span></td>
+              <td class="fig strong">5.1</td>
+            </tr>
+            <tr>
+              <td class="name">Issa Doumbia <span class="sub">Sporting · casa v Alverca</span></td>
+              <td class="fig strong">5.0</td>
+            </tr>
+            <tr>
+              <td class="name">Samu <span class="sub">V. Guimarães · casa v Nacional</span></td>
+              <td class="fig strong">4.4</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">AVA</th></tr>
+            <tr>
+              <td class="name">Pavlidis <span class="cap">C</span><span class="late">09 SET 20:15</span><span class="sub">Benfica · fora v Moreirense</span></td>
+              <td class="fig strong">9.2</td>
+            </tr>
+            <tr>
+              <td class="name">Begraoui <span class="sub">Estoril · casa v Rio Ave</span></td>
+              <td class="fig strong">5.4</td>
+            </tr>
+            <tr>
+              <td class="name">Fran Navarro <span class="late">10 SET 20:15</span><span class="sub">Sp. Braga · fora v E. Amadora</span></td>
+              <td class="fig strong">4.8</td>
+            </tr>
+        </tbody>
+          </table>
         </div>
-        <div class="line">
-          <h3 class="line-label">DEF</h3>
-          <ul class="line-list">
-          <li class="player">
-            <span class="player-name">Nehuén Pérez </span>
-            <span class="player-fixture">FC Porto · casa v Arouca</span>
-            <span class="player-proj">4.0</span>
-          </li>
-          <li class="player">
-            <span class="player-name">Zaidu </span>
-            <span class="player-fixture">FC Porto · casa v Arouca</span>
-            <span class="player-proj">3.3</span>
-          </li>
-          <li class="player">
-            <span class="player-name">Léo Santos </span>
-            <span class="player-fixture">Nacional · fora v V. Guimarães</span>
-            <span class="player-proj">2.8</span>
-          </li>
-          </ul>
-        </div>
-        <div class="line">
-          <h3 class="line-label">MED</h3>
-          <ul class="line-list">
-          <li class="player">
-            <span class="player-name">Zalazar </span>
-            <span class="player-fixture">Sporting · casa v Alverca</span>
-            <span class="player-proj">6.0</span>
-          </li>
-          <li class="player">
-            <span class="player-name">Raphael Guzzo </span>
-            <span class="player-fixture">Marítimo · casa v Académico</span>
-            <span class="player-proj">5.1</span>
-          </li>
-          <li class="player">
-            <span class="player-name">Issa Doumbia </span>
-            <span class="player-fixture">Sporting · casa v Alverca</span>
-            <span class="player-proj">5.0</span>
-          </li>
-          <li class="player">
-            <span class="player-name">Samu </span>
-            <span class="player-fixture">V. Guimarães · casa v Nacional</span>
-            <span class="player-proj">4.4</span>
-          </li>
-          </ul>
-        </div>
-        <div class="line">
-          <h3 class="line-label">AVA</h3>
-          <ul class="line-list">
-          <li class="player is-late">
-            <span class="player-name">Pavlidis <span class="badge badge-cap" title="Capitão">C</span><span class="badge badge-late">09 SET 20:15</span></span>
-            <span class="player-fixture">Benfica · fora v Moreirense</span>
-            <span class="player-proj">9.2</span>
-          </li>
-          <li class="player">
-            <span class="player-name">Begraoui </span>
-            <span class="player-fixture">Estoril · casa v Rio Ave</span>
-            <span class="player-proj">5.4</span>
-          </li>
-          <li class="player is-late">
-            <span class="player-name">Fran Navarro <span class="badge badge-late">10 SET 20:15</span></span>
-            <span class="player-fixture">Sp. Braga · fora v E. Amadora</span>
-            <span class="player-proj">4.8</span>
-          </li>
-          </ul>
-        </div>
-        </div>
-        <aside class="sheet-side">
-          <h3 class="line-label">Suplentes <span class="hint">ordem de entrada</span></h3>
-          <ul class="sub-list">
-          <li class="sub">
-            <span class="sub-order">1</span>
-            <span class="sub-name">Héctor Hernández</span>
-            <span class="sub-pos">AVA</span>
-            <span class="sub-proj">3.6</span>
-          </li>
-          <li class="sub">
-            <span class="sub-order">2</span>
-            <span class="sub-name">Santi García</span>
-            <span class="sub-pos">MED</span>
-            <span class="sub-proj">3.3</span>
-          </li>
-          <li class="sub">
-            <span class="sub-order">3</span>
-            <span class="sub-name">Jose Fontán</span>
-            <span class="sub-pos">DEF</span>
-            <span class="sub-proj">2.8</span>
-          </li>
-          <li class="sub">
-            <span class="sub-order">4</span>
-            <span class="sub-name">Lucão</span>
-            <span class="sub-pos">GR</span>
-            <span class="sub-proj">2.1</span>
-          </li>
-          </ul>
-          <dl class="sheet-meta">
-            <dt>Treinador</dt><dd>Farioli <span class="muted">FC Porto</span><span class="coach-proj">5.7</span></dd>
+        <div class="rail">
+          <h3>Suplentes</h3>
+          <p class="rail-note">Por ordem de entrada.</p>
+          <table class="sheet">
+            <tbody>
+            <tr>
+              <td class="ord">1</td>
+              <td class="name">Héctor Hernández<span class="sub">AVA</span></td>
+              <td class="fig">3.6</td>
+            </tr>
+            <tr>
+              <td class="ord">2</td>
+              <td class="name">Santi García<span class="sub">MED</span></td>
+              <td class="fig">3.3</td>
+            </tr>
+            <tr>
+              <td class="ord">3</td>
+              <td class="name">Jose Fontán<span class="sub">DEF</span></td>
+              <td class="fig">2.8</td>
+            </tr>
+            <tr>
+              <td class="ord">4</td>
+              <td class="name">Lucão<span class="sub">GR</span></td>
+              <td class="fig">2.1</td>
+            </tr>
+            </tbody>
+          </table>
+          <dl class="facts">
             <dt>Formação</dt><dd>3-4-3</dd>
-            <dt>Projetado</dt><dd><span class="num">69.3</span> <span class="muted">com capitão e treinador</span></dd>
+            <dt>Treinador</dt><dd>Farioli <span class="muted">FC Porto · 5.7</span></dd>
+            <dt>Total</dt><dd><span class="big">69.3</span> <span class="muted">com capitão e treinador</span></dd>
           </dl>
-        </aside>
+        </div>
       </div>
-  </section>
+    </section>
 
-  <section>
-    <h2>Projetado contra real</h2>
-      <p class="section-note">Nenhum jogo desta jornada foi disputado ainda. A coluna <em>real</em> só é preenchida
-      depois de o clube de cada jogador ter jogado — um clube com jogo adiado fica
-      pendente, nunca a zero.</p>
-      <div class="table-wrap">
-        <table class="ledger">
-          <thead>
-            <tr>
-              <th>Jogador</th><th>Pos</th><th>Papel</th><th>Jogo</th>
-              <th class="num">Época</th><th class="num">Projetado</th>
-              <th>Real</th><th>Erro</th>
-            </tr>
-          </thead>
+    <section>
+      <h2>Onde está o risco</h2><div class="rule"></div>
+      <p class="lede">O maior risco não é um jogador, é um jogo:
+      <strong>6 dos 23</strong> jogam o FC Porto–Arouca.
+      Foi assim que a segunda jornada se perdeu — dez jogadores num só jogo, que
+      foi adiado. Tens jogadores dos dois lados em 2 jogos: a manutenção de baliza é mutuamente exclusiva, portanto isso amortece um mau resultado tanto quanto trava um bom.</p>
+      <div class="scroll">
+        <table class="data expo">
           <tbody>
             <tr>
-              <td class="cell-name">Diogo Costa<span class="cell-club">FC Porto</span></td>
-              <td><span class="pos-chip">GR</span></td>
-              <td><span class="role role-xi">Titular</span></td>
-              <td class="cell-fixture">casa v Arouca</td>
-              <td class="num">3.9</td>
-              <td class="num strong">4.2</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
+              <td class="lead-fig">6</td>
+              <td class="name">FC Porto <span class="muted">v</span> Arouca <span class="late">dos dois lados</span><span class="sub">Diogo Costa, Nehuén Pérez, Zaidu, Jose Fontán, Javi Sánchez, Tiago Esgaio</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Lucão<span class="cell-club">Gil Vicente</span></td>
-              <td><span class="pos-chip">GR</span></td>
-              <td><span class="role role-sub">Suplente</span></td>
-              <td class="cell-fixture">casa v Casa Pia</td>
-              <td class="num">2.1</td>
-              <td class="num strong">2.1</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
+              <td class="lead-fig">5</td>
+              <td class="name">Gil Vicente <span class="muted">v</span> Casa Pia <span class="sub">Lucão, Buatu, Santi García, Cáseres, Héctor Hernández</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Alfonso Pastor<span class="cell-club">Marítimo</span></td>
-              <td><span class="pos-chip">GR</span></td>
-              <td><span class="role role-out">Fora</span></td>
-              <td class="cell-fixture">casa v Académico</td>
-              <td class="num">2.1</td>
-              <td class="num strong">2.1</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
+              <td class="lead-fig">3</td>
+              <td class="name">Marítimo <span class="muted">v</span> Académico <span class="sub">Alfonso Pastor, Raphael Guzzo, Danilovic</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Nehuén Pérez<span class="cell-club">FC Porto</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td><span class="role role-xi">Titular</span></td>
-              <td class="cell-fixture">casa v Arouca</td>
-              <td class="num">3.7</td>
-              <td class="num strong">4.0</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
+              <td class="lead-fig">2</td>
+              <td class="name">E. Amadora <span class="muted">v</span> Sp. Braga <span class="sub">Gorby, Fran Navarro</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Zaidu<span class="cell-club">FC Porto</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td><span class="role role-xi">Titular</span></td>
-              <td class="cell-fixture">casa v Arouca</td>
-              <td class="num">3.1</td>
-              <td class="num strong">3.3</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
+              <td class="lead-fig">2</td>
+              <td class="name">Sporting <span class="muted">v</span> Alverca <span class="sub">Zalazar, Issa Doumbia</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Jose Fontán<span class="cell-club">Arouca</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td><span class="role role-sub">Suplente</span></td>
-              <td class="cell-fixture">fora v FC Porto</td>
-              <td class="num">3.5</td>
-              <td class="num strong">2.8</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
+              <td class="lead-fig">2</td>
+              <td class="name">V. Guimarães <span class="muted">v</span> Nacional <span class="late">dos dois lados</span><span class="sub">Samu, Léo Santos</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Léo Santos<span class="cell-club">Nacional</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td><span class="role role-xi">Titular</span></td>
-              <td class="cell-fixture">fora v V. Guimarães</td>
-              <td class="num">2.8</td>
-              <td class="num strong">2.8</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
+              <td class="lead-fig">1</td>
+              <td class="name">Estoril <span class="muted">v</span> Rio Ave <span class="sub">Begraoui</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Finn van Breemen<span class="cell-club">Famalicão</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td><span class="role role-out">Fora</span></td>
-              <td class="cell-fixture">fora v Santa Clara</td>
-              <td class="num">2.5</td>
-              <td class="num strong">2.6</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
+              <td class="lead-fig">1</td>
+              <td class="name">Moreirense <span class="muted">v</span> Benfica <span class="sub">Pavlidis</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Buatu<span class="cell-club">Gil Vicente</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td><span class="role role-out">Fora</span></td>
-              <td class="cell-fixture">casa v Casa Pia</td>
-              <td class="num">2.3</td>
-              <td class="num strong">2.5</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Javi Sánchez<span class="cell-club">Arouca</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td><span class="role role-out">Fora</span></td>
-              <td class="cell-fixture">fora v FC Porto</td>
-              <td class="num">2.8</td>
-              <td class="num strong">2.4</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Tiago Esgaio<span class="cell-club">Arouca</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td><span class="role role-out">Fora</span></td>
-              <td class="cell-fixture">fora v FC Porto</td>
-              <td class="num">2.8</td>
-              <td class="num strong">2.4</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Zalazar<span class="cell-club">Sporting</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td><span class="role role-xi">Titular</span></td>
-              <td class="cell-fixture">casa v Alverca</td>
-              <td class="num">5.1</td>
-              <td class="num strong">6.0</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Raphael Guzzo<span class="cell-club">Marítimo</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td><span class="role role-xi">Titular</span></td>
-              <td class="cell-fixture">casa v Académico</td>
-              <td class="num">4.8</td>
-              <td class="num strong">5.1</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Issa Doumbia<span class="cell-club">Sporting</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td><span class="role role-xi">Titular</span></td>
-              <td class="cell-fixture">casa v Alverca</td>
-              <td class="num">4.3</td>
-              <td class="num strong">5.0</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Samu<span class="cell-club">V. Guimarães</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td><span class="role role-xi">Titular</span></td>
-              <td class="cell-fixture">casa v Nacional</td>
-              <td class="num">3.8</td>
-              <td class="num strong">4.4</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Santi García<span class="cell-club">Gil Vicente</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td><span class="role role-sub">Suplente</span></td>
-              <td class="cell-fixture">casa v Casa Pia</td>
-              <td class="num">2.9</td>
-              <td class="num strong">3.3</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Danilovic<span class="cell-club">Marítimo</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td><span class="role role-out">Fora</span></td>
-              <td class="cell-fixture">casa v Académico</td>
-              <td class="num">3.1</td>
-              <td class="num strong">3.2</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Gorby<span class="cell-club">Sp. Braga</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td><span class="role role-out">Fora</span></td>
-              <td class="cell-fixture">fora v E. Amadora <span class="badge badge-late">10 SET 20:15</span></td>
-              <td class="num">2.9</td>
-              <td class="num strong">3.1</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Cáseres<span class="cell-club">Gil Vicente</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td><span class="role role-out">Fora</span></td>
-              <td class="cell-fixture">casa v Casa Pia</td>
-              <td class="num">2.5</td>
-              <td class="num strong">2.8</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Pavlidis<span class="cell-club">Benfica</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td><span class="role role-xi">Titular</span></td>
-              <td class="cell-fixture">fora v Moreirense <span class="badge badge-late">09 SET 20:15</span></td>
-              <td class="num">8.8</td>
-              <td class="num strong">9.2</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Begraoui<span class="cell-club">Estoril</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td><span class="role role-xi">Titular</span></td>
-              <td class="cell-fixture">casa v Rio Ave</td>
-              <td class="num">4.3</td>
-              <td class="num strong">5.4</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Fran Navarro<span class="cell-club">Sp. Braga</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td><span class="role role-xi">Titular</span></td>
-              <td class="cell-fixture">fora v E. Amadora <span class="badge badge-late">10 SET 20:15</span></td>
-              <td class="num">4.5</td>
-              <td class="num strong">4.8</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
-            </tr>
-            <tr>
-              <td class="cell-name">Héctor Hernández<span class="cell-club">Gil Vicente</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td><span class="role role-sub">Suplente</span></td>
-              <td class="cell-fixture">casa v Casa Pia</td>
-              <td class="num">3.2</td>
-              <td class="num strong">3.6</td>
-              <td><span class="pending"><span class="dot"></span>por jogar</span></td>
-              <td><span class="muted">—</span></td>
+              <td class="lead-fig">1</td>
+              <td class="name">Santa Clara <span class="muted">v</span> Famalicão <span class="sub">Finn van Breemen</span></td>
             </tr>
           </tbody>
         </table>
       </div>
-  </section>
+    </section>
 
-  <section>
-    <h2>Onde está o risco</h2>
-      <p class="section-note">O maior risco não é um jogador, é um
-      jogo: <em>6 dos 23</em> jogam o FC Porto–Arouca.
-      Foi assim que a jornada 2 se perdeu — dez jogadores num só jogo, que foi
-      adiado. Tens jogadores dos dois lados em 2 jogos — a manutenção de baliza é mutuamente exclusiva, portanto isso amortece um mau resultado e trava um bom.</p>
-      <div class="expo-box">
-        <ul class="expo-list">
-          <li class="expo">
-            <span class="expo-count">6</span>
-            <span class="expo-match">FC Porto <span class="muted">v</span> Arouca <span class="badge badge-late">ambos os lados</span>
-              <span class="expo-names">Diogo Costa, Nehuén Pérez, Zaidu, Jose Fontán, Javi Sánchez, Tiago Esgaio</span></span>
-          </li>
-          <li class="expo">
-            <span class="expo-count">5</span>
-            <span class="expo-match">Gil Vicente <span class="muted">v</span> Casa Pia 
-              <span class="expo-names">Lucão, Buatu, Santi García, Cáseres, Héctor Hernández</span></span>
-          </li>
-          <li class="expo">
-            <span class="expo-count">3</span>
-            <span class="expo-match">Marítimo <span class="muted">v</span> Académico 
-              <span class="expo-names">Alfonso Pastor, Raphael Guzzo, Danilovic</span></span>
-          </li>
-          <li class="expo">
-            <span class="expo-count">2</span>
-            <span class="expo-match">E. Amadora <span class="muted">v</span> Sp. Braga 
-              <span class="expo-names">Gorby, Fran Navarro</span></span>
-          </li>
-          <li class="expo">
-            <span class="expo-count">2</span>
-            <span class="expo-match">Sporting <span class="muted">v</span> Alverca 
-              <span class="expo-names">Zalazar, Issa Doumbia</span></span>
-          </li>
-          <li class="expo">
-            <span class="expo-count">2</span>
-            <span class="expo-match">V. Guimarães <span class="muted">v</span> Nacional <span class="badge badge-late">ambos os lados</span>
-              <span class="expo-names">Samu, Léo Santos</span></span>
-          </li>
-          <li class="expo">
-            <span class="expo-count">1</span>
-            <span class="expo-match">Estoril <span class="muted">v</span> Rio Ave 
-              <span class="expo-names">Begraoui</span></span>
-          </li>
-          <li class="expo">
-            <span class="expo-count">1</span>
-            <span class="expo-match">Moreirense <span class="muted">v</span> Benfica 
-              <span class="expo-names">Pavlidis</span></span>
-          </li>
-          <li class="expo">
-            <span class="expo-count">1</span>
-            <span class="expo-match">Santa Clara <span class="muted">v</span> Famalicão 
-              <span class="expo-names">Finn van Breemen</span></span>
-          </li>
-        </ul>
-      </div>
-  </section>
-
-  <section>
-    <h2>As próximas jornadas</h2>
-      <p class="section-note">As próximas 5 jornadas de cada
-      jogador, com o mesmo ajuste ao adversário que a folha usa — verde é melhor
-      que a média dele, vermelho é pior. <em>@</em> é fora de casa.</p>
-      <div class="table-wrap">
-        <table class="ledger grid">
-          <thead><tr><th>Jogador</th><th>Pos</th><th class="num">J3</th><th class="num">J4</th><th class="num">J5</th><th class="num">J6</th><th class="num">J7</th></tr></thead>
+    <section>
+      <h2>As próximas jornadas</h2><div class="rule"></div>
+      <p class="lede">As próximas 5 jornadas de cada
+      jogador, com o mesmo ajuste ao adversário que a folha usa. Verde é melhor
+      que a média dele, vermelho é pior; <strong>@</strong> é fora de casa.</p>
+      <div class="scroll">
+        <table class="data grid">
+          <thead><tr><th>Jogador</th><th>Pos</th><th class="fig">J3</th><th class="fig">J4</th><th class="fig">J5</th><th class="fig">J6</th><th class="fig">J7</th></tr></thead>
           <tbody>
             <tr>
-              <td class="cell-name">Diogo Costa<span class="cell-club">FC Porto</span></td>
-              <td><span class="pos-chip">GR</span></td>
-              <td class="grid-cell easy" title="Arouca"><span class="grid-opp">vs Arouca</span><span class="grid-proj">4.2</span></td><td class="grid-cell even" title="Académico"><span class="grid-opp">@ Académico</span><span class="grid-proj">3.7</span></td><td class="grid-cell easy" title="Moreirense"><span class="grid-opp">vs Moreirense</span><span class="grid-proj">4.2</span></td><td class="grid-cell even" title="Casa Pia"><span class="grid-opp">@ Casa Pia</span><span class="grid-proj">4.1</span></td><td class="grid-cell hard" title="Benfica"><span class="grid-opp">vs Benfica</span><span class="grid-proj">3.3</span></td>
+              <td class="name">Diogo Costa<span class="sub">FC Porto</span></td>
+              <td class="sub">GR</td>
+              <td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">4.2</span></td><td class="cell "><span class="cell-opp">@ Académico</span><span class="cell-fig">3.7</span></td><td class="cell easy"><span class="cell-opp">vs Moreirense</span><span class="cell-fig">4.2</span></td><td class="cell "><span class="cell-opp">@ Casa Pia</span><span class="cell-fig">4.1</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">3.3</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Alfonso Pastor<span class="cell-club">Marítimo</span></td>
-              <td><span class="pos-chip">GR</span></td>
-              <td class="grid-cell even" title="Académico"><span class="grid-opp">vs Académico</span><span class="grid-proj">2.1</span></td><td class="grid-cell even" title="Arouca"><span class="grid-opp">@ Arouca</span><span class="grid-proj">2.1</span></td><td class="grid-cell even" title="Benfica"><span class="grid-opp">vs Benfica</span><span class="grid-proj">2.0</span></td><td class="grid-cell even" title="Moreirense"><span class="grid-opp">@ Moreirense</span><span class="grid-proj">2.1</span></td><td class="grid-cell even" title="Gil Vicente"><span class="grid-opp">@ Gil Vicente</span><span class="grid-proj">2.1</span></td>
+              <td class="name">Alfonso Pastor<span class="sub">Marítimo</span></td>
+              <td class="sub">GR</td>
+              <td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">@ Arouca</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">vs Benfica</span><span class="cell-fig">2.0</span></td><td class="cell "><span class="cell-opp">@ Moreirense</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">@ Gil Vicente</span><span class="cell-fig">2.1</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Lucão<span class="cell-club">Gil Vicente</span></td>
-              <td><span class="pos-chip">GR</span></td>
-              <td class="grid-cell even" title="Casa Pia"><span class="grid-opp">vs Casa Pia</span><span class="grid-proj">2.1</span></td><td class="grid-cell even" title="Famalicão"><span class="grid-opp">@ Famalicão</span><span class="grid-proj">2.1</span></td><td class="grid-cell even" title="Académico"><span class="grid-opp">vs Académico</span><span class="grid-proj">2.1</span></td><td class="grid-cell even" title="Benfica"><span class="grid-opp">@ Benfica</span><span class="grid-proj">2.0</span></td><td class="grid-cell even" title="Marítimo"><span class="grid-opp">vs Marítimo</span><span class="grid-proj">2.1</span></td>
+              <td class="name">Lucão<span class="sub">Gil Vicente</span></td>
+              <td class="sub">GR</td>
+              <td class="cell "><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.0</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.1</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Nehuén Pérez<span class="cell-club">FC Porto</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="grid-cell easy" title="Arouca"><span class="grid-opp">vs Arouca</span><span class="grid-proj">4.0</span></td><td class="grid-cell even" title="Académico"><span class="grid-opp">@ Académico</span><span class="grid-proj">3.6</span></td><td class="grid-cell easy" title="Moreirense"><span class="grid-opp">vs Moreirense</span><span class="grid-proj">4.0</span></td><td class="grid-cell even" title="Casa Pia"><span class="grid-opp">@ Casa Pia</span><span class="grid-proj">3.9</span></td><td class="grid-cell hard" title="Benfica"><span class="grid-opp">vs Benfica</span><span class="grid-proj">3.2</span></td>
+              <td class="name">Nehuén Pérez<span class="sub">FC Porto</span></td>
+              <td class="sub">DEF</td>
+              <td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">4.0</span></td><td class="cell "><span class="cell-opp">@ Académico</span><span class="cell-fig">3.6</span></td><td class="cell easy"><span class="cell-opp">vs Moreirense</span><span class="cell-fig">4.0</span></td><td class="cell "><span class="cell-opp">@ Casa Pia</span><span class="cell-fig">3.9</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">3.2</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Jose Fontán<span class="cell-club">Arouca</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="grid-cell hard" title="FC Porto"><span class="grid-opp">@ FC Porto</span><span class="grid-proj">2.8</span></td><td class="grid-cell even" title="Marítimo"><span class="grid-opp">vs Marítimo</span><span class="grid-proj">3.7</span></td><td class="grid-cell hard" title="Estoril"><span class="grid-opp">@ Estoril</span><span class="grid-proj">3.2</span></td><td class="grid-cell easy" title="Santa Clara"><span class="grid-opp">vs Santa Clara</span><span class="grid-proj">4.4</span></td><td class="grid-cell hard" title="Sporting"><span class="grid-opp">@ Sporting</span><span class="grid-proj">2.8</span></td>
+              <td class="name">Jose Fontán<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">2.8</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">3.7</span></td><td class="cell hard"><span class="cell-opp">@ Estoril</span><span class="cell-fig">3.2</span></td><td class="cell easy"><span class="cell-opp">vs Santa Clara</span><span class="cell-fig">4.4</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.8</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Zaidu<span class="cell-club">FC Porto</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="grid-cell even" title="Arouca"><span class="grid-opp">vs Arouca</span><span class="grid-proj">3.3</span></td><td class="grid-cell even" title="Académico"><span class="grid-opp">@ Académico</span><span class="grid-proj">3.0</span></td><td class="grid-cell even" title="Moreirense"><span class="grid-opp">vs Moreirense</span><span class="grid-proj">3.3</span></td><td class="grid-cell even" title="Casa Pia"><span class="grid-opp">@ Casa Pia</span><span class="grid-proj">3.2</span></td><td class="grid-cell hard" title="Benfica"><span class="grid-opp">vs Benfica</span><span class="grid-proj">2.8</span></td>
+              <td class="name">Zaidu<span class="sub">FC Porto</span></td>
+              <td class="sub">DEF</td>
+              <td class="cell "><span class="cell-opp">vs Arouca</span><span class="cell-fig">3.3</span></td><td class="cell "><span class="cell-opp">@ Académico</span><span class="cell-fig">3.0</span></td><td class="cell "><span class="cell-opp">vs Moreirense</span><span class="cell-fig">3.3</span></td><td class="cell "><span class="cell-opp">@ Casa Pia</span><span class="cell-fig">3.2</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">2.8</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Léo Santos<span class="cell-club">Nacional</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="grid-cell even" title="V. Guimarães"><span class="grid-opp">@ V. Guimarãe</span><span class="grid-proj">2.8</span></td><td class="grid-cell easy" title="E. Amadora"><span class="grid-opp">vs E. Amadora</span><span class="grid-proj">3.4</span></td><td class="grid-cell hard" title="Sporting"><span class="grid-opp">@ Sporting</span><span class="grid-proj">2.5</span></td><td class="grid-cell easy" title="Alverca"><span class="grid-opp">vs Alverca</span><span class="grid-proj">3.3</span></td><td class="grid-cell even" title="Famalicão"><span class="grid-opp">vs Famalicão</span><span class="grid-proj">3.0</span></td>
+              <td class="name">Léo Santos<span class="sub">Nacional</span></td>
+              <td class="sub">DEF</td>
+              <td class="cell "><span class="cell-opp">@ V. Guimarãe</span><span class="cell-fig">2.8</span></td><td class="cell easy"><span class="cell-opp">vs E. Amadora</span><span class="cell-fig">3.4</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.5</span></td><td class="cell easy"><span class="cell-opp">vs Alverca</span><span class="cell-fig">3.3</span></td><td class="cell "><span class="cell-opp">vs Famalicão</span><span class="cell-fig">3.0</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Javi Sánchez<span class="cell-club">Arouca</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="grid-cell hard" title="FC Porto"><span class="grid-opp">@ FC Porto</span><span class="grid-proj">2.4</span></td><td class="grid-cell even" title="Marítimo"><span class="grid-opp">vs Marítimo</span><span class="grid-proj">2.9</span></td><td class="grid-cell even" title="Estoril"><span class="grid-opp">@ Estoril</span><span class="grid-proj">2.6</span></td><td class="grid-cell easy" title="Santa Clara"><span class="grid-opp">vs Santa Clara</span><span class="grid-proj">3.2</span></td><td class="grid-cell hard" title="Sporting"><span class="grid-opp">@ Sporting</span><span class="grid-proj">2.4</span></td>
+              <td class="name">Javi Sánchez<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">2.4</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.9</span></td><td class="cell "><span class="cell-opp">@ Estoril</span><span class="cell-fig">2.6</span></td><td class="cell easy"><span class="cell-opp">vs Santa Clara</span><span class="cell-fig">3.2</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.4</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Tiago Esgaio<span class="cell-club">Arouca</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="grid-cell hard" title="FC Porto"><span class="grid-opp">@ FC Porto</span><span class="grid-proj">2.4</span></td><td class="grid-cell even" title="Marítimo"><span class="grid-opp">vs Marítimo</span><span class="grid-proj">2.9</span></td><td class="grid-cell even" title="Estoril"><span class="grid-opp">@ Estoril</span><span class="grid-proj">2.6</span></td><td class="grid-cell easy" title="Santa Clara"><span class="grid-opp">vs Santa Clara</span><span class="grid-proj">3.2</span></td><td class="grid-cell hard" title="Sporting"><span class="grid-opp">@ Sporting</span><span class="grid-proj">2.4</span></td>
+              <td class="name">Tiago Esgaio<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">2.4</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.9</span></td><td class="cell "><span class="cell-opp">@ Estoril</span><span class="cell-fig">2.6</span></td><td class="cell easy"><span class="cell-opp">vs Santa Clara</span><span class="cell-fig">3.2</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.4</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Finn van Breemen<span class="cell-club">Famalicão</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="grid-cell even" title="Santa Clara"><span class="grid-opp">@ Santa Clara</span><span class="grid-proj">2.6</span></td><td class="grid-cell even" title="Gil Vicente"><span class="grid-opp">vs Gil Vicente</span><span class="grid-proj">2.6</span></td><td class="grid-cell even" title="E. Amadora"><span class="grid-opp">@ E. Amadora</span><span class="grid-proj">2.7</span></td><td class="grid-cell even" title="Sporting"><span class="grid-opp">vs Sporting</span><span class="grid-proj">2.3</span></td><td class="grid-cell even" title="Nacional"><span class="grid-opp">@ Nacional</span><span class="grid-proj">2.6</span></td>
+              <td class="name">Finn van Breemen<span class="sub">Famalicão</span></td>
+              <td class="sub">DEF</td>
+              <td class="cell "><span class="cell-opp">@ Santa Clara</span><span class="cell-fig">2.6</span></td><td class="cell "><span class="cell-opp">vs Gil Vicente</span><span class="cell-fig">2.6</span></td><td class="cell "><span class="cell-opp">@ E. Amadora</span><span class="cell-fig">2.7</span></td><td class="cell "><span class="cell-opp">vs Sporting</span><span class="cell-fig">2.3</span></td><td class="cell "><span class="cell-opp">@ Nacional</span><span class="cell-fig">2.6</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Buatu<span class="cell-club">Gil Vicente</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="grid-cell even" title="Casa Pia"><span class="grid-opp">vs Casa Pia</span><span class="grid-proj">2.5</span></td><td class="grid-cell even" title="Famalicão"><span class="grid-opp">@ Famalicão</span><span class="grid-proj">2.3</span></td><td class="grid-cell even" title="Académico"><span class="grid-opp">vs Académico</span><span class="grid-proj">2.4</span></td><td class="grid-cell even" title="Benfica"><span class="grid-opp">@ Benfica</span><span class="grid-proj">2.2</span></td><td class="grid-cell even" title="Marítimo"><span class="grid-opp">vs Marítimo</span><span class="grid-proj">2.4</span></td>
+              <td class="name">Buatu<span class="sub">Gil Vicente</span></td>
+              <td class="sub">DEF</td>
+              <td class="cell "><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">2.5</span></td><td class="cell "><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.3</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.4</span></td><td class="cell "><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.2</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.4</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Zalazar<span class="cell-club">Sporting</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td class="grid-cell easy" title="Alverca"><span class="grid-opp">vs Alverca</span><span class="grid-proj">6.0</span></td><td class="grid-cell easy" title="Rio Ave"><span class="grid-opp">@ Rio Ave</span><span class="grid-proj">5.6</span></td><td class="grid-cell easy" title="Nacional"><span class="grid-opp">vs Nacional</span><span class="grid-proj">5.9</span></td><td class="grid-cell hard" title="Famalicão"><span class="grid-opp">@ Famalicão</span><span class="grid-proj">4.7</span></td><td class="grid-cell easy" title="Arouca"><span class="grid-opp">vs Arouca</span><span class="grid-proj">6.1</span></td>
+              <td class="name">Zalazar<span class="sub">Sporting</span></td>
+              <td class="sub">MED</td>
+              <td class="cell easy"><span class="cell-opp">vs Alverca</span><span class="cell-fig">6.0</span></td><td class="cell easy"><span class="cell-opp">@ Rio Ave</span><span class="cell-fig">5.6</span></td><td class="cell easy"><span class="cell-opp">vs Nacional</span><span class="cell-fig">5.9</span></td><td class="cell hard"><span class="cell-opp">@ Famalicão</span><span class="cell-fig">4.7</span></td><td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">6.1</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Raphael Guzzo<span class="cell-club">Marítimo</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td class="grid-cell easy" title="Académico"><span class="grid-opp">vs Académico</span><span class="grid-proj">5.1</span></td><td class="grid-cell easy" title="Arouca"><span class="grid-opp">@ Arouca</span><span class="grid-proj">5.2</span></td><td class="grid-cell hard" title="Benfica"><span class="grid-opp">vs Benfica</span><span class="grid-proj">3.7</span></td><td class="grid-cell even" title="Moreirense"><span class="grid-opp">@ Moreirense</span><span class="grid-proj">5.0</span></td><td class="grid-cell even" title="Gil Vicente"><span class="grid-opp">@ Gil Vicente</span><span class="grid-proj">4.8</span></td>
+              <td class="name">Raphael Guzzo<span class="sub">Marítimo</span></td>
+              <td class="sub">MED</td>
+              <td class="cell easy"><span class="cell-opp">vs Académico</span><span class="cell-fig">5.1</span></td><td class="cell easy"><span class="cell-opp">@ Arouca</span><span class="cell-fig">5.2</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">3.7</span></td><td class="cell "><span class="cell-opp">@ Moreirense</span><span class="cell-fig">5.0</span></td><td class="cell "><span class="cell-opp">@ Gil Vicente</span><span class="cell-fig">4.8</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Issa Doumbia<span class="cell-club">Sporting</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td class="grid-cell easy" title="Alverca"><span class="grid-opp">vs Alverca</span><span class="grid-proj">5.0</span></td><td class="grid-cell easy" title="Rio Ave"><span class="grid-opp">@ Rio Ave</span><span class="grid-proj">4.7</span></td><td class="grid-cell easy" title="Nacional"><span class="grid-opp">vs Nacional</span><span class="grid-proj">4.9</span></td><td class="grid-cell hard" title="Famalicão"><span class="grid-opp">@ Famalicão</span><span class="grid-proj">4.0</span></td><td class="grid-cell easy" title="Arouca"><span class="grid-opp">vs Arouca</span><span class="grid-proj">5.1</span></td>
+              <td class="name">Issa Doumbia<span class="sub">Sporting</span></td>
+              <td class="sub">MED</td>
+              <td class="cell easy"><span class="cell-opp">vs Alverca</span><span class="cell-fig">5.0</span></td><td class="cell easy"><span class="cell-opp">@ Rio Ave</span><span class="cell-fig">4.7</span></td><td class="cell easy"><span class="cell-opp">vs Nacional</span><span class="cell-fig">4.9</span></td><td class="cell hard"><span class="cell-opp">@ Famalicão</span><span class="cell-fig">4.0</span></td><td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">5.1</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Samu<span class="cell-club">V. Guimarães</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td class="grid-cell easy" title="Nacional"><span class="grid-opp">vs Nacional</span><span class="grid-proj">4.4</span></td><td class="grid-cell hard" title="Sp. Braga"><span class="grid-opp">@ Sp. Braga</span><span class="grid-proj">3.1</span></td><td class="grid-cell easy" title="Casa Pia"><span class="grid-opp">vs Casa Pia</span><span class="grid-proj">4.5</span></td><td class="grid-cell even" title="Académico"><span class="grid-opp">@ Académico</span><span class="grid-proj">3.6</span></td><td class="grid-cell easy" title="Moreirense"><span class="grid-opp">vs Moreirense</span><span class="grid-proj">4.3</span></td>
+              <td class="name">Samu<span class="sub">V. Guimarães</span></td>
+              <td class="sub">MED</td>
+              <td class="cell easy"><span class="cell-opp">vs Nacional</span><span class="cell-fig">4.4</span></td><td class="cell hard"><span class="cell-opp">@ Sp. Braga</span><span class="cell-fig">3.1</span></td><td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">4.5</span></td><td class="cell "><span class="cell-opp">@ Académico</span><span class="cell-fig">3.6</span></td><td class="cell easy"><span class="cell-opp">vs Moreirense</span><span class="cell-fig">4.3</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Danilovic<span class="cell-club">Marítimo</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td class="grid-cell even" title="Académico"><span class="grid-opp">vs Académico</span><span class="grid-proj">3.2</span></td><td class="grid-cell even" title="Arouca"><span class="grid-opp">@ Arouca</span><span class="grid-proj">3.2</span></td><td class="grid-cell hard" title="Benfica"><span class="grid-opp">vs Benfica</span><span class="grid-proj">2.7</span></td><td class="grid-cell even" title="Moreirense"><span class="grid-opp">@ Moreirense</span><span class="grid-proj">3.2</span></td><td class="grid-cell even" title="Gil Vicente"><span class="grid-opp">@ Gil Vicente</span><span class="grid-proj">3.1</span></td>
+              <td class="name">Danilovic<span class="sub">Marítimo</span></td>
+              <td class="sub">MED</td>
+              <td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">3.2</span></td><td class="cell "><span class="cell-opp">@ Arouca</span><span class="cell-fig">3.2</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">2.7</span></td><td class="cell "><span class="cell-opp">@ Moreirense</span><span class="cell-fig">3.2</span></td><td class="cell "><span class="cell-opp">@ Gil Vicente</span><span class="cell-fig">3.1</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Santi García<span class="cell-club">Gil Vicente</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td class="grid-cell easy" title="Casa Pia"><span class="grid-opp">vs Casa Pia</span><span class="grid-proj">3.3</span></td><td class="grid-cell even" title="Famalicão"><span class="grid-opp">@ Famalicão</span><span class="grid-proj">2.8</span></td><td class="grid-cell even" title="Académico"><span class="grid-opp">vs Académico</span><span class="grid-proj">3.0</span></td><td class="grid-cell hard" title="Benfica"><span class="grid-opp">@ Benfica</span><span class="grid-proj">2.5</span></td><td class="grid-cell even" title="Marítimo"><span class="grid-opp">vs Marítimo</span><span class="grid-proj">3.0</span></td>
+              <td class="name">Santi García<span class="sub">Gil Vicente</span></td>
+              <td class="sub">MED</td>
+              <td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">3.3</span></td><td class="cell "><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.8</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">3.0</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.5</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">3.0</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Gorby<span class="cell-club">Sp. Braga</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td class="grid-cell even" title="E. Amadora"><span class="grid-opp">@ E. Amadora</span><span class="grid-proj">3.1</span></td><td class="grid-cell even" title="V. Guimarães"><span class="grid-opp">vs V. Guimarãe</span><span class="grid-proj">3.0</span></td><td class="grid-cell even" title="Alverca"><span class="grid-opp">@ Alverca</span><span class="grid-proj">3.0</span></td><td class="grid-cell even" title="Estoril"><span class="grid-opp">vs Estoril</span><span class="grid-proj">3.1</span></td><td class="grid-cell even" title="Santa Clara"><span class="grid-opp">@ Santa Clara</span><span class="grid-proj">2.9</span></td>
+              <td class="name">Gorby<span class="sub">Sp. Braga</span></td>
+              <td class="sub">MED</td>
+              <td class="cell "><span class="cell-opp">@ E. Amadora</span><span class="cell-fig">3.1</span></td><td class="cell "><span class="cell-opp">vs V. Guimarãe</span><span class="cell-fig">3.0</span></td><td class="cell "><span class="cell-opp">@ Alverca</span><span class="cell-fig">3.0</span></td><td class="cell "><span class="cell-opp">vs Estoril</span><span class="cell-fig">3.1</span></td><td class="cell "><span class="cell-opp">@ Santa Clara</span><span class="cell-fig">2.9</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Cáseres<span class="cell-club">Gil Vicente</span></td>
-              <td><span class="pos-chip">MED</span></td>
-              <td class="grid-cell even" title="Casa Pia"><span class="grid-opp">vs Casa Pia</span><span class="grid-proj">2.8</span></td><td class="grid-cell even" title="Famalicão"><span class="grid-opp">@ Famalicão</span><span class="grid-proj">2.5</span></td><td class="grid-cell even" title="Académico"><span class="grid-opp">vs Académico</span><span class="grid-proj">2.6</span></td><td class="grid-cell even" title="Benfica"><span class="grid-opp">@ Benfica</span><span class="grid-proj">2.3</span></td><td class="grid-cell even" title="Marítimo"><span class="grid-opp">vs Marítimo</span><span class="grid-proj">2.6</span></td>
+              <td class="name">Cáseres<span class="sub">Gil Vicente</span></td>
+              <td class="sub">MED</td>
+              <td class="cell "><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">2.8</span></td><td class="cell "><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.5</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.6</span></td><td class="cell "><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.3</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.6</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Pavlidis<span class="cell-club">Benfica</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td class="grid-cell easy" title="Moreirense"><span class="grid-opp">@ Moreirense</span><span class="grid-proj">9.2</span></td><td class="grid-cell easy" title="Estoril"><span class="grid-opp">vs Estoril</span><span class="grid-proj">11.3</span></td><td class="grid-cell hard" title="Marítimo"><span class="grid-opp">@ Marítimo</span><span class="grid-proj">8.2</span></td><td class="grid-cell easy" title="Gil Vicente"><span class="grid-opp">vs Gil Vicente</span><span class="grid-proj">9.4</span></td><td class="grid-cell hard" title="FC Porto"><span class="grid-opp">@ FC Porto</span><span class="grid-proj">5.8</span></td>
+              <td class="name">Pavlidis<span class="sub">Benfica</span></td>
+              <td class="sub">AVA</td>
+              <td class="cell easy"><span class="cell-opp">@ Moreirense</span><span class="cell-fig">9.2</span></td><td class="cell easy"><span class="cell-opp">vs Estoril</span><span class="cell-fig">11.3</span></td><td class="cell hard"><span class="cell-opp">@ Marítimo</span><span class="cell-fig">8.2</span></td><td class="cell easy"><span class="cell-opp">vs Gil Vicente</span><span class="cell-fig">9.4</span></td><td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">5.8</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Fran Navarro<span class="cell-club">Sp. Braga</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td class="grid-cell easy" title="E. Amadora"><span class="grid-opp">@ E. Amadora</span><span class="grid-proj">4.8</span></td><td class="grid-cell easy" title="V. Guimarães"><span class="grid-opp">vs V. Guimarãe</span><span class="grid-proj">4.8</span></td><td class="grid-cell easy" title="Alverca"><span class="grid-opp">@ Alverca</span><span class="grid-proj">4.7</span></td><td class="grid-cell easy" title="Estoril"><span class="grid-opp">vs Estoril</span><span class="grid-proj">5.4</span></td><td class="grid-cell hard" title="Santa Clara"><span class="grid-opp">@ Santa Clara</span><span class="grid-proj">4.0</span></td>
+              <td class="name">Fran Navarro<span class="sub">Sp. Braga</span></td>
+              <td class="sub">AVA</td>
+              <td class="cell easy"><span class="cell-opp">@ E. Amadora</span><span class="cell-fig">4.8</span></td><td class="cell easy"><span class="cell-opp">vs V. Guimarãe</span><span class="cell-fig">4.8</span></td><td class="cell easy"><span class="cell-opp">@ Alverca</span><span class="cell-fig">4.7</span></td><td class="cell easy"><span class="cell-opp">vs Estoril</span><span class="cell-fig">5.4</span></td><td class="cell hard"><span class="cell-opp">@ Santa Clara</span><span class="cell-fig">4.0</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Begraoui<span class="cell-club">Estoril</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td class="grid-cell easy" title="Rio Ave"><span class="grid-opp">vs Rio Ave</span><span class="grid-proj">5.4</span></td><td class="grid-cell hard" title="Benfica"><span class="grid-opp">@ Benfica</span><span class="grid-proj">3.3</span></td><td class="grid-cell easy" title="Arouca"><span class="grid-opp">vs Arouca</span><span class="grid-proj">5.3</span></td><td class="grid-cell hard" title="Sp. Braga"><span class="grid-opp">@ Sp. Braga</span><span class="grid-proj">3.6</span></td><td class="grid-cell easy" title="Casa Pia"><span class="grid-opp">vs Casa Pia</span><span class="grid-proj">5.1</span></td>
+              <td class="name">Begraoui<span class="sub">Estoril</span></td>
+              <td class="sub">AVA</td>
+              <td class="cell easy"><span class="cell-opp">vs Rio Ave</span><span class="cell-fig">5.4</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">3.3</span></td><td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">5.3</span></td><td class="cell hard"><span class="cell-opp">@ Sp. Braga</span><span class="cell-fig">3.6</span></td><td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">5.1</span></td>
             </tr>
             <tr>
-              <td class="cell-name">Héctor Hernández<span class="cell-club">Gil Vicente</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td class="grid-cell easy" title="Casa Pia"><span class="grid-opp">vs Casa Pia</span><span class="grid-proj">3.6</span></td><td class="grid-cell hard" title="Famalicão"><span class="grid-opp">@ Famalicão</span><span class="grid-proj">2.9</span></td><td class="grid-cell even" title="Académico"><span class="grid-opp">vs Académico</span><span class="grid-proj">3.4</span></td><td class="grid-cell hard" title="Benfica"><span class="grid-opp">@ Benfica</span><span class="grid-proj">2.7</span></td><td class="grid-cell even" title="Marítimo"><span class="grid-opp">vs Marítimo</span><span class="grid-proj">3.4</span></td>
+              <td class="name">Héctor Hernández<span class="sub">Gil Vicente</span></td>
+              <td class="sub">AVA</td>
+              <td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">3.6</span></td><td class="cell hard"><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.9</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">3.4</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.7</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">3.4</span></td>
             </tr>
           </tbody>
         </table>
       </div>
-  </section>
+    </section>
 
-  <section>
-    <h2>Quem rende mais do que a posse dele</h2>
-      <p class="section-note">A posse prevê a pontuação melhor do que
-      qualquer outra coisa no mercado — de <em>−0,15</em> pontos por jogo abaixo
-      de 1% de posse até <em>5,33</em> acima de 30%. Por isso comprar quem
-      ninguém tem é mau negócio. O que interessa é o <em>resíduo</em>: quem
-      rende acima da linha que a sua posse e posição preveem. Declive por
-      posição: DEF 1.48 · FWD 2.07 · GK 1.14 · MID 1.54.</p>
-      <div class="table-wrap">
-        <table class="ledger">
-          <thead>
-            <tr>
-              <th>Jogador</th><th>Pos</th><th class="num">Posse</th>
-              <th class="num">Rende</th><th class="num">Esperado</th>
-              <th class="num">Resíduo</th><th class="num">Preço</th><th>Jogos</th>
-            </tr>
-          </thead>
+    <section>
+      <h2>Quem rende mais do que a posse dele</h2><div class="rule"></div>
+      <p class="lede">A posse prevê a pontuação melhor do que qualquer
+      outra coisa no mercado — de <strong>−0,15</strong> pontos por jogo abaixo de
+      1% de posse até <strong>5,33</strong> acima de 30%. Por isso comprar quem
+      ninguém tem é mau negócio. O que interessa é o resíduo: quem rende acima da
+      linha que a sua posse e a sua posição preveem. Declive por posição: DEF 1.49 · FWD 2.07 · GK 1.15 · MID 1.54.</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr>
+            <th>Jogador</th><th>Pos</th><th class="fig">Posse</th>
+            <th class="fig">Rende</th><th class="fig">Esperado</th>
+            <th class="fig">Resíduo</th><th class="fig">Preço</th><th>Jogos</th>
+          </tr></thead>
           <tbody>
             <tr>
-              <td class="cell-name">Arruabarrena<span class="cell-club">Arouca</span></td>
-              <td><span class="pos-chip">GR</span></td>
-              <td class="num">12.2%</td>
-              <td class="num">6.5</td>
-              <td class="num">1.4</td>
-              <td class="num strong delta over">+5.15</td>
-              <td class="num">1 000 000</td>
-              <td><span class="num">2</span></td>
+              <td class="name">Arruabarrena<span class="sub">Arouca</span></td>
+              <td class="sub">GR</td>
+              <td class="fig">12.2%</td>
+              <td class="fig">6.5</td>
+              <td class="fig muted">1.4</td>
+              <td class="fig up strong">+5.14</td>
+              <td class="fig">1 000 000</td>
+              <td class="sub">2</td>
             </tr>
             <tr>
-              <td class="cell-name">Zé Vitor<span class="cell-club">Nacional</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="num">3.5%</td>
-              <td class="num">5.0</td>
-              <td class="num">1.1</td>
-              <td class="num strong delta over">+3.91</td>
-              <td class="num">750 000</td>
-              <td><span class="num">2</span></td>
+              <td class="name">José Silva<span class="sub">Gil Vicente</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig">3.5%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">1.1</td>
+              <td class="fig up strong">+3.91</td>
+              <td class="fig">500 000</td>
+              <td class="sub">1 jogo</td>
             </tr>
             <tr>
-              <td class="cell-name">José Silva<span class="cell-club">Gil Vicente</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="num">3.5%</td>
-              <td class="num">5.0</td>
-              <td class="num">1.1</td>
-              <td class="num strong delta over">+3.91</td>
-              <td class="num">500 000</td>
-              <td><span class="pending"><span class="dot"></span>1 jogo</span></td>
+              <td class="name">Zé Vitor<span class="sub">Nacional</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig">3.5%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">1.1</td>
+              <td class="fig up strong">+3.89</td>
+              <td class="fig">750 000</td>
+              <td class="sub">2</td>
             </tr>
             <tr>
-              <td class="cell-name">Simo Bouzaidi<span class="cell-club">Marítimo</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td class="num">0.7%</td>
-              <td class="num">5.0</td>
-              <td class="num">1.2</td>
-              <td class="num strong delta over">+3.78</td>
-              <td class="num">500 000</td>
-              <td><span class="num">2</span></td>
+              <td class="name">Dylan Nandín<span class="sub">Arouca</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig">0.3%</td>
+              <td class="fig">4.5</td>
+              <td class="fig muted">0.7</td>
+              <td class="fig up strong">+3.79</td>
+              <td class="fig">500 000</td>
+              <td class="sub">2</td>
             </tr>
             <tr>
-              <td class="cell-name">Dylan Nandín<span class="cell-club">Arouca</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td class="num">0.3%</td>
-              <td class="num">4.5</td>
-              <td class="num">0.7</td>
-              <td class="num strong delta over">+3.77</td>
-              <td class="num">500 000</td>
-              <td><span class="num">2</span></td>
+              <td class="name">Simo Bouzaidi<span class="sub">Marítimo</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig">0.7%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">1.2</td>
+              <td class="fig up strong">+3.75</td>
+              <td class="fig">500 000</td>
+              <td class="sub">2</td>
             </tr>
             <tr>
-              <td class="cell-name">Borja Sainz<span class="cell-club">FC Porto</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td class="num">1.3%</td>
-              <td class="num">5.5</td>
-              <td class="num">1.8</td>
-              <td class="num strong delta over">+3.66</td>
-              <td class="num">3 500 000</td>
-              <td><span class="num">2</span></td>
+              <td class="name">Borja Sainz<span class="sub">FC Porto</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig">1.3%</td>
+              <td class="fig">5.5</td>
+              <td class="fig muted">1.9</td>
+              <td class="fig up strong">+3.62</td>
+              <td class="fig">3 500 000</td>
+              <td class="sub">2</td>
             </tr>
             <tr>
-              <td class="cell-name">Lebedenko<span class="cell-club">Arouca</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="num">5.5%</td>
-              <td class="num">5.0</td>
-              <td class="num">1.6</td>
-              <td class="num strong delta over">+3.37</td>
-              <td class="num">500 000</td>
-              <td><span class="num">2</span></td>
+              <td class="name">Lebedenko<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig">5.6%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">1.7</td>
+              <td class="fig up strong">+3.33</td>
+              <td class="fig">500 000</td>
+              <td class="sub">2</td>
             </tr>
             <tr>
-              <td class="cell-name">Romain Correia<span class="cell-club">Marítimo</span></td>
-              <td><span class="pos-chip">DEF</span></td>
-              <td class="num">2.5%</td>
-              <td class="num">4.0</td>
-              <td class="num">0.7</td>
-              <td class="num strong delta over">+3.29</td>
-              <td class="num">500 000</td>
-              <td><span class="num">2</span></td>
+              <td class="name">Romain Correia<span class="sub">Marítimo</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig">2.5%</td>
+              <td class="fig">4.0</td>
+              <td class="fig muted">0.7</td>
+              <td class="fig up strong">+3.29</td>
+              <td class="fig">500 000</td>
+              <td class="sub">2</td>
             </tr>
             <tr>
-              <td class="cell-name">Maurice Boakye<span class="cell-club">Marítimo</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td class="num">1.1%</td>
-              <td class="num">5.0</td>
-              <td class="num">1.7</td>
-              <td class="num strong delta over">+3.29</td>
-              <td class="num">500 000</td>
-              <td><span class="num">2</span></td>
+              <td class="name">Maurice Boakye<span class="sub">Marítimo</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig">1.1%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">1.7</td>
+              <td class="fig up strong">+3.28</td>
+              <td class="fig">500 000</td>
+              <td class="sub">2</td>
             </tr>
             <tr>
-              <td class="cell-name">Djouahra<span class="cell-club">Arouca</span></td>
-              <td><span class="pos-chip">AVA</span></td>
-              <td class="num">1.2%</td>
-              <td class="num">5.0</td>
-              <td class="num">1.8</td>
-              <td class="num strong delta over">+3.25</td>
-              <td class="num">1 000 000</td>
-              <td><span class="num">2</span></td>
+              <td class="name">Djouahra<span class="sub">Arouca</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig">1.2%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">1.8</td>
+              <td class="fig up strong">+3.22</td>
+              <td class="fig">1 000 000</td>
+              <td class="sub">2</td>
             </tr>
           </tbody>
         </table>
       </div>
-      <p class="section-note" style="margin-top:14px">two rounds of football is a thin basis — check matches_played, and treat a large residual on a single match as unproven</p>
-  </section>
+      <p class="footnote">two rounds of football is a thin basis — check matches_played, and treat a large residual on a single match as unproven</p>
+    </section>
 
-  <section>
-    <h2>A liga privada</h2>
-      <p class="section-note">Trinta equipas, 21 com pontos.
-      Cada marca é uma equipa; a vermelha é a minha. Os nomes ficam de fora —
-      são de outras pessoas.</p>
+    <section>
+      <h2>Projetado contra real</h2><div class="rule"></div>
+      <p class="lede">Nenhum jogo desta jornada foi disputado ainda. A coluna <strong>real</strong> só é
+      preenchida depois de o clube de cada jogador ter jogado — um clube com jogo
+      adiado fica pendente, nunca a zero.</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr>
+            <th>Jogador</th><th>Pos</th><th>Papel</th><th>Jogo</th>
+            <th class="fig">Época</th><th class="fig">Projetado</th>
+            <th class="fig">Real</th><th class="fig">Erro</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td class="name">Diogo Costa<span class="sub">FC Porto</span></td>
+              <td class="sub">GR</td>
+              <td class="role is-xi">Titular</td>
+              <td class="sub">casa v Arouca</td>
+              <td class="fig muted">3.9</td>
+              <td class="fig strong">4.2</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Lucão<span class="sub">Gil Vicente</span></td>
+              <td class="sub">GR</td>
+              <td class="role">Suplente</td>
+              <td class="sub">casa v Casa Pia</td>
+              <td class="fig muted">2.1</td>
+              <td class="fig strong">2.1</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Alfonso Pastor<span class="sub">Marítimo</span></td>
+              <td class="sub">GR</td>
+              <td class="role">Fora</td>
+              <td class="sub">casa v Académico</td>
+              <td class="fig muted">2.1</td>
+              <td class="fig strong">2.1</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Nehuén Pérez<span class="sub">FC Porto</span></td>
+              <td class="sub">DEF</td>
+              <td class="role is-xi">Titular</td>
+              <td class="sub">casa v Arouca</td>
+              <td class="fig muted">3.7</td>
+              <td class="fig strong">4.0</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Zaidu<span class="sub">FC Porto</span></td>
+              <td class="sub">DEF</td>
+              <td class="role is-xi">Titular</td>
+              <td class="sub">casa v Arouca</td>
+              <td class="fig muted">3.1</td>
+              <td class="fig strong">3.3</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Jose Fontán<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="role">Suplente</td>
+              <td class="sub">fora v FC Porto</td>
+              <td class="fig muted">3.5</td>
+              <td class="fig strong">2.8</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Léo Santos<span class="sub">Nacional</span></td>
+              <td class="sub">DEF</td>
+              <td class="role is-xi">Titular</td>
+              <td class="sub">fora v V. Guimarães</td>
+              <td class="fig muted">2.8</td>
+              <td class="fig strong">2.8</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Finn van Breemen<span class="sub">Famalicão</span></td>
+              <td class="sub">DEF</td>
+              <td class="role">Fora</td>
+              <td class="sub">fora v Santa Clara</td>
+              <td class="fig muted">2.5</td>
+              <td class="fig strong">2.6</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Buatu<span class="sub">Gil Vicente</span></td>
+              <td class="sub">DEF</td>
+              <td class="role">Fora</td>
+              <td class="sub">casa v Casa Pia</td>
+              <td class="fig muted">2.3</td>
+              <td class="fig strong">2.5</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Javi Sánchez<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="role">Fora</td>
+              <td class="sub">fora v FC Porto</td>
+              <td class="fig muted">2.8</td>
+              <td class="fig strong">2.4</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Tiago Esgaio<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="role">Fora</td>
+              <td class="sub">fora v FC Porto</td>
+              <td class="fig muted">2.8</td>
+              <td class="fig strong">2.4</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Zalazar<span class="sub">Sporting</span></td>
+              <td class="sub">MED</td>
+              <td class="role is-xi">Titular</td>
+              <td class="sub">casa v Alverca</td>
+              <td class="fig muted">5.1</td>
+              <td class="fig strong">6.0</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Raphael Guzzo<span class="sub">Marítimo</span></td>
+              <td class="sub">MED</td>
+              <td class="role is-xi">Titular</td>
+              <td class="sub">casa v Académico</td>
+              <td class="fig muted">4.8</td>
+              <td class="fig strong">5.1</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Issa Doumbia<span class="sub">Sporting</span></td>
+              <td class="sub">MED</td>
+              <td class="role is-xi">Titular</td>
+              <td class="sub">casa v Alverca</td>
+              <td class="fig muted">4.3</td>
+              <td class="fig strong">5.0</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Samu<span class="sub">V. Guimarães</span></td>
+              <td class="sub">MED</td>
+              <td class="role is-xi">Titular</td>
+              <td class="sub">casa v Nacional</td>
+              <td class="fig muted">3.8</td>
+              <td class="fig strong">4.4</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Santi García<span class="sub">Gil Vicente</span></td>
+              <td class="sub">MED</td>
+              <td class="role">Suplente</td>
+              <td class="sub">casa v Casa Pia</td>
+              <td class="fig muted">2.9</td>
+              <td class="fig strong">3.3</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Danilovic<span class="sub">Marítimo</span></td>
+              <td class="sub">MED</td>
+              <td class="role">Fora</td>
+              <td class="sub">casa v Académico</td>
+              <td class="fig muted">3.1</td>
+              <td class="fig strong">3.2</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Gorby<span class="sub">Sp. Braga</span></td>
+              <td class="sub">MED</td>
+              <td class="role">Fora</td>
+              <td class="sub">fora v E. Amadora <span class="late">10 SET 20:15</span></td>
+              <td class="fig muted">2.9</td>
+              <td class="fig strong">3.1</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Cáseres<span class="sub">Gil Vicente</span></td>
+              <td class="sub">MED</td>
+              <td class="role">Fora</td>
+              <td class="sub">casa v Casa Pia</td>
+              <td class="fig muted">2.5</td>
+              <td class="fig strong">2.8</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Pavlidis<span class="sub">Benfica</span></td>
+              <td class="sub">AVA</td>
+              <td class="role is-xi">Titular</td>
+              <td class="sub">fora v Moreirense <span class="late">09 SET 20:15</span></td>
+              <td class="fig muted">8.8</td>
+              <td class="fig strong">9.2</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Begraoui<span class="sub">Estoril</span></td>
+              <td class="sub">AVA</td>
+              <td class="role is-xi">Titular</td>
+              <td class="sub">casa v Rio Ave</td>
+              <td class="fig muted">4.3</td>
+              <td class="fig strong">5.4</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Fran Navarro<span class="sub">Sp. Braga</span></td>
+              <td class="sub">AVA</td>
+              <td class="role is-xi">Titular</td>
+              <td class="sub">fora v E. Amadora <span class="late">10 SET 20:15</span></td>
+              <td class="fig muted">4.5</td>
+              <td class="fig strong">4.8</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+            <tr>
+              <td class="name">Héctor Hernández<span class="sub">Gil Vicente</span></td>
+              <td class="sub">AVA</td>
+              <td class="role">Suplente</td>
+              <td class="sub">casa v Casa Pia</td>
+              <td class="fig muted">3.2</td>
+              <td class="fig strong">3.6</td>
+              <td class="fig"><span class="pending">por jogar</span></td>
+              <td class="fig"><span class="muted">—</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>A liga privada</h2><div class="rule"></div>
+      <p class="lede">Trinta equipas, 21 com pontos. Cada
+      marca é uma equipa; a vermelha é a minha. Os nomes ficam de fora — são de
+      outras pessoas.</p>
       <div class="dist">
         <div class="dist-track">
           <span class="mark" style="left:0.00%"></span>
@@ -1014,8 +940,8 @@ a { color: var(--accent); }
           <span class="mark" style="left:44.67%"></span>
           <span class="mark" style="left:52.00%"></span>
           <span class="mark" style="left:56.67%"></span>
-          <span class="mark is-me" style="left:58.00%" title="Melro"></span>
-          <span class="mark is-me" style="left:58.00%" title="Melro"></span>
+          <span class="mark is-me" style="left:58.00%"></span>
+          <span class="mark is-me" style="left:58.00%"></span>
           <span class="mark" style="left:62.00%"></span>
           <span class="mark" style="left:65.33%"></span>
           <span class="mark" style="left:70.67%"></span>
@@ -1030,42 +956,42 @@ a { color: var(--accent); }
           <span class="mark" style="left:100.00%"></span>
         </div>
         <div class="dist-axis">
-          <span>0</span>
+          <span class="dist-end">0</span>
           <span class="dist-me" style="left:58.00%">87 · eu</span>
-          <span>150</span>
+          <span class="dist-end right">150</span>
         </div>
       </div>
-  </section>
+    </section>
 
-  <section>
-    <h2>Por resolver</h2>
-    <div class="questions">
-        <article class="question">
-          <div class="question-head">
-            <h3>Um jogo adiado devolve os pontos?</h3>
-            <span class="state"><span class="dot"></span>Por verificar</span>
-          </div>
+    <section>
+      <h2>Por resolver</h2><div class="rule"></div>
+      <div class="questions">
+        <div class="q">
+          <h3>Um jogo adiado devolve os pontos?</h3>
+          <p class="q-state">Por verificar</p>
           <p>Quando um jogo não se realiza, os 57 jogadores dos dois clubes ficam a 0 — enquanto 48,5% dos jogadores dos clubes que jogaram estão a −1. O −1 é o código para «não jogou», portanto o 0 parece ser «ainda não atribuído». É leitura, não é prova.</p>
-        </article>
-        <article class="question">
-          <div class="question-head">
-            <h3>Sp. Braga–Gil Vicente da jornada 2</h3>
-            <span class="state"><span class="dot"></span>Sem data</span>
-          </div>
+        </div>
+        <div class="q">
+          <h3>Sp. Braga–Gil Vicente da jornada 2</h3>
+          <p class="q-state">Sem data</p>
           <p>Adiado a 16 de agosto por um surto gastrointestinal no plantel do Braga. A Liga Portugal ainda não marcou nova data. Dez dos 23 jogadores do plantel dessa jornada eram destes dois clubes.</p>
-        </article>
-        <article class="question">
-          <div class="question-head">
-            <h3>Modelo de preços</h3>
-            <span class="state"><span class="dot"></span>Sem dados</span>
-          </div>
+        </div>
+        <div class="q">
+          <h3>Pontuação do treinador</h3>
+          <p class="q-state">Não calculável</p>
+          <p>Ajustada contra vitórias, empates, manutenções de baliza e margens chega a R² 0,85, com desvios até 3,8 e sem estrutura inteira. Uma pontuação calculada dos resultados encaixaria exatamente. O resíduo comporta-se como a nota editorial que domina a pontuação dos jogadores.</p>
+        </div>
+        <div class="q">
+          <h3>Modelo de preços</h3>
+          <p class="q-state">Sem dados</p>
           <p>Ao fim de duas jornadas, 0 de 498 jogadores mudaram de preço. As bandas de ±50 000 € que o servidor projeta continuam sem nada contra que ser testadas.</p>
-        </article>
-    </div>
-  </section>
+        </div>
+      </div>
+    </section>
 
-  <footer>
-    <span>Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
-    <span><code>scripts/build_dashboard.py</code></span>
-  </footer>
+    <footer>
+      <span>Lido 2026-08-20 13:54 UTC. Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
+      <span><code>scripts/build_dashboard.py</code></span>
+    </footer>
+  </div>
 </div>

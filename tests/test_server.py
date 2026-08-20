@@ -661,3 +661,36 @@ def test_standings_is_national_when_no_league_is_configured(monkeypatch):
     monkeypatch.setattr(mcp_server, "DEFAULT_LEAGUE", None)
 
     assert mcp_server.standings()["scope"] == "national"
+
+
+def test_standings_can_insist_on_the_national_table(monkeypatch):
+    """A configured league must not silently answer a national question.
+
+    With LIGA_RECORD_LEAGUE set, every unqualified call went to the private
+    league — including the dashboard's own "how big is the field" call, whose
+    answer was then printed as a national ranking.
+    """
+    seen = []
+
+    class Ranked:
+        def standings(self, *, league_guid=None, **kwargs):
+            seen.append(league_guid)
+            return [], 0
+
+    monkeypatch.setattr(mcp_server, "_market", Ranked())
+    monkeypatch.setattr(mcp_server, "DEFAULT_LEAGUE", "a-configured-league")
+
+    assert mcp_server.standings()["scope"] == "private league"
+    assert mcp_server.standings(national=True)["scope"] == "national"
+    assert seen == ["a-configured-league", None]
+
+
+def test_national_wins_over_an_explicit_guid_too(monkeypatch):
+    """Saying both is a caller's mistake; national is the unambiguous half."""
+
+    class Ranked:
+        def standings(self, **kwargs):
+            return [], 0
+
+    monkeypatch.setattr(mcp_server, "_market", Ranked())
+    assert mcp_server.standings(league_guid="x", national=True)["scope"] == "national"

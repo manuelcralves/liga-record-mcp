@@ -660,6 +660,7 @@ def standings(
     league_guid: str | None = None,
     page: int = 1,
     page_size: int = 20,
+    national: bool = False,
 ) -> dict[str, Any]:
     """Where a team actually stands — nationally, or in one private league.
 
@@ -674,7 +675,10 @@ def standings(
     A position is reported together with the size of the field, since one
     without the other says very little.
     """
-    guid = league_guid or DEFAULT_LEAGUE
+    # An implicit default that silently changes what a call means is how the
+    # dashboard ended up asking for the private league three times and calling
+    # the answer a national ranking. `national` says so out loud.
+    guid = None if national else (league_guid or DEFAULT_LEAGUE)
     try:
         rows, pages = _market.standings(
             team=team, league_guid=guid, page=page, page_size=page_size

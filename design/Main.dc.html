@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; }
+    a { color: #ff2d46; } a:hover { color: #ff6577; }
+    .bc { --ground: #0a0d14; --panel: #121722; --ink: #ffffff; --dim: #8b95a8;
+          --hot: #ff2d46; --cool: #00d9a3; --edge: rgba(255,255,255,.10); }
+    .bc.light { --ground: #e8eaee; --panel: #ffffff; --ink: #0a0d14; --dim: #5d6675;
+                --hot: #d10f28; --cool: #00795c; --edge: rgba(10,13,20,.12); }
+    .slab { clip-path: polygon(0 0, 100% 0, calc(100% - 26px) 100%, 0 100%); }
+    .slab-r { clip-path: polygon(26px 0, 100% 0, 100% 100%, 0 100%); }
+    .wedge { clip-path: polygon(0 0, 100% 0, 100% 100%, 34px 100%); }
+  </style>
+</helmet>
+<div class="bc {{themeClass}}" style="background: var(--ground); color: var(--ink); font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; width: 900px; min-height: 1180px; padding: 0 0 46px;">
+
+  <div style="display: flex; align-items: stretch; height: 92px;">
+    <div class="slab" style="background: var(--hot); display: flex; align-items: center; padding: 0 46px 0 40px;">
+      <span style="font-family: Anton, Impact, sans-serif; font-size: 54px; line-height: 1; letter-spacing: .01em; color: #fff;">MELRO</span>
+    </div>
+    <div style="flex-grow: 1; display: flex; align-items: center; justify-content: flex-end; padding: 0 40px; gap: 26px;">
+      <span style="font-size: 15px; font-weight: 600; letter-spacing: .22em; color: var(--dim);">LIGA RECORD</span>
+      <span style="font-family: Anton, Impact, sans-serif; font-size: 30px; letter-spacing: .04em;">JORNADA 3</span>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: flex-end; gap: 34px; padding: 44px 40px 0;">
+    <span style="font-family: Anton, Impact, sans-serif; font-size: 232px; line-height: .78; letter-spacing: -.03em; color: var(--hot);">13</span>
+    <div style="display: flex; flex-direction: column; gap: 6px; padding-bottom: 20px;">
+      <span style="font-family: Anton, Impact, sans-serif; font-size: 46px; line-height: 1;">DE 30</span>
+      <span style="font-size: 19px; font-weight: 600; letter-spacing: .2em; color: var(--dim);">NA LIGA PRIVADA</span>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 40px 40px 0;">
+    <div style="background: var(--panel); padding: 20px 22px 18px;">
+      <span style="display: block; font-size: 13px; font-weight: 600; letter-spacing: .2em; color: var(--dim);">NO PAÍS</span>
+      <span style="display: block; font-family: Anton, Impact, sans-serif; font-size: 48px; line-height: 1.1;">6598.º</span>
+      <span style="display: block; font-size: 16px; color: var(--dim);">de 19 100 equipas</span>
+    </div>
+    <div style="background: var(--panel); padding: 20px 22px 18px;">
+      <span style="display: block; font-size: 13px; font-weight: 600; letter-spacing: .2em; color: var(--dim);">PONTOS</span>
+      <span style="display: block; font-family: Anton, Impact, sans-serif; font-size: 48px; line-height: 1.1;">87</span>
+      <span style="display: block; font-size: 16px; color: var(--dim);">em duas jornadas</span>
+    </div>
+    <div style="background: var(--panel); padding: 20px 22px 18px;">
+      <span style="display: block; font-size: 13px; font-weight: 600; letter-spacing: .2em; color: var(--dim);">PARA O 1.º</span>
+      <span style="display: block; font-family: Anton, Impact, sans-serif; font-size: 48px; line-height: 1.1; color: var(--hot);">−63</span>
+      <span style="display: block; font-size: 16px; color: var(--dim);">o líder tem 150</span>
+    </div>
+  </div>
+
+  <div style="padding: 46px 40px 0;">
+    <div style="display: flex; align-items: baseline; gap: 16px; margin-bottom: 20px;">
+      <span style="font-family: Anton, Impact, sans-serif; font-size: 26px; letter-spacing: .03em;">A ÉPOCA</span>
+      <span style="flex-grow: 1; height: 3px; background: var(--hot);"></span>
+    </div>
+    <div style="display: flex; align-items: flex-end; gap: 3px; height: 210px;">
+      <div style="width: 172px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; background: var(--hot); height: 100%; padding-bottom: 16px;">
+        <span style="font-family: Anton, Impact, sans-serif; font-size: 70px; line-height: 1; color: #fff;">49</span>
+        <span style="font-size: 15px; font-weight: 600; letter-spacing: .18em; color: rgba(255,255,255,.82);">J1 · 1246.º</span>
+      </div>
+      <div style="width: 172px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; background: var(--panel); height: 78%; padding-bottom: 16px;">
+        <span style="font-family: Anton, Impact, sans-serif; font-size: 70px; line-height: 1;">38</span>
+        <span style="font-size: 15px; font-weight: 600; letter-spacing: .18em; color: var(--dim);">J2 · 6598.º</span>
+      </div>
+      <div class="wedge" style="flex-grow: 1; align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 30px; background: var(--panel);">
+        <span style="font-family: Anton, Impact, sans-serif; font-size: 56px; line-height: 1; color: var(--hot);">▼ 5 352</span>
+        <span style="font-size: 17px; font-weight: 500; color: var(--dim);">lugares perdidos entre as duas jornadas</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="padding: 46px 40px 0;">
+    <div style="display: flex; align-items: baseline; gap: 16px; margin-bottom: 20px;">
+      <span style="font-family: Anton, Impact, sans-serif; font-size: 26px; letter-spacing: .03em;">A FOLHA</span>
+      <span style="flex-grow: 1; height: 3px; background: var(--hot);"></span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px;">
+      <div style="background: var(--panel); padding: 18px 20px;">
+        <span style="display: block; font-size: 13px; font-weight: 600; letter-spacing: .2em; color: var(--dim);">FORMAÇÃO</span>
+        <span style="display: block; font-family: Anton, Impact, sans-serif; font-size: 38px; line-height: 1.2;">3-4-3</span>
+      </div>
+      <div style="background: var(--panel); padding: 18px 20px;">
+        <span style="display: block; font-size: 13px; font-weight: 600; letter-spacing: .2em; color: var(--hot);">CAPITÃO</span>
+        <span style="display: block; font-family: Anton, Impact, sans-serif; font-size: 30px; line-height: 1.35;">PAVLIDIS</span>
+        <span style="display: block; font-size: 16px; color: var(--dim);">9,2 projetados</span>
+      </div>
+      <div style="background: var(--panel); padding: 18px 20px;">
+        <span style="display: block; font-size: 13px; font-weight: 600; letter-spacing: .2em; color: var(--dim);">TREINADOR</span>
+        <span style="display: block; font-family: Anton, Impact, sans-serif; font-size: 30px; line-height: 1.35;">FARIOLI</span>
+        <span style="display: block; font-size: 16px; color: var(--dim);">5,7 projetados</span>
+      </div>
+      <div style="background: var(--cool); padding: 18px 20px;">
+        <span style="display: block; font-size: 13px; font-weight: 600; letter-spacing: .2em; color: rgba(0,0,0,.62);">TOTAL</span>
+        <span style="display: block; font-family: Anton, Impact, sans-serif; font-size: 48px; line-height: 1.15; color: #06120e;">69,3</span>
+        <span style="display: block; font-size: 16px; color: rgba(0,0,0,.62);">onze, capitão e treinador</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin: 46px 40px 0; display: flex; align-items: stretch;">
+    <div class="slab" style="background: var(--hot); display: flex; align-items: center; padding: 0 40px 0 26px;">
+      <span style="font-family: Anton, Impact, sans-serif; font-size: 68px; line-height: 1; color: #fff;">6</span>
+    </div>
+    <div class="slab-r" style="flex-grow: 1; background: var(--panel); display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 18px 28px;">
+      <span style="font-family: Anton, Impact, sans-serif; font-size: 27px; letter-spacing: .02em;">DOS 23 JOGAM O FC PORTO–AROUCA</span>
+      <span style="font-size: 17px; font-weight: 500; color: var(--dim);">Três de cada lado — a manutenção de baliza é mutuamente exclusiva</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"themeClass":{"editor":"enum","options":["","light"],"default":"","section":"Tema"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: this.props.themeClass ?? '' };
+  }
+}
+</script>
+</body>
+</html>
