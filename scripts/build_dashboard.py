@@ -9,7 +9,8 @@ arrived. A blank reads as zero, and a zero here would be a lie — it is exactly
 the confusion between "pending" and "scored" that cost this project a day.
 Unsettled rows carry an explicit pending state instead.
 
-    python scripts/build_dashboard.py [--round N] [--out PATH]
+    python scripts/build_dashboard.py              # private, full league table
+    python scripts/build_dashboard.py --public     # docs/index.html, no other people
 """
 
 from __future__ import annotations
@@ -61,6 +62,17 @@ def gather(round_number: int) -> dict:
             (t for t in national.get("teams", []) if t.get("user") == "manuelcralves"),
             None,
         )
+    # A transient site error returns {"detail": ...} with no teams, and the
+    # page would then render with a section quietly missing. A dashboard that
+    # silently drops a section is worse than one that refuses to build.
+    if guid and not (league or {}).get("teams"):
+        raise SystemExit(
+            "the private league came back empty: "
+            f"{(league or {}).get('detail', 'no teams and no reason given')}"
+        )
+    if me is None:
+        raise SystemExit("could not find the team Melro in either ranking")
+
     field = mcp.standings(page_size=20).get("field_size_estimate")
     return {
         "round": round_number,
@@ -72,7 +84,7 @@ def gather(round_number: int) -> dict:
     }
 
 
-def summary_cards(data: dict) -> str:
+def summary_cards(data: dict, public: bool = False) -> str:
     me, league, field = data["me"], data["league"], data["field"]
     if me is None:
         return ""
@@ -94,11 +106,18 @@ def summary_cards(data: dict) -> str:
     ]
     if league:
         leader = league[0]
+        # The gap is Manuel's own number; the name attached to it is not his to
+        # publish, so the public build states the total without the team.
+        note = (
+            f"o 1.º tem {leader['points_total']}"
+            if public
+            else f"{esc(leader['team'])} tem {leader['points_total']}"
+        )
         cards.append(
             (
                 "Atraso para o 1.º",
                 f"−{leader['points_total'] - me['points_total']}",
-                f"{esc(leader['team'])} tem {leader['points_total']}",
+                note,
             )
         )
     return "\n".join(
@@ -249,8 +268,50 @@ def ledger_section(data: dict) -> str:
       </div>"""
 
 
-def league_section(data: dict) -> str:
+def league_distribution(data: dict) -> str:
+    """The league's shape without its members.
+
+    Anonymising the table row by row would leave thirty meaningless rows and
+    still hint at who is who through the ordering. A distribution answers the
+    question a stranger actually has — how competitive is this, and where does
+    he sit — and carries no identity at all.
+    """
+    league, me = data["league"], data["me"]
+    if not league or me is None:
+        return ""
+    totals = sorted(t["points_total"] for t in league)
+    top, mine = max(totals), me["points_total"]
+    live = [t for t in totals if t > 0]
+    span = top or 1
+
+    marks = []
+    for value in totals:
+        left = value / span * 100
+        is_me = value == mine
+        marks.append(
+            f'<span class="mark{" is-me" if is_me else ""}" '
+            f'style="left:{left:.2f}%"'
+            f'{" title=\"Melro\"" if is_me else ""}></span>'
+        )
+    return f"""      <p class="section-note">Trinta equipas, {len(live)} com pontos.
+      Cada marca é uma equipa; a vermelha é a minha. Os nomes ficam de fora —
+      são de outras pessoas.</p>
+      <div class="dist">
+        <div class="dist-track">
+{chr(10).join('          ' + m for m in marks)}
+        </div>
+        <div class="dist-axis">
+          <span>0</span>
+          <span class="dist-me" style="left:{mine / span * 100:.2f}%">{mine} · eu</span>
+          <span>{top}</span>
+        </div>
+      </div>"""
+
+
+def league_section(data: dict, public: bool = False) -> str:
     league = data["league"]
+    if public:
+        return league_distribution(data)
     if not league:
         return """      <p class="section-note">A liga privada não foi lida — defina
       <code>LIGA_RECORD_LEAGUE</code> no ambiente com o guid da liga.</p>"""
@@ -320,8 +381,7 @@ def questions_section() -> str:
     return "\n".join(items)
 
 
-def render(data: dict) -> str:
-    me = data["me"]
+def render(data: dict, public: bool = False) -> str:
     stamp = (data["as_of"] or "")[:16].replace("T", " ")
     recorded = data["stored"]["recorded_at"][:16].replace("T", " ")
     return f"""<title>Melro · Liga Record</title>
@@ -533,6 +593,14 @@ th.num {{ text-align: right; }}
 .league tr.is-dead td {{ color: var(--ink-faint); }}
 .league tr.is-dead .cell-name {{ font-weight: 400; }}
 
+.dist {{ background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 26px 22px 14px; box-shadow: var(--shadow); }}
+.dist-track {{ position: relative; height: 34px; border-bottom: 1px solid var(--rule-firm); }}
+.mark {{ position: absolute; bottom: 0; width: 2px; height: 20px; background: var(--rule-firm); transform: translateX(-1px); border-radius: 1px; }}
+.mark.is-me {{ background: var(--accent); height: 34px; width: 3px; }}
+.dist-axis {{ position: relative; height: 22px; margin-top: 7px; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); }}
+.dist-axis > span:first-child {{ position: absolute; left: 0; }}
+.dist-axis > span:last-child {{ position: absolute; right: 0; }}
+.dist-me {{ position: absolute; transform: translateX(-50%); color: var(--accent); font-weight: 600; white-space: nowrap; }}
 .questions {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }}
 .question {{ background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--pending); border-radius: 3px; padding: 15px 17px; box-shadow: var(--shadow); }}
 .question-head {{ display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; }}
@@ -557,7 +625,7 @@ a {{ color: var(--accent); }}
   <section>
     <h2>Onde estamos</h2>
     <div class="cards">
-{summary_cards(data)}
+{summary_cards(data, public)}
     </div>
   </section>
 
@@ -576,7 +644,7 @@ a {{ color: var(--accent); }}
 
   <section>
     <h2>A liga privada</h2>
-{league_section(data)}
+{league_section(data, public)}
   </section>
 
   <section>
@@ -597,13 +665,20 @@ a {{ color: var(--accent); }}
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--round", type=int, default=3)
-    parser.add_argument("--out", default=str(ROOT / "docs" / "dashboard.html"))
+    parser.add_argument("--out")
+    parser.add_argument(
+        "--public",
+        action="store_true",
+        help="omit everything that belongs to other people, for a public host",
+    )
     args = parser.parse_args()
 
     data = gather(args.round)
-    out = Path(args.out)
+    # index.html so GitHub Pages serves it at the bare /docs URL.
+    default = "index.html" if args.public else "dashboard.html"
+    out = Path(args.out or ROOT / "docs" / default)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render(data), encoding="utf-8")
+    out.write_text(render(data, public=args.public), encoding="utf-8")
     settled = sum(1 for r in data["stored"]["players"].values() if r["actual"] is not None)
     print(f"wrote {out} — round {args.round}, {settled}/23 settled, {len(data['league'])} in the league")
 
