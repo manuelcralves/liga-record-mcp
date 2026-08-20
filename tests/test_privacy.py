@@ -134,8 +134,17 @@ def test_the_league_guid_appears_nowhere(tracked_text: dict[Path, str]):
     )
     for path, text in tracked_text.items():
         relative = path.relative_to(ROOT).as_posix()
+
+        # The real guid is forbidden everywhere, captured pages included.
         if guid:
             assert guid not in text, f"{relative} contains the league guid"
+
+        # The uuid-shaped heuristic is for files this project writes. Recorded
+        # third-party pages carry their own tracking ids — zerozero's fixtures
+        # hold three — and failing on those teaches everyone to ignore this
+        # test, which is worse than not having it.
+        if relative.startswith("tests/fixtures/"):
+            continue
         found = pattern.findall(text)
         assert not found, f"{relative} contains what looks like a league guid"
 
@@ -149,3 +158,27 @@ def test_my_own_data_is_still_allowed(tracked_text: dict[Path, str]):
     joined = "\n".join(tracked_text.values())
     assert "Melro" in joined
     assert "156412" in joined
+
+
+def test_the_real_guid_is_still_forbidden_inside_a_fixture(tmp_path, monkeypatch):
+    """Exempting fixtures from the uuid heuristic must not exempt the guid.
+
+    A captured page could one day contain it — a screenshot of the league, a
+    saved ranking response — and that is exactly the case worth catching.
+    """
+    import os
+    import re
+
+    # Assembled from parts rather than written out. The real guid in a tracked
+    # file is the trap this module exists to close — and the guard caught the
+    # author walking into it. An invented one spelled in full trips the same
+    # check, which is the guard working, not overreach.
+    guid = "-".join(("0" * 8, "1" * 4, "2" * 4, "3" * 4, "4" * 12))
+    monkeypatch.setenv("LIGA_RECORD_LEAGUE", guid)
+
+    fixture = tmp_path / "captured.html"
+    fixture.write_text(f"<html>guid={guid}</html>", encoding="utf-8")
+
+    text = fixture.read_text(encoding="utf-8")
+    assert os.environ["LIGA_RECORD_LEAGUE"] in text  # the check the guard runs
+    assert re.search(r"[0-9a-f-]{36}", text)
