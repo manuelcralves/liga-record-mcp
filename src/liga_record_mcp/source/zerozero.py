@@ -55,7 +55,9 @@ CLUB_ALIASES: dict[str, tuple[str, ...]] = {
     "V. Guimarães": ("vitoria sc", "vitoria guimaraes", "guimaraes"),
     "Santa Clara": ("santa clara",),
     "Gil Vicente": ("gil vicente",),
-    "E. Amadora": ("estrela amadora", "estrela da amadora"),
+    # zerozero writes this one "Est. Amadora": the whole club refused
+    # on a sweep because no alias reached it.
+    "E. Amadora": ("est amadora", "estrela amadora", "estrela da amadora"),
     "Casa Pia": ("casa pia",),
     "Rio Ave": ("rio ave",),
     "Marítimo": ("maritimo",),
@@ -81,7 +83,9 @@ CLUB_PATHS: dict[str, str] = {
     "Arouca": "/equipa/fc-arouca/3555",
     "Benfica": "/equipa/benfica",
     "Casa Pia": "/equipa/casa-pia-ac/2412",
-    "E. Amadora": "/equipa/est-amadora/300706",
+    # 300706 is the under-10 side. zerozero keeps every age group under
+    # the same slug, and the search returns them all.
+    "E. Amadora": "/equipa/est-amadora/253884",
     "Estoril": "/equipa/estoril-praia/1734",
     "FC Porto": "/equipa/fc-porto",
     "Famalicão": "/equipa/fc-famalicao/2175",
@@ -382,6 +386,15 @@ class ZeroZeroClient:
                 continue
             seen[match.group(1)] = ZeroZeroPlayer(
                 zid=match.group(1), path=href, name=name, club=club
+            )
+        if not seen:
+            # A top-flight squad page lists dozens. None means the path is
+            # wrong, and the wrongness is easy to miss: zerozero files every
+            # age group under one slug, and this pointed at an under-10 side
+            # for a while. Returning empty blamed the player — "no candidate
+            # plays for E. Amadora" — for a mistake in this table.
+            raise ZeroZeroError(
+                f"{path} lists no players, so it is not {club}'s senior squad"
             )
         return list(seen.values())
 

@@ -340,3 +340,40 @@ def test_the_fallback_cannot_invent_a_match(tmp_path, monkeypatch):
 
     assert chosen is None
     assert "no candidate" in why
+
+
+def test_every_primeira_liga_club_has_a_reachable_alias():
+    """A sweep refused all fifteen E. Amadora players at once: zerozero writes
+    the club "Est. Amadora" and no alias reached it. A whole club failing is a
+    mapping bug, not fifteen coincidences."""
+    from liga_record_mcp.source.zerozero import CLUB_ALIASES, CLUB_PATHS
+
+    assert set(CLUB_ALIASES) == set(CLUB_PATHS), "the two club maps disagree"
+    assert clubs_agree("E. Amadora", "Est. Amadora")
+
+
+def test_a_clubs_own_path_slug_agrees_with_its_name():
+    """The squad-page fallback is useless for a club whose alias cannot reach
+    the name zerozero prints, so the two must stay in step."""
+    from liga_record_mcp.source.zerozero import CLUB_PATHS
+
+    for club, path in CLUB_PATHS.items():
+        slug = path.split("/")[2].replace("-", " ")
+        assert clubs_agree(club, slug), f"{club} cannot reach its own slug {slug!r}"
+
+
+def test_a_club_page_with_no_players_is_an_error_not_an_empty_squad(tmp_path, monkeypatch):
+    """zerozero files every age group under one slug, and a club path pointed
+    at an under-10 side. Returning an empty squad blamed the player — "no
+    candidate plays for E. Amadora" — for a mistake in the club table."""
+
+    class Response:
+        text = "<html><body>uma equipa sem plantel</body></html>"
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr("httpx.get", lambda url, **kw: Response())
+
+    with pytest.raises(ZeroZeroError, match="senior squad"):
+        ZeroZeroClient(tmp_path, pause=0).squad("Benfica")
