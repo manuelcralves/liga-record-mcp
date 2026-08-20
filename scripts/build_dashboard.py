@@ -26,6 +26,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp import server as mcp  # noqa: E402
+from liga_record_mcp.models import Position  # noqa: E402
+from liga_record_mcp.source import OpenFootballClient  # noqa: E402
+from liga_record_mcp.stats import (  # noqa: E402
+    adjust_for_fixture,
+    fixture_multipliers,
+    upcoming_opponents,
+)
 
 LOG_PATH = ROOT / "data" / "projections.json"
 HISTORY_PATH = ROOT / "data" / "history.json"
@@ -91,10 +98,14 @@ def gather(round_number: int) -> dict:
                 history.append({"round": int(key), **row})
 
     differentials = mcp.find_differentials(limit=10, min_matches=1)
+    exposure = mcp.squad_exposure(round_number=round_number)
+    grid = fixture_grid(stored, round_number)
 
     return {
         "round": round_number,
         "stored": stored,
+        "exposure": exposure,
+        "grid": grid,
         "league": (league or {}).get("teams") or [],
         "me": me,
         "field": field,
@@ -102,6 +113,149 @@ def gather(round_number: int) -> dict:
         "differentials": differentials,
         "as_of": national.get("as_of", ""),
     }
+
+
+GRID_ROUNDS = 5
+
+
+def fixture_grid(stored: dict, from_round: int) -> list[dict]:
+    """Each squad player's next few opponents, scored by how hard they look.
+
+    The multiplier is the same one the round projection uses, so a cell and the
+    team sheet cannot disagree. Rounds are walked in order rather than by date:
+    a club with a postponed fixture has its rounds out of chronological
+    sequence, and sorting by kickoff would show the wrong opponent for the
+    wrong week.
+    """
+    fixtures = mcp._market.fixtures()
+    records = OpenFootballClient(timeout=60.0).club_records()
+    known = [r for r in records.values() if r.has_history]
+    league_ga = sum(r.goals_against_per_match for r in known) / len(known)
+    league_gf = sum(r.goals_for_per_match for r in known) / len(known)
+
+    def rates(club):
+        record = records.get(club)
+        if record is None or not record.has_history:
+            return league_ga, league_gf
+        return record.goals_against_per_match, record.goals_for_per_match
+
+    rows = []
+    for player_id, row in stored["players"].items():
+        position = Position(row["position"])
+        cells = []
+        for rnd, opponent, at_home in upcoming_opponents(
+            fixtures, row["club"], from_round, GRID_ROUNDS
+        ):
+            own_ga, own_gf = rates(row["club"])
+            opp_ga, opp_gf = rates(opponent)
+            defensive, attacking = fixture_multipliers(
+                own_ga, own_gf, opp_ga, opp_gf, league_ga, league_gf, at_home=at_home
+            )
+            projected = adjust_for_fixture(
+                row["season_rate"], position, defensive, attacking
+            )
+            edge = projected - row["season_rate"]
+            cells.append(
+                {
+                    "round": rnd,
+                    "opponent": opponent,
+                    "at_home": at_home,
+                    "projected": round(projected, 1),
+                    "edge": round(edge, 2),
+                }
+            )
+        rows.append({"id": player_id, **row, "cells": cells})
+    rows.sort(key=lambda r: (ORDER[r["position"]], -r["season_rate"]))
+    return rows
+
+
+def grid_section(data: dict) -> str:
+    rows = data["grid"]
+    if not rows:
+        return '      <p class="section-note">Sem calendário para as jornadas seguintes.</p>'
+    rounds = []
+    for row in rows:
+        for cell in row["cells"]:
+            if cell["round"] not in rounds:
+                rounds.append(cell["round"])
+    rounds.sort()
+
+    head = "".join(f'<th class="num">J{r}</th>' for r in rounds)
+    body = []
+    for row in rows:
+        by_round = {c["round"]: c for c in row["cells"]}
+        cells = []
+        for rnd in rounds:
+            cell = by_round.get(rnd)
+            if cell is None:
+                cells.append('<td class="grid-cell"><span class="muted">—</span></td>')
+                continue
+            edge = cell["edge"]
+            tone = "easy" if edge > 0.25 else "hard" if edge < -0.25 else "even"
+            where = "vs" if cell["at_home"] else "@"
+            cells.append(
+                f'<td class="grid-cell {tone}" title="{esc(cell["opponent"])}">'
+                f'<span class="grid-opp">{where} {esc(cell["opponent"][:11])}</span>'
+                f'<span class="grid-proj">{cell["projected"]:.1f}</span></td>'
+            )
+        body.append(
+            f"""            <tr>
+              <td class="cell-name">{esc(row['name'])}<span class="cell-club">{esc(row['club'])}</span></td>
+              <td><span class="pos-chip">{POS_PT[row['position']]}</span></td>
+              {''.join(cells)}
+            </tr>"""
+        )
+    return f"""      <p class="section-note">As próximas {len(rounds)} jornadas de cada
+      jogador, com o mesmo ajuste ao adversário que a folha usa — verde é melhor
+      que a média dele, vermelho é pior. <em>@</em> é fora de casa.</p>
+      <div class="table-wrap">
+        <table class="ledger grid">
+          <thead><tr><th>Jogador</th><th>Pos</th>{head}</tr></thead>
+          <tbody>
+{chr(10).join(body)}
+          </tbody>
+        </table>
+      </div>"""
+
+
+def exposure_section(data: dict) -> str:
+    result = data["exposure"]
+    matches = result.get("matches") or []
+    if not matches:
+        return '      <p class="section-note">Sem exposição calculada.</p>'
+    top = matches[0]
+    hedged = result.get("hedged_against_itself") or []
+    items = []
+    for m in matches:
+        names = [p["name"] for p in m["home_players"]] + [p["name"] for p in m["away_players"]]
+        badge = (
+            '<span class="badge badge-late">ambos os lados</span>'
+            if m["both_sides"]
+            else ""
+        )
+        items.append(
+            f"""          <li class="expo">
+            <span class="expo-count">{m['count']}</span>
+            <span class="expo-match">{esc(m['home'])} <span class="muted">v</span> {esc(m['away'])} {badge}
+              <span class="expo-names">{esc(', '.join(names))}</span></span>
+          </li>"""
+        )
+    warning = (
+        f"Tens jogadores dos dois lados em {len(hedged)} "
+        f"{'jogo' if len(hedged) == 1 else 'jogos'} — a manutenção de baliza é "
+        "mutuamente exclusiva, portanto isso amortece um mau resultado e trava um bom."
+        if hedged
+        else "Não tens jogadores a defrontarem-se."
+    )
+    return f"""      <p class="section-note">O maior risco não é um jogador, é um
+      jogo: <em>{top['count']} dos 23</em> jogam o {esc(top['home'])}–{esc(top['away'])}.
+      Foi assim que a jornada 2 se perdeu — dez jogadores num só jogo, que foi
+      adiado. {warning}</p>
+      <div class="expo-box">
+        <ul class="expo-list">
+{chr(10).join(items)}
+        </ul>
+      </div>"""
 
 
 def history_section(data: dict) -> str:
@@ -323,7 +477,7 @@ def sheet_section(data: dict) -> str:
           <dl class="sheet-meta">
             <dt>Treinador</dt><dd>{coach_line}</dd>
             <dt>Formação</dt><dd>3-4-3</dd>
-            <dt>Projetado</dt><dd class="num">{total:.1f} <span class="muted">onze, capitão e treinador</span></dd>
+            <dt>Projetado</dt><dd><span class="num">{total:.1f}</span> <span class="muted">com capitão e treinador</span></dd>
           </dl>
         </aside>
       </div>"""
@@ -681,9 +835,9 @@ h2 {{
 .sub-pos {{ font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-faint); }}
 .sub-proj {{ font-family: "IBM Plex Mono", monospace; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--ink-soft); }}
 
-.sheet-meta {{ margin: 20px 0 0; padding-top: 14px; border-top: 2px solid var(--ink); display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }}
+.sheet-meta {{ margin: 20px 0 0; padding-top: 14px; border-top: 2px solid var(--ink); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: 14px; }}
 .sheet-meta dt {{ font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); align-self: center; }}
-.sheet-meta dd {{ margin: 0; font-weight: 600; }}
+.sheet-meta dd {{ margin: 0; font-weight: 600; min-width: 0; }}
 .muted {{ color: var(--ink-soft); font-weight: 400; }}
 .coach-proj {{ float: right; font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; color: var(--ink-soft); }}
 
@@ -741,6 +895,20 @@ th.num {{ text-align: right; }}
 .move {{ display: block; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; line-height: 1.4; margin-top: 2px; white-space: nowrap; min-height: 1.4em; }}
 .move.up {{ color: var(--over); }}
 .move.down {{ color: var(--under); }}
+.grid td.grid-cell {{ text-align: center; padding: 7px 8px; min-width: 92px; }}
+.grid-opp {{ display: block; font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; }}
+.grid-proj {{ display: block; font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }}
+.grid-cell.easy {{ background: color-mix(in srgb, var(--over) 12%, transparent); }}
+.grid-cell.easy .grid-proj {{ color: var(--over); }}
+.grid-cell.hard {{ background: color-mix(in srgb, var(--under) 12%, transparent); }}
+.grid-cell.hard .grid-proj {{ color: var(--under); }}
+.expo-box {{ background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; box-shadow: var(--shadow); padding: 4px 18px 14px; }}
+.expo-list {{ list-style: none; margin: 0; padding: 0; }}
+.expo {{ display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: baseline; padding: 11px 0; border-top: 1px solid var(--rule); }}
+.expo:first-child {{ border-top: none; }}
+.expo-count {{ font-family: Archivo, sans-serif; font-weight: 700; font-size: 24px; font-variant-numeric: tabular-nums; min-width: 28px; text-align: right; }}
+.expo-match {{ font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }}
+.expo-names {{ flex-basis: 100%; font-weight: 400; font-size: 13px; color: var(--ink-soft); }}
 .questions {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }}
 .question {{ background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--pending); border-radius: 3px; padding: 15px 17px; box-shadow: var(--shadow); }}
 .question-head {{ display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; }}
@@ -785,6 +953,16 @@ a {{ color: var(--accent); }}
   <section>
     <h2>Projetado contra real</h2>
 {ledger_section(data)}
+  </section>
+
+  <section>
+    <h2>Onde está o risco</h2>
+{exposure_section(data)}
+  </section>
+
+  <section>
+    <h2>As próximas jornadas</h2>
+{grid_section(data)}
   </section>
 
   <section>

@@ -52,9 +52,11 @@ from .stats import (
     UNUSED,
     appearance_rate,
     classify_appearance,
+    club_concentration,
     club_price_index,
     clubs_playing_in,
     differential_rows,
+    fixture_exposure,
     last_scored_round,
     matches_played,
     never_played,
@@ -529,6 +531,54 @@ def project_price(player_id: str, round_points: int) -> dict[str, Any]:
         "change": change,
         "value_after": project_new_price(player.value, round_points),
         "in_regulation": not 1 <= round_points <= 3,
+    }
+
+
+@server.tool()
+def squad_exposure(round_number: int | None = None) -> dict[str, Any]:
+    """How much of the squad rides on one match, and on one club.
+
+    A squad is not a list of independent bets. In round two, ten of the
+    twenty-three players held belonged to Sp. Braga and Gil Vicente — three of
+    the four forwards among them — and one postponement blanked all ten at
+    once. Nothing was watching that.
+
+    `both_sides` marks a fixture where the squad holds players facing each
+    other. Clean sheets are mutually exclusive, so it cushions a bad result and
+    caps a good one in equal measure. That is sometimes what you want, but it
+    should never happen by accident.
+    """
+    snapshot = _load()
+    players = snapshot.squad.players
+    try:
+        fixtures = _market.fixtures()
+    except SiteError as exc:
+        return {"detail": str(exc)}
+
+    target = round_number or snapshot.round_number
+    if target is None:
+        return {"detail": "no round given and the squad file does not name one"}
+
+    by_id = {p.id: p for p in players}
+    rows = fixture_exposure(players, fixtures, target)
+    for row in rows:
+        for side in ("home_players", "away_players"):
+            row[side] = [
+                {"id": i, "name": by_id[i].name, "position": by_id[i].position.value}
+                for i in row[side]
+            ]
+
+    clubs = club_concentration(players)
+    heaviest = rows[0] if rows else None
+    return {
+        **_provenance(snapshot),
+        "round": target,
+        "matches": rows,
+        "by_club": [{"club": c, "players": n} for c, n in clubs],
+        "largest_single_match": heaviest["count"] if heaviest else 0,
+        "hedged_against_itself": [
+            f"{r['home']} v {r['away']}" for r in rows if r["both_sides"]
+        ],
     }
 
 

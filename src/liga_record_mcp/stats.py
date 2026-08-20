@@ -582,6 +582,92 @@ def project_coach(
     }
 
 
+# --------------------------------------------------------------------------
+# Exposure
+#
+# A squad is not a list of independent bets. Ten of the twenty-three players
+# held in round two belonged to Sp. Braga and Gil Vicente, and when that single
+# fixture was postponed all ten scored nothing at once — three of the four
+# forwards among them. Nothing in this project was looking at that.
+#
+# Two shapes of exposure matter, and they are opposites:
+#
+#   concentration   many players at one club. One postponement, one collapse,
+#                   one European week takes the lot.
+#   both sides      players facing each other. Clean sheets are mutually
+#                   exclusive, so this caps the upside as surely as it cushions
+#                   the downside. Sometimes wanted, never by accident.
+# --------------------------------------------------------------------------
+
+
+def upcoming_opponents(
+    fixtures: Iterable[Fixture], club: str, from_round: int, count: int = 5
+) -> list[tuple[int, str, bool]]:
+    """The club's next fixtures as (round, opponent, at_home), soonest first.
+
+    Rounds are read in order rather than by date: a club with a postponed
+    fixture has its rounds out of chronological sequence, and ordering by
+    kickoff would silently reshuffle who plays whom.
+    """
+    found: list[tuple[int, str, bool]] = []
+    for fixture in sorted(fixtures, key=lambda f: f.round_number):
+        if fixture.round_number < from_round:
+            continue
+        if fixture.home == club:
+            found.append((fixture.round_number, fixture.away, True))
+        elif fixture.away == club:
+            found.append((fixture.round_number, fixture.home, False))
+        if len(found) >= count:
+            break
+    return found
+
+
+def fixture_exposure(
+    players: Sequence[Player], fixtures: Iterable[Fixture], round_number: int
+) -> list[dict[str, object]]:
+    """How much of the squad rides on each of the round's matches.
+
+    Sorted by the number of players involved, so the match that can swing the
+    round most is first. `both_sides` marks a fixture where the squad holds
+    players facing each other — a hedge against itself, whether or not that was
+    the intention.
+    """
+    by_club: dict[str, list[Player]] = {}
+    for player in players:
+        by_club.setdefault(player.club, []).append(player)
+
+    rows: list[dict[str, object]] = []
+    for fixture in fixtures:
+        if fixture.round_number != round_number:
+            continue
+        home = by_club.get(fixture.home, [])
+        away = by_club.get(fixture.away, [])
+        if not home and not away:
+            continue
+        rows.append(
+            {
+                "home": fixture.home,
+                "away": fixture.away,
+                "kickoff": fixture.kickoff,
+                "played": fixture.played,
+                "home_players": [p.id for p in home],
+                "away_players": [p.id for p in away],
+                "count": len(home) + len(away),
+                "both_sides": bool(home and away),
+            }
+        )
+    rows.sort(key=lambda r: (-r["count"], r["home"]))
+    return rows
+
+
+def club_concentration(players: Sequence[Player]) -> list[tuple[str, int]]:
+    """Players per club, heaviest first."""
+    counts: dict[str, int] = {}
+    for player in players:
+        counts[player.club] = counts.get(player.club, 0) + 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
 def rate_rows(
     players: Sequence[Player], matches_by_club: dict[str, int]
 ) -> list[dict[str, object]]:
