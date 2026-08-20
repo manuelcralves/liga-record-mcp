@@ -418,7 +418,9 @@
           "points_before": 7,
           "actual": null
         }
-      }
+      },
+      "settled_at": "2026-08-20T09:25:57.158695+00:00",
+      "fully_settled": false
     }
   }
 }

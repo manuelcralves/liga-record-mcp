@@ -37,6 +37,7 @@ from liga_record_mcp.source import (  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
     adjust_for_fixture,
     club_price_index,
+    clubs_playing_in,
     fixture_multipliers,
     matches_played,
     position_baselines,
@@ -159,23 +160,47 @@ def main() -> None:
         stored = log["rounds"].get(key)
         if stored is None:
             raise SystemExit(f"round {key} was never recorded — nothing to settle")
+
+        # A club whose fixture has not been played yet sits at 0, and that 0 is
+        # pending rather than scored. Settling it would enter a fabricated
+        # error against the projection — the same mistake, in a new place, that
+        # this whole module exists to avoid. Only played clubs are settled, and
+        # the rest wait for a later run.
+        playing = clubs_playing_in(market.fixtures(), int(key))
         live = {m.id: m for pos in Position for m in market.search(pos)}
-        settled = 0
+
+        settled, pending, already = 0, [], 0
         for player_id, row in stored["players"].items():
+            if row.get("actual") is not None:
+                already += 1
+                continue
             found = live.get(player_id)
             if found is None:
+                continue
+            if row["club"] not in playing:
+                pending.append(row["name"])
                 continue
             row["actual"] = found.points_round
             row["error"] = round(found.points_round - row["projected"], 2)
             settled += 1
+
         stored["settled_at"] = now
+        stored["fully_settled"] = not pending
         LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
-        errors = [r["error"] for r in stored["players"].values() if r.get("error") is not None]
-        bias = sum(errors) / len(errors)
-        spread = sum(abs(e) for e in errors) / len(errors)
-        print(f"round {key} settled: {settled} players")
-        print(f"  mean error      {bias:+.2f}  (positive = we were too pessimistic)")
-        print(f"  mean size       {spread:.2f}  points off per player")
+
+        print(f"round {key}: {settled} newly settled, {already} already on file")
+        if pending:
+            print(f"  still pending ({len(pending)}): {', '.join(sorted(pending))}")
+            print("  their clubs have not played this round — run again afterwards")
+
+        errors = [
+            r["error"] for r in stored["players"].values() if r.get("error") is not None
+        ]
+        if errors:
+            bias = sum(errors) / len(errors)
+            spread = sum(abs(e) for e in errors) / len(errors)
+            print(f"  mean error      {bias:+.2f}  (positive = we were too pessimistic)")
+            print(f"  mean size       {spread:.2f}  points off per player, over {len(errors)}")
         return
 
     if key in log["rounds"]:
