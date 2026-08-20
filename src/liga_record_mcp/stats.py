@@ -13,10 +13,10 @@ total without the number of matches behind it.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from statistics import mean
 
-from .models import ClubRecord, Fixture, Player, Position
+from .models import ClubRecord, Fixture, MarketPlayer, Player, Position
 
 
 def matches_played(fixtures: Iterable[Fixture]) -> dict[str, int]:
@@ -384,6 +384,132 @@ def adjust_for_fixture(
     share = DEFENSIVE_SHARE[position]
     multiplier = share * defensive + (1 - share) * attacking
     return floor + max(0.0, projected_rate - floor) * multiplier
+
+
+# --------------------------------------------------------------------------
+# Differentials
+#
+# Ownership is the strongest single predictor in the market. Measured over 498
+# players after two rounds, mean points per match by ownership band:
+#
+#     0-1%    -0.15      15-30%    3.45
+#     1-5%     1.08      30%+      5.33
+#     5-15%    2.84
+#
+# Monotonic and steep — the crowd is right. Which is exactly why "buy what
+# nobody owns" is a losing strategy: the bottom band scores below nothing.
+#
+# But a squad built only from the top band moves with the pack. Owning what
+# everyone owns cannot close a gap on someone above you; it locks the gap in.
+# The useful question is not who is under-owned, it is who is under-owned
+# *relative to what they are producing* — the residual, not the level.
+# --------------------------------------------------------------------------
+
+#: Ownership is roughly linear in the log, not in the raw percentage: the step
+#: from 1% to 5% carries far more information than 40% to 44%.
+def _log_ownership(percent: float) -> float:
+    return math.log1p(max(0.0, percent))
+
+
+#: Below this many matches a rate is one good afternoon, not a pattern.
+MIN_MATCHES_FOR_RESIDUAL = 1
+
+
+def _fit(points: Sequence[tuple[float, float]]) -> tuple[float, float]:
+    """Least squares through (x, y), returning (intercept, slope)."""
+    if len(points) < 2:
+        return 0.0, 0.0
+    n = len(points)
+    mean_x = sum(x for x, _ in points) / n
+    mean_y = sum(y for _, y in points) / n
+    spread = sum((x - mean_x) ** 2 for x, _ in points)
+    if spread == 0:
+        return mean_y, 0.0
+    slope = sum((x - mean_x) * (y - mean_y) for x, y in points) / spread
+    return mean_y - slope * mean_x, slope
+
+
+def ownership_baseline(
+    players: Sequence[MarketPlayer], matches_by_club: dict[str, int]
+) -> dict[Position, tuple[float, float]]:
+    """Fit rate against log-ownership, once per position.
+
+    Fitting all four positions together looks reasonable and is not: forwards
+    out-score defenders at every ownership level, so a single line puts every
+    forward above it and every defender below. The first run of this ranked
+    eight forwards in the top eight — a position table wearing the costume of a
+    discovery. Each position now gets its own line, so a defender is only ever
+    measured against other defenders as widely owned as he is.
+
+    Players whose club has not played are excluded: they have no rate, and
+    entering them at zero would drag every line down.
+    """
+    gathered: dict[Position, list[tuple[float, float]]] = {}
+    for player in players:
+        matches = matches_by_club.get(player.club, 0)
+        rate = per_match(player.points_total, matches)
+        if rate is not None:
+            gathered.setdefault(player.position, []).append(
+                (_log_ownership(player.owned_percent), rate)
+            )
+    return {position: _fit(points) for position, points in gathered.items()}
+
+
+def expected_rate(owned_percent: float, baseline: tuple[float, float]) -> float:
+    """What the market's pricing of attention implies this player should score."""
+    intercept, slope = baseline
+    return intercept + slope * _log_ownership(owned_percent)
+
+
+def differential_rows(
+    players: Sequence[MarketPlayer],
+    matches_by_club: dict[str, int],
+    *,
+    baseline: dict[Position, tuple[float, float]] | None = None,
+    exclude: Collection[str] = (),
+    min_matches: int = MIN_MATCHES_FOR_RESIDUAL,
+) -> list[dict[str, object]]:
+    """Players ranked by how far they beat their ownership, best first.
+
+    A positive `residual` means producing more than this level of ownership
+    normally buys. That is the only kind of signal that can close a gap on
+    someone ahead of you — matching their squad can only preserve it.
+
+    The residual is not a recommendation on its own. Two rounds of football is
+    a thin basis, and a high residual on one match played is noise wearing a
+    number, so `matches_played` travels with every row.
+    """
+    fitted = baseline if baseline is not None else ownership_baseline(
+        players, matches_by_club
+    )
+    rows: list[dict[str, object]] = []
+    for player in players:
+        if player.id in exclude:
+            continue
+        line = fitted.get(player.position)
+        if line is None:
+            continue
+        matches = matches_by_club.get(player.club, 0)
+        rate = per_match(player.points_total, matches)
+        if rate is None or matches < min_matches or never_played(player, matches):
+            continue
+        implied = expected_rate(player.owned_percent, line)
+        rows.append(
+            {
+                "id": player.id,
+                "name": player.name,
+                "position": player.position.value,
+                "club": player.club,
+                "value": player.value,
+                "owned_percent": round(player.owned_percent, 2),
+                "matches_played": matches,
+                "observed_rate": round(rate, 2),
+                "expected_rate": round(implied, 2),
+                "residual": round(rate - implied, 2),
+            }
+        )
+    rows.sort(key=lambda r: (-r["residual"], r["id"]))
+    return rows
 
 
 def rate_rows(

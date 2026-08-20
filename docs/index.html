@@ -215,6 +215,16 @@ th.num { text-align: right; }
 .dist-axis > span:first-child { position: absolute; left: 0; }
 .dist-axis > span:last-child { position: absolute; right: 0; }
 .dist-me { position: absolute; transform: translateX(-50%); color: var(--accent); font-weight: 600; white-space: nowrap; }
+.chart { background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 22px 22px 16px; box-shadow: var(--shadow); }
+.bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); grid-template-rows: auto 130px auto auto auto; gap: 0 10px; overflow-x: auto; }
+.bar-slot { display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }
+.bar-value { font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; margin-bottom: 5px; }
+.bar { width: 100%; max-width: 62px; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 4px; align-self: end; }
+.bar-round { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .06em; color: var(--ink-soft); margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--rule-firm); width: 100%; text-align: center; }
+.bar-pos { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-faint); margin-top: 3px; }
+.move { display: block; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; line-height: 1.4; margin-top: 2px; white-space: nowrap; min-height: 1.4em; }
+.move.up { color: var(--over); }
+.move.down { color: var(--under); }
 .questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }
 .question { background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--pending); border-radius: 3px; padding: 15px 17px; box-shadow: var(--shadow); }
 .question-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
@@ -233,7 +243,7 @@ a { color: var(--accent); }
   <header class="masthead">
     <h1>Melro</h1>
     <span class="rule-tag">Jornada 3</span>
-    <span class="stamp">lido 2026-08-20 10:09 UTC</span>
+    <span class="stamp">lido 2026-08-20 11:04 UTC</span>
   </header>
 
   <section>
@@ -260,6 +270,30 @@ a { color: var(--accent); }
         <p class="card-note">o 1.º tem 150</p>
       </article>
     </div>
+  </section>
+
+  <section>
+    <h2>A época até agora</h2>
+      <p class="section-note">Da jornada 1 à 2 a posição nacional caiu 5 352 lugares. A barra é o que rendeu cada
+      jornada; por baixo, a posição no país depois dela.</p>
+      <div class="chart">
+        <div class="bars">
+          <div class="bar-slot">
+            <span class="bar-value">49</span>
+            <div class="bar" style="height:100.0%"></div>
+            <span class="bar-round">J1</span>
+            <span class="bar-pos">1 246.º</span>
+            
+          </div>
+          <div class="bar-slot">
+            <span class="bar-value">38</span>
+            <div class="bar" style="height:77.6%"></div>
+            <span class="bar-round">J2</span>
+            <span class="bar-pos">6 598.º</span>
+            <span class="move down">▼ 5 352</span>
+          </div>
+        </div>
+      </div>
   </section>
 
   <section>
@@ -630,6 +664,130 @@ a { color: var(--accent); }
           </tbody>
         </table>
       </div>
+  </section>
+
+  <section>
+    <h2>Quem rende mais do que a posse dele</h2>
+      <p class="section-note">A posse prevê a pontuação melhor do que
+      qualquer outra coisa no mercado — de <em>−0,15</em> pontos por jogo abaixo
+      de 1% de posse até <em>5,33</em> acima de 30%. Por isso comprar quem
+      ninguém tem é mau negócio. O que interessa é o <em>resíduo</em>: quem
+      rende acima da linha que a sua posse e posição preveem. Declive por
+      posição: DEF 1.48 · FWD 2.07 · GK 1.14 · MID 1.54.</p>
+      <div class="table-wrap">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th>Jogador</th><th>Pos</th><th class="num">Posse</th>
+              <th class="num">Rende</th><th class="num">Esperado</th>
+              <th class="num">Resíduo</th><th class="num">Preço</th><th>Jogos</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="cell-name">Arruabarrena<span class="cell-club">Arouca</span></td>
+              <td><span class="pos-chip">GR</span></td>
+              <td class="num">12.2%</td>
+              <td class="num">6.5</td>
+              <td class="num">1.4</td>
+              <td class="num strong delta over">+5.15</td>
+              <td class="num">1 000 000</td>
+              <td><span class="num">2</span></td>
+            </tr>
+            <tr>
+              <td class="cell-name">Zé Vitor<span class="cell-club">Nacional</span></td>
+              <td><span class="pos-chip">DEF</span></td>
+              <td class="num">3.5%</td>
+              <td class="num">5.0</td>
+              <td class="num">1.1</td>
+              <td class="num strong delta over">+3.91</td>
+              <td class="num">750 000</td>
+              <td><span class="num">2</span></td>
+            </tr>
+            <tr>
+              <td class="cell-name">José Silva<span class="cell-club">Gil Vicente</span></td>
+              <td><span class="pos-chip">DEF</span></td>
+              <td class="num">3.5%</td>
+              <td class="num">5.0</td>
+              <td class="num">1.1</td>
+              <td class="num strong delta over">+3.91</td>
+              <td class="num">500 000</td>
+              <td><span class="pending"><span class="dot"></span>1 jogo</span></td>
+            </tr>
+            <tr>
+              <td class="cell-name">Dylan Nandín<span class="cell-club">Arouca</span></td>
+              <td><span class="pos-chip">AVA</span></td>
+              <td class="num">0.3%</td>
+              <td class="num">4.5</td>
+              <td class="num">0.7</td>
+              <td class="num strong delta over">+3.79</td>
+              <td class="num">500 000</td>
+              <td><span class="num">2</span></td>
+            </tr>
+            <tr>
+              <td class="cell-name">Simo Bouzaidi<span class="cell-club">Marítimo</span></td>
+              <td><span class="pos-chip">AVA</span></td>
+              <td class="num">0.7%</td>
+              <td class="num">5.0</td>
+              <td class="num">1.2</td>
+              <td class="num strong delta over">+3.79</td>
+              <td class="num">500 000</td>
+              <td><span class="num">2</span></td>
+            </tr>
+            <tr>
+              <td class="cell-name">Borja Sainz<span class="cell-club">FC Porto</span></td>
+              <td><span class="pos-chip">AVA</span></td>
+              <td class="num">1.3%</td>
+              <td class="num">5.5</td>
+              <td class="num">1.9</td>
+              <td class="num strong delta over">+3.65</td>
+              <td class="num">3 500 000</td>
+              <td><span class="num">2</span></td>
+            </tr>
+            <tr>
+              <td class="cell-name">Lebedenko<span class="cell-club">Arouca</span></td>
+              <td><span class="pos-chip">DEF</span></td>
+              <td class="num">5.5%</td>
+              <td class="num">5.0</td>
+              <td class="num">1.6</td>
+              <td class="num strong delta over">+3.37</td>
+              <td class="num">500 000</td>
+              <td><span class="num">2</span></td>
+            </tr>
+            <tr>
+              <td class="cell-name">Romain Correia<span class="cell-club">Marítimo</span></td>
+              <td><span class="pos-chip">DEF</span></td>
+              <td class="num">2.5%</td>
+              <td class="num">4.0</td>
+              <td class="num">0.7</td>
+              <td class="num strong delta over">+3.29</td>
+              <td class="num">500 000</td>
+              <td><span class="num">2</span></td>
+            </tr>
+            <tr>
+              <td class="cell-name">Maurice Boakye<span class="cell-club">Marítimo</span></td>
+              <td><span class="pos-chip">AVA</span></td>
+              <td class="num">1.1%</td>
+              <td class="num">5.0</td>
+              <td class="num">1.7</td>
+              <td class="num strong delta over">+3.29</td>
+              <td class="num">500 000</td>
+              <td><span class="num">2</span></td>
+            </tr>
+            <tr>
+              <td class="cell-name">Djouahra<span class="cell-club">Arouca</span></td>
+              <td><span class="pos-chip">AVA</span></td>
+              <td class="num">1.2%</td>
+              <td class="num">5.0</td>
+              <td class="num">1.8</td>
+              <td class="num strong delta over">+3.25</td>
+              <td class="num">1 000 000</td>
+              <td><span class="num">2</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="section-note" style="margin-top:14px">two rounds of football is a thin basis — check matches_played, and treat a large residual on a single match as unproven</p>
   </section>
 
   <section>

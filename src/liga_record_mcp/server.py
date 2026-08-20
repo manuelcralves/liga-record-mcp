@@ -54,9 +54,11 @@ from .stats import (
     classify_appearance,
     club_price_index,
     clubs_playing_in,
+    differential_rows,
     last_scored_round,
     matches_played,
     never_played,
+    ownership_baseline,
     per_match,
     position_baselines,
     project,
@@ -527,6 +529,78 @@ def project_price(player_id: str, round_points: int) -> dict[str, Any]:
         "change": change,
         "value_after": project_new_price(player.value, round_points),
         "in_regulation": not 1 <= round_points <= 3,
+    }
+
+
+@server.tool()
+def find_differentials(
+    position: str = "",
+    max_value: int = MARKET_MAX_VALUE,
+    max_owned_percent: float = 100.0,
+    min_matches: int = 1,
+    limit: int = 15,
+) -> dict[str, Any]:
+    """Players producing more than their ownership normally buys.
+
+    Ownership is the strongest single predictor in this market — by band, mean
+    points per match runs -0.15 at 0-1% owned up to 5.33 above 30%. So buying
+    the unowned is a losing move; the crowd is right about who is good.
+
+    The point is narrower. A squad assembled from the most-owned players scores
+    what everyone else scores, which cannot close a gap on someone ahead — it
+    preserves it. What can is a player whose production sits above the line his
+    own position and ownership predict.
+
+    `residual` is that gap, fitted separately per position so a defender is
+    only ever compared with defenders. It is a starting point for a decision,
+    never the decision: `matches_played` is on every row because a big residual
+    over one match is noise, and the squad's own players are excluded since a
+    differential already owned is not a move.
+    """
+    try:
+        market = [p for pos in Position for p in _market.search(pos)]
+    except SiteError as exc:
+        return {"detail": str(exc)}
+
+    matches = _matches_by_club()
+    if matches is None:
+        return {"detail": "the calendar could not be read, so no rate can be computed"}
+
+    wanted = None
+    if position:
+        wanted = {p.value: p for p in Position}.get(position.strip().upper())
+        if wanted is None:
+            return {"detail": f"position must be GK, DEF, MID or FWD, got {position!r}"}
+
+    owned = {p.id for p in _load().squad.players}
+    baseline = ownership_baseline(market, matches)
+    rows = differential_rows(
+        market, matches, baseline=baseline, exclude=owned, min_matches=min_matches
+    )
+    rows = [
+        r
+        for r in rows
+        if (wanted is None or r["position"] == wanted.value)
+        and r["value"] <= max_value
+        and r["owned_percent"] <= max_owned_percent
+    ]
+    return {
+        "as_of": _now_iso(),
+        "source": "ligarecord",
+        "count": len(rows),
+        "fit": {
+            pos.value: {"intercept": round(a, 3), "slope": round(b, 3)}
+            for pos, (a, b) in sorted(baseline.items(), key=lambda kv: kv[0].value)
+        },
+        "fit_note": (
+            "rate = intercept + slope * ln(1 + owned_percent), least squares per "
+            "position over players whose club has played"
+        ),
+        "players": rows[:limit],
+        "caveat": (
+            "two rounds of football is a thin basis — check matches_played, and "
+            "treat a large residual on a single match as unproven"
+        ),
     }
 
 

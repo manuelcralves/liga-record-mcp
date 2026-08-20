@@ -98,6 +98,7 @@ def test_everything_is_registered_on_the_server():
         "squad_fixtures",
         "list_coaches",
         "standings",
+        "find_differentials",
         "squad_value",
         "club_strength",
         "project_points",

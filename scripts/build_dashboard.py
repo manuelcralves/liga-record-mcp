@@ -28,6 +28,8 @@ sys.path[:0] = [str(ROOT / "src")]
 from liga_record_mcp import server as mcp  # noqa: E402
 
 LOG_PATH = ROOT / "data" / "projections.json"
+HISTORY_PATH = ROOT / "data" / "history.json"
+MY_TEAM_ID = 156412
 ORDER = {"GK": 0, "DEF": 1, "MID": 2, "FWD": 3}
 POS_PT = {"GK": "GR", "DEF": "DEF", "MID": "MED", "FWD": "AVA"}
 
@@ -41,6 +43,11 @@ COACH = "Farioli", "FC Porto"
 
 def esc(value) -> str:
     return html.escape(str(value), quote=True)
+
+
+def group(number: int) -> str:
+    """Thousands separated by spaces, the way the site writes them."""
+    return f"{number:,}".replace(",", " ")
 
 
 def gather(round_number: int) -> dict:
@@ -74,14 +81,127 @@ def gather(round_number: int) -> dict:
         raise SystemExit("could not find the team Melro in either ranking")
 
     field = mcp.standings(page_size=20).get("field_size_estimate")
+
+    history = []
+    if HISTORY_PATH.exists():
+        raw = json.loads(HISTORY_PATH.read_text(encoding="utf-8"))["rounds"]
+        for key, entry in sorted(raw.items(), key=lambda kv: int(kv[0])):
+            row = entry["teams"].get(str(MY_TEAM_ID))
+            if row:
+                history.append({"round": int(key), **row})
+
+    differentials = mcp.find_differentials(limit=10, min_matches=1)
+
     return {
         "round": round_number,
         "stored": stored,
         "league": (league or {}).get("teams") or [],
         "me": me,
         "field": field,
+        "history": history,
+        "differentials": differentials,
         "as_of": national.get("as_of", ""),
     }
+
+
+def history_section(data: dict) -> str:
+    """Points per round, with the national position each one left behind."""
+    rounds = data["history"]
+    if not rounds:
+        return """      <p class="section-note">Sem histórico registado —
+      corre <code>scripts/record_history.py</code>.</p>"""
+
+    top = max(r["points_round"] for r in rounds) or 1
+    bars = []
+    for i, row in enumerate(rounds):
+        height = max(4, row["points_round"] / top * 100)
+        move = ""
+        if i:
+            delta = row["position"] - rounds[i - 1]["position"]
+            if delta:
+                # Position grew means the team fell down the table.
+                arrow, cls = ("▼", "down") if delta > 0 else ("▲", "up")
+                move = f'<span class="move {cls}">{arrow} {group(abs(delta))}</span>'
+        bars.append(
+            f"""          <div class="bar-slot">
+            <span class="bar-value">{row['points_round']}</span>
+            <div class="bar" style="height:{height:.1f}%"></div>
+            <span class="bar-round">J{row['round']}</span>
+            <span class="bar-pos">{group(row['position'])}.º</span>
+            {move}
+          </div>"""
+        )
+
+    first, last = rounds[0], rounds[-1]
+    swing = last["position"] - first["position"]
+    story = (
+        f"Da jornada {first['round']} à {last['round']} a posição nacional "
+        f"{'caiu' if swing > 0 else 'subiu'} {group(abs(swing))} lugares."
+        if swing
+        else "A posição nacional não se moveu."
+    )
+    return f"""      <p class="section-note">{story} A barra é o que rendeu cada
+      jornada; por baixo, a posição no país depois dela.</p>
+      <div class="chart">
+        <div class="bars">
+{chr(10).join(bars)}
+        </div>
+      </div>"""
+
+
+def differentials_section(data: dict) -> str:
+    """Players out-producing the attention they get."""
+    result = data["differentials"]
+    rows = result.get("players") or []
+    if not rows:
+        return f"""      <p class="section-note">Sem candidatos —
+      {esc(result.get('detail', 'nada devolvido'))}.</p>"""
+
+    body = []
+    for row in rows:
+        thin = row["matches_played"] < 2
+        flag = (
+            '<span class="pending"><span class="dot"></span>1 jogo</span>'
+            if thin
+            else f'<span class="num">{row["matches_played"]}</span>'
+        )
+        body.append(
+            f"""            <tr>
+              <td class="cell-name">{esc(row['name'])}<span class="cell-club">{esc(row['club'])}</span></td>
+              <td><span class="pos-chip">{POS_PT[row['position']]}</span></td>
+              <td class="num">{row['owned_percent']:.1f}%</td>
+              <td class="num">{row['observed_rate']:.1f}</td>
+              <td class="num">{row['expected_rate']:.1f}</td>
+              <td class="num strong delta over">+{row['residual']:.2f}</td>
+              <td class="num">{group(row['value'])}</td>
+              <td>{flag}</td>
+            </tr>"""
+        )
+    fit = result.get("fit", {})
+    slopes = " · ".join(
+        f"{pos} {vals['slope']:.2f}" for pos, vals in sorted(fit.items())
+    )
+    return f"""      <p class="section-note">A posse prevê a pontuação melhor do que
+      qualquer outra coisa no mercado — de <em>−0,15</em> pontos por jogo abaixo
+      de 1% de posse até <em>5,33</em> acima de 30%. Por isso comprar quem
+      ninguém tem é mau negócio. O que interessa é o <em>resíduo</em>: quem
+      rende acima da linha que a sua posse e posição preveem. Declive por
+      posição: {esc(slopes)}.</p>
+      <div class="table-wrap">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th>Jogador</th><th>Pos</th><th class="num">Posse</th>
+              <th class="num">Rende</th><th class="num">Esperado</th>
+              <th class="num">Resíduo</th><th class="num">Preço</th><th>Jogos</th>
+            </tr>
+          </thead>
+          <tbody>
+{chr(10).join(body)}
+          </tbody>
+        </table>
+      </div>
+      <p class="section-note" style="margin-top:14px">{esc(result.get('caveat', ''))}</p>"""
 
 
 def summary_cards(data: dict, public: bool = False) -> str:
@@ -99,8 +219,8 @@ def summary_cards(data: dict, public: bool = False) -> str:
         ),
         (
             "No país",
-            f"{me['position']:,}".replace(",", " ") + "<span class=\"of\">.º</span>",
-            f"de cerca de {field:,}".replace(",", " ") if field else "",
+            group(me["position"]) + "<span class=\"of\">.º</span>",
+            f"de cerca de {group(field)}" if field else "",
         ),
         ("Pontos", f"{me['points_total']}", "acumulados em 2 jornadas"),
     ]
@@ -325,7 +445,7 @@ def league_section(data: dict, public: bool = False) -> str:
               <td class="num rank">{t['position_league']}</td>
               <td class="cell-name">{esc(t['team'])}<span class="cell-club">{esc(t['user'])}</span></td>
               <td class="num strong">{t['points_total']}</td>
-              <td class="num">{f"{t['position']:,}".replace(',', ' ')}</td>
+              <td class="num">{group(t['position'])}</td>
             </tr>"""
         )
     return f"""      <div class="table-wrap">
@@ -601,6 +721,16 @@ th.num {{ text-align: right; }}
 .dist-axis > span:first-child {{ position: absolute; left: 0; }}
 .dist-axis > span:last-child {{ position: absolute; right: 0; }}
 .dist-me {{ position: absolute; transform: translateX(-50%); color: var(--accent); font-weight: 600; white-space: nowrap; }}
+.chart {{ background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 22px 22px 16px; box-shadow: var(--shadow); }}
+.bars {{ display: grid; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); grid-template-rows: auto 130px auto auto auto; gap: 0 10px; overflow-x: auto; }}
+.bar-slot {{ display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }}
+.bar-value {{ font-family: "IBM Plex Mono", monospace; font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; margin-bottom: 5px; }}
+.bar {{ width: 100%; max-width: 62px; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 4px; align-self: end; }}
+.bar-round {{ font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .06em; color: var(--ink-soft); margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--rule-firm); width: 100%; text-align: center; }}
+.bar-pos {{ font-family: "IBM Plex Mono", monospace; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-faint); margin-top: 3px; }}
+.move {{ display: block; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; line-height: 1.4; margin-top: 2px; white-space: nowrap; min-height: 1.4em; }}
+.move.up {{ color: var(--over); }}
+.move.down {{ color: var(--under); }}
 .questions {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }}
 .question {{ background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--pending); border-radius: 3px; padding: 15px 17px; box-shadow: var(--shadow); }}
 .question-head {{ display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; }}
@@ -630,6 +760,11 @@ a {{ color: var(--accent); }}
   </section>
 
   <section>
+    <h2>A época até agora</h2>
+{history_section(data)}
+  </section>
+
+  <section>
     <h2>A folha entregue</h2>
     <p class="section-note">Escalada antes do fecho. Os dois jogadores marcados
     a âmbar têm o jogo da jornada {data['round']} em setembro — o Benfica a 9, o
@@ -640,6 +775,11 @@ a {{ color: var(--accent); }}
   <section>
     <h2>Projetado contra real</h2>
 {ledger_section(data)}
+  </section>
+
+  <section>
+    <h2>Quem rende mais do que a posse dele</h2>
+{differentials_section(data)}
   </section>
 
   <section>

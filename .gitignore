@@ -8,3 +8,7 @@ data/cache.db
 # Generated dashboard: contains the private league table, which carries
 # other members names and usernames. The repo is public.
 docs/dashboard.html
+
+# Round-by-round history: carries the league members names and usernames,
+# same reason as the generated dashboard. Local only.
+data/history.json
