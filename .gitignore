@@ -12,3 +12,9 @@ docs/dashboard.html
 # Round-by-round history: carries the league members names and usernames,
 # same reason as the generated dashboard. Local only.
 data/history.json
+
+# Seeded design canvas: a 2 MB build artefact, regenerated from the
+# .dc.html sources beside it. Versioning it would store a fresh copy on
+# every reseed.
+design/*.html
+!design/*.dc.html
