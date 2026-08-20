@@ -18,3 +18,7 @@ data/history.json
 # every reseed.
 design/*.html
 !design/*.dc.html
+
+# zerozero page cache: other people's pages, fetched once and kept locally.
+# Not ours to redistribute, and regenerable.
+data/zerozero-cache/
