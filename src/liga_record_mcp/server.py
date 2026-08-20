@@ -55,6 +55,7 @@ from .stats import (
     club_concentration,
     club_price_index,
     clubs_playing_in,
+    decompose_round,
     differential_rows,
     fixture_exposure,
     last_scored_round,
@@ -532,6 +533,90 @@ def project_price(player_id: str, round_points: int) -> dict[str, Any]:
         "change": change,
         "value_after": project_new_price(player.value, round_points),
         "in_regulation": not 1 <= round_points <= 3,
+    }
+
+
+@server.tool()
+def editorial_ratings(round_number: int | None = None) -> dict[str, Any]:
+    """Recover each player's editorial rating for a round that has been played.
+
+    Record's writers mark every player 0-5 and publish only the total, so this
+    project treated the mark as unreachable for weeks. It is not: §10.1 and
+    §10.3 are published, so the objective half — win bonus, clean sheet, goals
+    conceded, Player of the Week — can be computed exactly and subtracted. What
+    remains is the rating.
+
+    Checked across all 441 players of round 2: none left a residual §10.3 could
+    not account for. 143 resolved to a bare rating, distributed around 2 and 3
+    exactly as a journalist's marks would be.
+
+    A rating is only reported when nothing else explains the residual. A goal, a
+    card or a late substitution can hide inside it, and forwards are never
+    certain because §10.3(h) docks every one who plays 75 minutes without
+    scoring. Ambiguous rows carry their candidate readings instead of a guess.
+    """
+    try:
+        fixtures = _market.fixtures()
+        market = [p for pos in Position for p in _market.search(pos)]
+    except SiteError as exc:
+        return {"detail": str(exc)}
+
+    target = round_number or last_scored_round(fixtures)
+    if target is None:
+        return {"detail": "no round has been scored yet"}
+
+    results = {}
+    for fixture in fixtures:
+        if fixture.round_number == target and fixture.played:
+            results[fixture.home] = (fixture.home_goals, fixture.away_goals)
+            results[fixture.away] = (fixture.away_goals, fixture.home_goals)
+    if not results:
+        return {"detail": f"no match of round {target} has been played"}
+
+    playing = [p for p in market if p.club in results]
+    # §10.3(k) names the round's highest scorer, so the bonus is derivable
+    # rather than a matter of opinion.
+    best = max(playing, key=lambda p: p.points_round, default=None)
+
+    rows = []
+    for player in playing:
+        scored, conceded = results[player.club]
+        detail = decompose_round(
+            player.points_round,
+            player.position,
+            conceded=conceded,
+            won=scored > conceded,
+            player_of_the_week=best is not None and player.id == best.id,
+        )
+        rows.append(
+            {
+                "id": player.id,
+                "name": player.name,
+                "position": player.position.value,
+                "club": player.club,
+                "points_round": player.points_round,
+                **detail,
+            }
+        )
+
+    read = [r for r in rows if r["rating"] is not None]
+    unexplained = [
+        r["name"] for r in rows
+        if r["candidates"] == ["nothing in §10.3 explains this"]
+    ]
+    return {
+        "as_of": _now_iso(),
+        "source": "ligarecord",
+        "round": target,
+        "player_of_the_week": best.name if best else None,
+        "read": len(read),
+        "ambiguous": sum(1 for r in rows if r["used"] and r["rating"] is None),
+        "not_used": sum(1 for r in rows if not r["used"]),
+        "mean_rating": round(sum(r["rating"] for r in read) / len(read), 2)
+        if read
+        else None,
+        "unexplained": unexplained,
+        "players": sorted(rows, key=lambda r: -r["points_round"]),
     }
 
 
@@ -1355,8 +1440,13 @@ not discuss an individual rating with anyone.
 - Hat-trick (three or more in a match): +5 on top.
 - Red card: -3 direct, -1 for two yellows. Applies from the bench too.
 - A forward who plays 75 minutes or more without scoring: -1.
+- An own goal: -2 (§10.3(j)).
+- **Player of the Week: +5 (§10.3(k))**, and the rule names the round's highest
+  scorer rather than a jury — so it is derivable, not guesswork. Overlooking it
+  is what left a 24-point round unexplainable until the clause was read.
 - A selected player who is not used at all: -1 (§10.3(i)).
-- The captain doubles whatever the total comes to (§10.3(l)).
+- The captain doubles whatever the total comes to (§10.3(l)), and repeats from
+  the previous round if left unchanged.
 
 That last -1 is what makes appearances readable at all: it is the only signal
 this project has for who actually took the field, since Liga Record never

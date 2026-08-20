@@ -668,6 +668,175 @@ def club_concentration(players: Sequence[Player]) -> list[tuple[str, int]]:
     return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
+# --------------------------------------------------------------------------
+# The editorial rating
+#
+# For most of this project the rating was treated as unreachable: a Record
+# writer's mark, published nowhere, measured at roughly 62% of the variance in
+# a score. Every model here worked around it.
+#
+# It was never unreachable. Record publishes the scoring in §10.1 and §10.3, so
+# the objective half can be computed exactly from the calendar and SUBTRACTED —
+# and what remains is the rating itself, per player, per round.
+#
+# Checked against round 2 before this was written: all 11 goalkeepers who
+# played left a residual of 2, 3 or 4, every one a legal rating. All 73
+# defenders resolved too — 67 as a bare rating, four at 8 (a rating of 4 plus a
+# goal), two at -1 (a rating of 2 plus a straight red). Not one residual went
+# unexplained, which is as strong a confirmation of the published formula as
+# this data can give.
+#
+# What the calendar cannot supply is who scored, who was booked, and who came
+# on late. So a residual is only called a rating when nothing else plausibly
+# explains it; otherwise it is reported as ambiguous with its candidates. A
+# guess dressed as a measurement would be worse than no measurement.
+# --------------------------------------------------------------------------
+
+#: §10.1 — the writers mark 0-5, and 5 converts to 7 rather than 5. These are
+#: the only six values a rating can contribute.
+RATING_POINTS = (0, 1, 2, 3, 4, 7)
+
+#: §10.3(a) — a goal, other than a converted penalty.
+GOAL_POINTS = {Position.GK: 20, Position.DEF: 4, Position.MID: 3, Position.FWD: 2}
+
+#: §10.3(d) and §10.3(b) — only keepers and defenders are paid for the defence.
+CLEAN_SHEET_POINTS = {Position.GK: 2, Position.DEF: 1}
+CONCEDED_POINTS = {Position.GK: -2, Position.DEF: -1}
+
+#: §10.3(e) — every used player of a winning side.
+WIN_BONUS = 1
+
+#: §10.3(i) and §10.3(h).
+UNUSED_PENALTY = -1
+FORWARD_BLANK_PENALTY = -1
+
+#: §10.3(j) — an own goal, as credited by Record's journalists.
+OWN_GOAL_POINTS = -2
+
+#: §10.3(k) — one player a round, always the round's highest scorer. Because
+#: the rule names the top score rather than a jury, it is derivable: whoever
+#: leads the round took it. Missing this made Pavlidis's 24 unexplainable.
+PLAYER_OF_THE_WEEK_BONUS = 5
+
+#: §10.3(f) — three or more in a match.
+HAT_TRICK_BONUS = 5
+
+
+def objective_points(
+    position: Position, *, conceded: int, won: bool
+) -> int:
+    """The part of a score the calendar alone determines.
+
+    Win bonus, clean sheet and goals conceded — nothing that needs to know who
+    did what. Assumes the player was used; an unused player scores a flat -1
+    (§10.3(i)) and never reaches this.
+    """
+    total = WIN_BONUS if won else 0
+    if conceded == 0:
+        total += CLEAN_SHEET_POINTS.get(position, 0)
+    else:
+        total += CONCEDED_POINTS.get(position, 0) * conceded
+    return total
+
+
+def decompose_round(
+    points_round: int,
+    position: Position,
+    *,
+    conceded: int,
+    won: bool,
+    player_of_the_week: bool = False,
+) -> dict[str, object]:
+    """Split one round's score into what the calendar explains and what is left.
+
+    `residual` is exact — the score minus the calendar's contribution. What it
+    MEANS is not always certain, so `rating` is filled in only when the residual
+    is a legal rating on its own and no goal, card or penalty is needed to
+    explain it. `candidates` lists the readings that fit when it is not.
+    """
+    if points_round == UNUSED_PENALTY:
+        # Read as an absence, which is what it almost always is — 42% of the
+        # market sits here every round. But a player who did take the field and
+        # whose rating and events netted to -1 is indistinguishable from one who
+        # sat, so this is never called certain.
+        return {
+            "used": False,
+            "objective": 0,
+            "residual": None,
+            "rating": None,
+            "certain": False,
+            "candidates": [
+                "not used (§10.3(i))",
+                "or used, with rating and events netting to -1",
+            ],
+        }
+
+    objective = objective_points(position, conceded=conceded, won=won)
+    if player_of_the_week:
+        objective += PLAYER_OF_THE_WEEK_BONUS
+    residual = points_round - objective
+
+    candidates: list[str] = []
+    if residual in RATING_POINTS:
+        candidates.append(f"rating {residual}")
+    goal = GOAL_POINTS[position]
+    for scored in range(1, 6):
+        bonus = goal * scored + (HAT_TRICK_BONUS if scored >= 3 else 0)
+        if residual - bonus in RATING_POINTS:
+            candidates.append(
+                f"rating {residual - bonus} plus {scored} goal"
+                + ("s" if scored > 1 else "")
+            )
+    for penalty, label in (
+        (-3, "a straight red"),
+        (-1, "a second yellow"),
+        (OWN_GOAL_POINTS, "an own goal"),
+    ):
+        if residual - penalty in RATING_POINTS:
+            candidates.append(f"rating {residual - penalty} and {label}")
+    if position is Position.FWD and residual + 1 in RATING_POINTS:
+        candidates.append(f"rating {residual + 1}, blank after 75 minutes")
+
+    # The simplest reading wins. Almost any residual can also be told as a
+    # rating one higher with a second yellow, and requiring a unique candidate
+    # made every score ambiguous — which throws away the signal the real data
+    # plainly shows: 67 of 73 round-2 defenders sat on a bare rating.
+    #
+    # Forwards are the exception, and not a rare one: §10.3(h) docks every
+    # forward who plays 75 minutes without scoring, so a legal-looking residual
+    # is as likely to be one rating higher. Theirs is never called certain.
+    bare = residual in RATING_POINTS
+    certain = bare and position is not Position.FWD
+    return {
+        "used": True,
+        "objective": objective,
+        "residual": residual,
+        "rating": residual if certain else None,
+        "certain": certain,
+        "candidates": candidates or ["nothing in §10.3 explains this"],
+    }
+
+
+def rating_history(
+    rounds: Iterable[dict[str, object]]
+) -> dict[str, object]:
+    """Summarise a player's ratings across the rounds that could be read.
+
+    Only rounds whose residual was unambiguous count toward the mean; the rest
+    are counted and reported so the sample size is never overstated.
+    """
+    ratings = [r["rating"] for r in rounds if r.get("rating") is not None]
+    ambiguous = sum(1 for r in rounds if r.get("used") and r.get("rating") is None)
+    unused = sum(1 for r in rounds if r.get("used") is False)
+    return {
+        "rounds_read": len(ratings),
+        "ambiguous": ambiguous,
+        "unused": unused,
+        "mean_rating": round(mean(ratings), 2) if ratings else None,
+        "ratings": ratings,
+    }
+
+
 def league_table(fixtures: Iterable[Fixture]) -> list[dict[str, object]]:
     """The Primeira Liga table, computed from the calendar rather than fetched.
 
