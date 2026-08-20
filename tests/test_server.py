@@ -719,3 +719,28 @@ def test_the_prompts_carry_the_traps_that_cost_us():
     settle = mcp_server.settle_the_round()
     assert "record_appearances" in settle
     assert "pending" in settle                # a postponed 0 is not a result
+
+
+def test_the_regulation_carries_the_scoring_table():
+    """§10 is how points are actually won, and it was missing entirely.
+
+    The resource described squads, transfers, autosubs and pricing while saying
+    nothing about scoring — so this project spent weeks treating the formula as
+    a black box when Record publishes it at /info/ajuda.aspx.
+    """
+    text = mcp_server.regulation()
+
+    assert "§10.1" in text and "§10.3" in text
+    assert "5→7" in text or "5**→7" in text     # the jump at the top of the rating
+    assert "+20" in text                        # a keeper who scores
+    assert "Hat-trick" in text
+    assert "75 minutes" in text                 # the blank-forward penalty
+    assert "-1 (§10.3(i))" in text              # what makes appearances readable
+
+
+def test_the_regulation_still_says_where_it_is_unsure():
+    """Publishing the scoring table does not make everything certain."""
+    text = mcp_server.regulation()
+
+    assert "Where this reading is uncertain" in text
+    assert "§11.3" in text

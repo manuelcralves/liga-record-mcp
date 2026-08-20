@@ -1331,6 +1331,37 @@ from the code.
 - A coach must be selected, or the round scores zero (§6.17).
 - The captain doubles their points and must be a starter (§10.3(l)).
 
+## How points are awarded (§10.1, §10.3)
+
+Every score is an editorial rating plus objective events. The rating is the
+larger share and is not published anywhere — only the total appears — so it
+can be predicted but never derived.
+
+**The editorial rating (§10.1).** Record's writers mark each player 0-5, which
+converts as: 0→0, 1→1, 2→2, 3→3, 4→4, **5→7**. Note the jump at the top: a 5
+is worth three more than a 4, not one. §10.2 states plainly that Record will
+not discuss an individual rating with anyone.
+
+**On top of the rating (§10.3):**
+
+| Event | GK | DEF | MID | FWD |
+|---|---|---|---|---|
+| Goal scored (not a penalty) | +20 | +4 | +3 | +2 |
+| Each goal the club concedes | -2 | -1 | — | — |
+| Club concedes none | +2 | +1 | — | — |
+| Club wins (used players only) | +1 | +1 | +1 | +1 |
+
+- Penalties: converted +2, missed -2, saved by the keeper +2.
+- Hat-trick (three or more in a match): +5 on top.
+- Red card: -3 direct, -1 for two yellows. Applies from the bench too.
+- A forward who plays 75 minutes or more without scoring: -1.
+- A selected player who is not used at all: -1 (§10.3(i)).
+- The captain doubles whatever the total comes to (§10.3(l)).
+
+That last -1 is what makes appearances readable at all: it is the only signal
+this project has for who actually took the field, since Liga Record never
+publishes a line-up.
+
 ## Automatic substitutions (§11)
 - A starter who did not play, or whose match was abandoned or postponed after
   the round closed, is replaced.
