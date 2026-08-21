@@ -40,6 +40,8 @@ sys.path[:0] = [str(ROOT / "src")]
 from liga_record_mcp.backtest import (  # noqa: E402
     ABSENT,
     best_transfer,
+    fixture_adjusted_projection,
+    fixture_table,
     pick_coach,
     play_round,
     shrunk_projection,
@@ -172,7 +174,10 @@ def load(market, *, use_archive: bool = True, order_seed: int | None = None):
             max(clubs, key=clubs.get) if clubs else "",
             market[player_id].position.value,
         )
-    return points, minutes, goals, cells
+    # The opponent and the venue, kept rather than dropped. Every row already
+    # carries them; the loop above reads each row and keeps three of its fields.
+    table = fixture_table([(loaded, 0), (archive, ARCHIVE_OFFSET)])
+    return points, minutes, goals, cells, table
 
 
 def pick_top_scorer(market, goals, minutes, upto):
@@ -237,6 +242,20 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--no-fixture",
+        action="store_true",
+        help=(
+            "name the eleven from the season projection alone, with no regard "
+            "for who it plays that week — what this report did until the "
+            "adjustment the live pages have always used was wired in. It is a "
+            "control rather than a knob: the gain is NOT demonstrated (r moved "
+            "+0.0037 and +0.0091 on the two seasons, against tune.py's own bar "
+            "of +0.003, and by +0.0029 with the archive taken away). What is "
+            "demonstrated is that the backtest now scores the same estimator "
+            "that advises you, which it never did before"
+        ),
+    )
+    parser.add_argument(
         "--window",
         choices=("ration", "all"),
         default="ration",
@@ -254,7 +273,7 @@ def main() -> None:
     market = {
         p.id: p.as_player() for position in Position for p in client.search(position)
     }
-    points, minutes, goals, cells = load(
+    points, minutes, goals, cells, table = load(
         market,
         use_archive=not args.no_archive,
         order_seed=args.order_seed,
@@ -326,6 +345,16 @@ def main() -> None:
     for index, matchday in enumerate(matchdays):
         view = two_part_projection(points, minutes, cells, upto=matchday)
         coach_view = shrunk_projection(coaches, coach_cells, upto=matchday)
+        # TWO VIEWS, and the difference between them is the whole care of this
+        # change. `sheet_view` prices in Saturday's opponent and names the
+        # eleven; `view` does not, and every transfer decision below keeps
+        # reading it. A transfer runs to May — `best_transfer` literally
+        # multiplies its edge by `rounds_left` — so choosing one on this week's
+        # fixture sells a good player for a bad Saturday. Adjusting `view` in
+        # place is a one-word change and would quietly corrupt the season.
+        sheet_view = view if args.no_fixture else fixture_adjusted_projection(
+            points, minutes, cells, table, upto=matchday
+        )
 
         note = ""
         in_window = window_opens <= matchday <= REOPENED_LAST_MATCHDAY
@@ -411,7 +440,8 @@ def main() -> None:
             note = "(February — no transfer, §6.8)"
 
         played = play_round(
-            held, market, points, matchday, forecast=view, knows_availability=True
+            held, market, points, matchday, forecast=sheet_view,
+            knows_availability=True,
         )
         club, earned = pick_coach(coaches, matchday, forecast=coach_view)
         total = played["points"] + earned

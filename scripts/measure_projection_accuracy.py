@@ -38,6 +38,8 @@ sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp.backtest import (  # noqa: E402
     ABSENT,
+    fixture_adjusted_projection,
+    fixture_table,
     shrunk_projection,
     two_part_projection,
 )
@@ -110,7 +112,10 @@ def load(path: Path, archive_path: Path | None = None):
             max(clubs, key=clubs.get) if clubs else "",
             player["position"],
         )
-    return points, minutes, cells, loaded.get("season")
+    # The opponent, the venue and the score are on every row already; the
+    # loader above reads each row and keeps three of the eight fields on it.
+    table = fixture_table([(players, 0), (archive, ARCHIVE_OFFSET)])
+    return points, minutes, cells, loaded.get("season"), table
 
 
 def main() -> None:
@@ -128,7 +133,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    points, minutes, cells, season = load(args.season, args.archive)
+    points, minutes, cells, season, table = load(args.season, args.archive)
     print(f"{len(points)} players, season {season}, from {args.season.name}")
 
     # A strong reference, and NOT a ceiling — which is what it was called here
@@ -167,9 +172,18 @@ def main() -> None:
         "plays x returns, minutes": lambda upto: two_part_projection(
             points, minutes, cells, upto=upto, minutes_weighted=True
         ),
+        # The same split, with the round's opponent priced in. This is the one
+        # term the live pages have always used and the backtest never has, so
+        # until now the estimate being scored here was not the estimate that
+        # runs every morning.
+        "plays x returns, fixture": lambda upto: fixture_adjusted_projection(
+            points, minutes, cells, table, upto=upto
+        ),
     }
 
     errors: dict[str, list[float]] = defaultdict(list)
+    paired: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    by_band: dict[str, list[tuple[float, float]]] = defaultdict(list)
     for matchday in range(FIRST_PREDICTED, LAST_MATCHDAY + 1):
         earlier = [
             value
@@ -182,11 +196,18 @@ def main() -> None:
             name: (build(matchday) if build else None)
             for name, build in signals.items()
         }
+        band = (
+            "early  5-11" if matchday <= 11
+            else "middle 12-22" if matchday <= 22
+            else "late   23-34"
+        )
         for player_id, by_matchday in points.items():
             truth = by_matchday[matchday]
             for name, view in views.items():
                 estimate = average if view is None else view[player_id]
                 errors[name].append(abs(estimate - truth))
+                paired[name].append((truth, estimate))
+            by_band[band].append((truth, views["plays x returns"][player_id]))
 
     print()
     print(f"  {'estimate':<28}{'error':>8}{'vs average':>12}")
@@ -206,20 +227,38 @@ def main() -> None:
         f"   by the model: {baseline - model:.3f}"
     )
 
-    # And how much of the round-to-round spread it actually accounts for.
-    actual, guessed = [], []
-    by_band: dict[str, list[tuple[float, float]]] = {}
-    for matchday in range(FIRST_PREDICTED, LAST_MATCHDAY + 1):
-        view = signals["plays x returns"](matchday)
-        band = (
-            "early  5-11" if matchday <= 11
-            else "middle 12-22" if matchday <= 22
-            else "late   23-34"
+    def correlation(pairs: list[tuple[float, float]]) -> float:
+        truth = [a for a, _ in pairs]
+        guess = [g for _, g in pairs]
+        mean_a, mean_g = statistics.mean(truth), statistics.mean(guess)
+        cov = sum((a - mean_a) * (g - mean_g) for a, g in pairs) / len(pairs)
+        sa, sg = statistics.pstdev(truth), statistics.pstdev(guess)
+        return cov / (sa * sg) if sa and sg else 0.0
+
+    # CORRELATION, for every candidate and not only the one in use.
+    #
+    # This is the number that decides between them, and mean error is not.
+    # About four rows in ten are a -1, so an estimator that says -1 confidently
+    # about anyone who sat out last week wins on error while giving worse
+    # advice. What picks an eleven is the ORDER, and `tune.py` scores its own
+    # searches this way for the same reason — with a bar of +0.003, below which
+    # it calls a gain nothing that survives.
+    # Four decimals, and not the three used everywhere else, because the bar
+    # this table is read against sits on the third one. Rounding to three makes
+    # a gain of 0.0034 and one of 0.0025 print identically as +0.003, and those
+    # are opposite answers.
+    print()
+    print(f"  {'estimate':<28}{'r':>9}{'r2':>8}{'vs split':>11}")
+    split = correlation(paired["plays x returns"])
+    for name in signals:
+        if signals[name] is None:
+            continue
+        r = correlation(paired[name])
+        against = "" if name == "plays x returns" else (
+            f"{r - split:>+11.4f}"
+            + ("" if abs(r - split) > 0.003 else "  (nothing that survives)")
         )
-        for player_id, by_matchday in points.items():
-            actual.append(by_matchday[matchday])
-            guessed.append(view[player_id])
-            by_band.setdefault(band, []).append((by_matchday[matchday], view[player_id]))
+        print(f"  {name:<28}{r:>9.4f}{r * r:>8.3f}{against}")
 
     # BY PHASE OF THE SEASON, because the average over thirty rounds hides the
     # only question worth asking of a memory: does it help while this season is
@@ -231,20 +270,12 @@ def main() -> None:
     for band in sorted(by_band):
         pairs = by_band[band]
         err = sum(abs(a - g) for a, g in pairs) / len(pairs)
-        ma = statistics.mean([a for a, _ in pairs])
-        mg = statistics.mean([g for _, g in pairs])
-        cov = sum((a - ma) * (g - mg) for a, g in pairs) / len(pairs)
-        sa = statistics.pstdev([a for a, _ in pairs])
-        sg = statistics.pstdev([g for _, g in pairs])
-        r = cov / (sa * sg) if sa and sg else 0.0
-        print(f"  {band:<16}{err:>8.3f}{r:>8.3f}{len(pairs):>10,}")
-    mean_a, mean_g = statistics.mean(actual), statistics.mean(guessed)
-    cov = sum((a - mean_a) * (g - mean_g) for a, g in zip(actual, guessed)) / len(actual)
-    sa, sg = statistics.pstdev(actual), statistics.pstdev(guessed)
-    r = cov / (sa * sg) if sa and sg else 0.0
+        print(f"  {band:<16}{err:>8.3f}{correlation(pairs):>8.3f}{len(pairs):>10,}")
+
+    scored = [a for a, _ in paired["plays x returns"]]
     print(
-        f"  a round scores {mean_a:.2f} on average, give or take {sa:.2f}; "
-        f"the model correlates r = {r:.3f} (r2 = {r * r:.3f})"
+        f"  a round scores {statistics.mean(scored):.2f} on average, give or "
+        f"take {statistics.pstdev(scored):.2f}"
     )
 
 
