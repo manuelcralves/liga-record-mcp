@@ -1,0 +1,102 @@
+# The ledger, written by a machine that is never switched off.
+#
+# WHY THIS EXISTS. The scheduled task on Manuel's PC does the same two steps,
+# and does them well — but only while the PC is on and he is logged in. Almost
+# every step of the routine survives being missed, because it recomputes from
+# whatever is true when it next runs. One does not: `record` stores what the
+# model expected BEFORE a round kicks off, and refuses afterwards, on purpose.
+# A prediction written after the result is worthless. So a week away from the
+# machine does not make the pages stale — it puts a permanent hole in the only
+# evidence that says whether the model is worth believing.
+#
+# WHAT IT DELIBERATELY DOES NOT DO. It does not build pages. The private build
+# reads LIGA_RECORD_LEAGUE, whose guid grants read access to twenty-nine other
+# people's results, and that guid is not going into a CI secret to save a page
+# that is only ever read on one laptop. The two steps here need nothing but the
+# public market and the squad file, so this job holds no secret at all — and a
+# job with no secret cannot leak one.
+#
+# GitHub disables scheduled workflows in a repository that has seen no activity
+# for sixty days. If the ledger ever goes quiet for a season, that is the first
+# thing to check.
+
+name: Registar previsões
+
+on:
+  # UTC, always. In Lisbon summer that is 08:00 and 17:00; in winter, 07:00 and
+  # 16:00. Between them they land before both the Saturday afternoon kickoffs
+  # and the Friday and Saturday evening ones. GitHub runs scheduled jobs late
+  # when it is busy, and occasionally not at all, which is the other reason
+  # there are two: recording refuses once a round is already on file, so the
+  # second run of a day costs nothing on the days the first one worked.
+  schedule:
+    - cron: "0 7 * * *"
+    - cron: "0 16 * * *"
+  workflow_dispatch:
+
+# Only what it needs: a commit of one file to this repository.
+permissions:
+  contents: write
+
+# Two runs must never write the ledger at once.
+concurrency:
+  group: ledger
+  cancel-in-progress: false
+
+jobs:
+  ledger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The whole history, not the single commit checkout takes by default.
+          # The last step rebases before pushing, and a rebase on a shallow
+          # clone fails in ways that read like a corrupt repository. This one is
+          # ninety-nine files; the full clone costs nothing worth saving.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -e .
+
+      # --only, rather than calling the scripts directly, so the phrases that
+      # mean "declined on purpose" live in exactly one place. A second copy
+      # here would drift, and the drift would show up as a red job for a step
+      # that did precisely what it was designed to do.
+      - name: Registar e liquidar
+        run: python scripts/routine.py --only registar liquidar
+
+      - name: Guardar o que mudou
+        run: |
+          set -euo pipefail
+
+          # The guard, and it is the point of this step. The job is only ever
+          # allowed to have touched the ledger. If anything else is dirty,
+          # something happened that nobody designed, and the answer is to stop
+          # and say so rather than to push it.
+          changed="$(git diff --name-only)"
+          unexpected="$(echo "$changed" | grep -v '^data/projections\.json$' || true)"
+          if [ -n "$unexpected" ]; then
+            echo "::error::este trabalho só pode mexer no ledger, e mexeu em:"
+            echo "$unexpected"
+            exit 1
+          fi
+
+          if [ -z "$changed" ]; then
+            echo "nada a registar — a ronda já estava em ficheiro"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- data/projections.json
+          git commit -m "chore: o ledger, registado antes do apito pelo trabalho agendado"
+
+          # He commits from the laptop too. Rebasing one file's commit onto
+          # whatever he pushed meanwhile is almost always clean; when it is
+          # not, failing is correct — a ledger silently resolved by a machine
+          # is worse than one that needs a minute of attention.
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push

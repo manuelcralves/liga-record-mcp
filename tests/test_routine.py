@@ -1,0 +1,111 @@
+"""The routine's step table, and the job on GitHub that selects from it.
+
+Most of what is here ties the workflow file to the Python it calls. A YAML file
+is not checked by anything until it runs, and this one runs on a schedule with
+nobody watching — so a slug renamed in `routine.py` would go unnoticed until a
+round went unrecorded, which is the exact failure the job exists to prevent.
+These tests turn that into a red test suite instead.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+import pytest
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW = ROOT / ".github" / "workflows" / "registar-previsoes.yml"
+
+
+def load_routine():
+    spec = importlib.util.spec_from_file_location("routine", ROOT / "scripts" / "routine.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture(scope="module")
+def routine():
+    return load_routine()
+
+
+@pytest.fixture(scope="module")
+def workflow():
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+
+
+def selected_steps(workflow) -> list[str]:
+    """The slugs the job passes to --only."""
+    for step in workflow["jobs"]["ledger"]["steps"]:
+        run = step.get("run", "")
+        if "--only" in run:
+            after = run.split("--only", 1)[1].split()
+            return [word for word in after if not word.startswith("-")]
+    raise AssertionError("the job no longer selects steps with --only")
+
+
+def test_slugs_are_unique(routine):
+    slugs = [step.slug for step in routine.STEPS]
+    assert len(slugs) == len(set(slugs))
+
+
+def test_the_job_selects_steps_that_exist(routine, workflow):
+    """A renamed slug fails here rather than in a silent 07:00 job."""
+    known = {step.slug for step in routine.STEPS}
+    assert set(selected_steps(workflow)) <= known
+
+
+def test_the_job_records_and_settles(workflow):
+    """Recording is the whole reason the job exists; settling is why it helps."""
+    assert selected_steps(workflow) == ["registar", "liquidar"]
+
+
+def test_only_the_private_page_wants_the_league(routine):
+    wanting = {step.slug for step in routine.STEPS if step.needs_league}
+    assert wanting == {"privada"}
+
+
+def test_the_job_runs_nothing_that_reads_the_private_league(routine, workflow):
+    """The guid grants read access to twenty-nine other people's results.
+
+    It is not in this job's environment and no step it runs would use it, and
+    both halves of that need to stay true: a step added to the selection later
+    could quietly turn a job that holds no secret into one that needs one.
+    """
+    by_slug = {step.slug: step for step in routine.STEPS}
+    assert not any(by_slug[slug].needs_league for slug in selected_steps(workflow))
+
+
+def test_the_job_holds_no_secret():
+    """Nothing in the file may reach for the secret store."""
+    assert "secrets." not in WORKFLOW.read_text(encoding="utf-8")
+
+
+def test_the_job_commits_only_the_ledger():
+    """It stages one path, and refuses outright if anything else is dirty."""
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "git add -- data/projections.json" in text
+    staged = [
+        line for line in text.splitlines() if line.strip().startswith("git add")
+    ]
+    assert staged == ["          git add -- data/projections.json"]
+
+
+def test_the_job_asks_for_no_more_rights_than_it_needs(workflow):
+    assert workflow["permissions"] == {"contents": "write"}
+
+
+def test_the_job_is_scheduled(workflow):
+    # PyYAML reads a bare `on:` as the boolean True — YAML 1.1, and the reason
+    # this looks for a key that is not a string.
+    triggers = workflow[True] if True in workflow else workflow["on"]
+    assert "schedule" in triggers
+    assert len(triggers["schedule"]) >= 2, "one scheduled run is one point of failure"
+    assert "workflow_dispatch" in triggers, "it must be runnable by hand"
+
+
+def test_two_runs_never_write_the_ledger_at_once(workflow):
+    assert workflow["concurrency"]["group"]
+    assert workflow["concurrency"]["cancel-in-progress"] is False

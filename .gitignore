@@ -43,3 +43,7 @@ docs/private/
 
 # The routine appends to this on every scheduled run.
 data/routine.log
+
+# The raw output of the last scheduled run, overwritten each time. It exists so
+# a run that dies before it can log anything still leaves its reason behind.
+data/routine.err
