@@ -40,3 +40,6 @@ data/season-*.json
 # carrying twenty-nine other people. Ignoring the directory means a new page
 # is covered the moment it exists, which a list of filenames is not.
 docs/private/
+
+# The routine appends to this on every scheduled run.
+data/routine.log

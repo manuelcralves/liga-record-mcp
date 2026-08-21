@@ -17,6 +17,18 @@ code is 0 unless a step failed for a reason other than refusing.
 
     python scripts/routine.py            # do whatever is due
     python scripts/routine.py --quiet    # only report what changed
+
+ON A TIMER. Everything above is why this is safe to schedule: a run with
+nothing to do is the normal outcome, not a failure. Pass --log so the run
+leaves a trace — a scheduled task has nowhere to print, and a job nobody can
+read is one that fails silently for as long as it takes somebody to notice.
+
+    schtasks /create /tn "Liga Record" /sc daily /st 09:00 ^
+      /tr "\"...\\.venv\\Scripts\\python.exe\" \"...\\scripts\\routine.py\" --quiet --log ..."
+
+The private league needs LIGA_RECORD_LEAGUE in the environment. Set it once at
+user scope rather than writing it into the task, so the guid stays out of every
+file: it grants read access to twenty-nine other people's results.
 """
 
 from __future__ import annotations
@@ -25,6 +37,7 @@ import argparse
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,10 +81,25 @@ def run(args: list[str]) -> tuple[int, str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--log",
+        type=Path,
+        help=(
+            "append this run to a file as well as printing it. A scheduled "
+            "task has nowhere to print to, and a run nobody can read is a run "
+            "that failed silently for however long it took someone to notice"
+        ),
+    )
     args = parser.parse_args()
 
+    said: list[str] = []
+
+    def say(line: str) -> None:
+        print(line)
+        said.append(line)
+
     if not os.environ.get("LIGA_RECORD_LEAGUE"):
-        print("LIGA_RECORD_LEAGUE is not set — the private league will be missing")
+        say("LIGA_RECORD_LEAGUE is not set — the private league will be missing")
 
     failures = []
     for label, command, declines in STEPS:
@@ -80,13 +108,20 @@ def main() -> None:
         declined = any(phrase in output for phrase in declines)
 
         if code == 0:
-            print(f"  ✓ {label}: {tail}")
+            say(f"  ✓ {label}: {tail}")
         elif declined:
             if not args.quiet:
-                print(f"  · {label}: nada a fazer ({tail})")
+                say(f"  · {label}: nada a fazer ({tail})")
         else:
             failures.append(label)
-            print(f"  ✗ {label}: {tail}")
+            say(f"  ✗ {label}: {tail}")
+
+    if args.log:
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+        args.log.parent.mkdir(parents=True, exist_ok=True)
+        with args.log.open("a", encoding="utf-8") as handle:
+            handle.write(f"=== {stamp} UTC" + chr(10))
+            handle.write(chr(10).join(said) + chr(10) + chr(10))
 
     if failures:
         raise SystemExit(f"falhou: {', '.join(failures)}")
