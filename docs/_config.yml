@@ -10,10 +10,14 @@ exclude:
   - HOW-IT-WORKS.md
   - PLANNING.md
 
-# The dashboard is a complete, self-contained page. Jekyll must copy it through
-# untouched rather than wrapping it in a layout or rewriting its markup.
+# Every page here is complete and self-contained. Jekyll must copy them through
+# untouched rather than wrapping them in a layout or rewriting their markup.
+#
+# An empty path matches everything in the folder, which is what this needs: the
+# dashboard used to be one file and is now five, and naming them one by one
+# means the sixth is served wrapped in a Jekyll layout by whoever forgets.
 defaults:
   - scope:
-      path: "index.html"
+      path: ""
     values:
       layout: null
