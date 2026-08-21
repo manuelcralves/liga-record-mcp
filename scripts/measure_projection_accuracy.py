@@ -38,7 +38,8 @@ sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp.backtest import (  # noqa: E402
     ABSENT,
-    fixture_adjusted_projection,
+    adjusted_projection,
+    card_table,
     fixture_table,
     shrunk_projection,
     two_part_projection,
@@ -115,7 +116,10 @@ def load(path: Path, archive_path: Path | None = None):
     # The opponent, the venue and the score are on every row already; the
     # loader above reads each row and keeps three of the eight fields on it.
     table = fixture_table([(players, 0), (archive, ARCHIVE_OFFSET)])
-    return points, minutes, cells, loaded.get("season"), table
+    # And the bookings, which are read to score a round and have never been
+    # read to predict one.
+    cards = card_table([(players, 0), (archive, ARCHIVE_OFFSET)])
+    return points, minutes, cells, loaded.get("season"), table, cards
 
 
 def main() -> None:
@@ -133,7 +137,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    points, minutes, cells, season, table = load(args.season, args.archive)
+    points, minutes, cells, season, table, cards = load(args.season, args.archive)
     print(f"{len(points)} players, season {season}, from {args.season.name}")
 
     # A strong reference, and NOT a ceiling — which is what it was called here
@@ -176,8 +180,18 @@ def main() -> None:
         # term the live pages have always used and the backtest never has, so
         # until now the estimate being scored here was not the estimate that
         # runs every morning.
-        "plays x returns, fixture": lambda upto: fixture_adjusted_projection(
-            points, minutes, cells, table, upto=upto
+        "plays x returns, fixture": lambda upto: adjusted_projection(
+            points, minutes, cells, upto=upto, fixtures=table
+        ),
+        # A suspension is the one absence that is KNOWN before the deadline —
+        # §6.13 closes fifteen minutes before the first match of the round, so
+        # confirmed line-ups arrive too late for eight of the nine games, while
+        # a red card was shown a week ago.
+        "plays x returns, bans": lambda upto: adjusted_projection(
+            points, minutes, cells, upto=upto, cards=cards
+        ),
+        "plays x returns, fixture + bans": lambda upto: adjusted_projection(
+            points, minutes, cells, upto=upto, fixtures=table, cards=cards
         ),
     }
 

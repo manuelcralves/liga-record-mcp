@@ -239,6 +239,118 @@ def two_part_projection(
     return estimates
 
 
+#: Yellows that earn a one-match ban. NOT looked up — MEASURED, and the data
+#: is unambiguous. Crossing a multiple of five takes a player from the 86% who
+#: play the following round down to 22% and 10% on the two seasons. Three, four
+#: and six do nothing at all: 82/83, 82/90 and 80/79 against that same 86%. One
+#: threshold produces a cliff and the neighbours are flat, which is what an
+#: actual rule looks like from the outside.
+YELLOWS_PER_BAN = 5
+
+#: What a suspended player's chance of playing is set to, rather than zero.
+#:
+#: Zero is what the regulation says and 0.09 and 0.18 are what the seasons say
+#: — reds and fifth-yellows respectively, pooled 0.15. The gap is not clemency.
+#: It is the round NUMBERING: a postponed match makes "round 13" a fixture
+#: played in March, and the ban falls on the next match the club actually
+#: plays, not on the next number. This project has been caught by postponed
+#: fixtures before.
+#:
+#: AND THERE IS NOTHING HERE TO TUNE, which was worth checking rather than
+#: asserting. Swept from 0.0 to 0.30 — from the regulation's own answer to
+#: twice the observed rate — the correlation moves less than the +0.003 this
+#: project calls nothing that survives:
+#:
+#:                          base     0.0    0.08    0.15    0.19    0.30
+#:      2025/26           0.5171  0.5386  0.5387  0.5386  0.5385  0.5375
+#:      2024/25           0.5201  0.5514  0.5510  0.5505  0.5500  0.5485
+#:      2025/26 + archive 0.5225  0.5439  0.5442  0.5442  0.5441  0.5433
+#:
+#: The whole of the gain is in KNOWING he is banned. What number that knowledge
+#: is written down as is beneath the noise, so this is a constant with no
+#: season behind it and none needed — which is the only honest way to have one.
+SUSPENDED_PLAYS = 0.15
+
+
+def card_table(
+    seasons: Sequence[tuple[Mapping[str, Any], int]],
+) -> dict[tuple[int, str], tuple[int, bool]]:
+    """Bookings per player per round, from the reconstruction.
+
+    Every player-match row already carries `yellow_cards` and `red_card`, and
+    the model has never read either. They are used to SCORE a round — §10.3(g)
+    pays -3 and -1 — and never to predict the next one, which is where they say
+    the most: a man sent off on Saturday is not available on Sunday week, and
+    the appearance half of the projection had no way to know it.
+    """
+    table: dict[tuple[int, str], tuple[int, bool]] = {}
+    for players, offset in seasons:
+        for player, entry in players.items():
+            for match in entry.get("matches") or []:
+                table[(int(match["round"]) + offset, player)] = (
+                    int(match.get("yellow_cards") or 0),
+                    bool(match.get("red_card")),
+                )
+    return table
+
+
+def suspensions(
+    cards: Mapping[tuple[int, str], tuple[int, bool]],
+    upto: int,
+    *,
+    per_ban: int = YELLOWS_PER_BAN,
+) -> set[str]:
+    """Who cannot play in round `upto`, from rounds strictly before it.
+
+    Two causes, and both are settled by the round before: a red card, or the
+    booking that crosses a multiple of `per_ban`. Nothing here reads round
+    `upto` itself, which is the whole point — a suspension is known in advance,
+    which is exactly what makes it worth having and what separates it from the
+    lineup news that arrives after §6.13's deadline.
+
+    ONE ROUND, and that is measured too. Of the players sent off, 12% and 0%
+    played the round after; by the round after that, 82% and 91% were back —
+    at or above the 86% baseline. The ban does not linger and neither does this.
+
+    A ban does not cross the turn of the season. The archive sits on matchdays
+    at or below zero, so a red card in its last round would otherwise carry
+    into the opening day of the season being replayed, which is a different
+    competition as far as the punishment is concerned.
+    """
+    previous = upto - 1
+    if previous <= 0 < upto:
+        return set()
+
+    # AND THE COUNT RESTARTS WITH THE SEASON. Bookings do not carry over, and
+    # the archive lies on matchdays at or below zero, so a total swept through
+    # the boundary put a man on four yellows from last year one card from a ban
+    # in August — which is not a rule in any competition.
+    #
+    # It was not caught by reading. It was caught by measuring: the signal came
+    # out at +0.0172 and +0.0211 on the two seasons alone and at MINUS 0.0015
+    # with the archive attached, which is the shape of a bug and not of a weak
+    # effect. Running the archive as a third configuration is what made the
+    # sign flip visible at all.
+    in_season = (
+        (lambda matchday: matchday >= 1)
+        if previous >= 1
+        else (lambda matchday: matchday <= 0)
+    )
+
+    running: dict[str, int] = {}
+    banned: set[str] = set()
+    for (matchday, player), (yellows, red) in sorted(cards.items()):
+        if matchday >= upto or not in_season(matchday):
+            continue
+        before = running.get(player, 0)
+        running[player] = before + yellows
+        if matchday != previous:
+            continue
+        if red or before // per_ban < running[player] // per_ban:
+            banned.add(player)
+    return banned
+
+
 def fixture_table(
     seasons: Sequence[tuple[Mapping[str, Any], int]],
 ) -> dict[tuple[int, str], tuple[str, bool, int, int]]:
@@ -343,6 +455,76 @@ def club_form_upto(
     return rates, max(league_against, 1e-9), max(league_for, 1e-9)
 
 
+def adjusted_projection(
+    points: Mapping[str, Mapping[int, float]],
+    minutes: Mapping[str, Mapping[int, int]],
+    cells: Mapping[str, tuple[str, str]],
+    *,
+    upto: int,
+    fixtures: Mapping[tuple[int, str], tuple[str, bool, int, int]] | None = None,
+    cards: Mapping[tuple[int, str], tuple[int, bool]] | None = None,
+    suspended: float = SUSPENDED_PLAYS,
+    **kwargs: Any,
+) -> dict[str, float]:
+    """`two_part_projection`, with what is already known about the round in it.
+
+    Two things are knowable before §6.13's deadline and neither was being used,
+    and they land on OPPOSITE HALVES of the split — which is the best argument
+    the split has ever had for existing.
+
+    Who a club plays moves what a man RETURNS when he takes the field. Whether
+    he is suspended moves whether he TAKES it at all. Folded into one number
+    they would fight: an easy fixture would argue for a man who is banned.
+    Kept apart, each says its piece to the half it knows about.
+
+    §10.3(i) pays the same -1 whoever the opponent is, so the fixture never
+    touches the blend — only `returns`, and only above the appearance floor. A
+    suspension never touches `returns` either: what a man is worth on the days
+    he plays has nothing to do with his not playing this one.
+
+    Both arguments are optional, and with neither this is `two_part_projection`
+    with an extra dictionary comprehension.
+    """
+    playing, returns = two_part_projection(
+        points, minutes, cells, upto=upto, parts=True, **kwargs
+    )
+
+    if cards is not None:
+        for player in suspensions(cards, upto):
+            if player in playing:
+                playing[player] = suspended
+
+    if fixtures is not None:
+        rates, league_against, league_for = club_form_upto(fixtures, upto)
+        for player, rate in returns.items():
+            cell = cells.get(player)
+            fixture = fixtures.get((upto, cell[0])) if cell else None
+            if fixture is None or cell is None:
+                continue
+            opponent, at_home, _, _ = fixture
+            club_against, club_for = rates.get(cell[0], (league_against, league_for))
+            opponent_against, opponent_for = rates.get(
+                opponent, (league_against, league_for)
+            )
+            defensive, attacking = fixture_multipliers(
+                max(club_against, 1e-9),
+                max(club_for, 1e-9),
+                opponent_against,
+                opponent_for,
+                league_against,
+                league_for,
+                at_home=at_home,
+            )
+            returns[player] = adjust_for_fixture(
+                rate, Position(cell[1]), defensive, attacking
+            )
+
+    return {
+        player: playing[player] * rate + (1 - playing[player]) * ABSENT
+        for player, rate in returns.items()
+    }
+
+
 def fixture_adjusted_projection(
     points: Mapping[str, Mapping[int, float]],
     minutes: Mapping[str, Mapping[int, int]],
@@ -352,50 +534,10 @@ def fixture_adjusted_projection(
     upto: int,
     **kwargs: Any,
 ) -> dict[str, float]:
-    """`two_part_projection`, with one round's opponent priced in.
-
-    ONLY THE RETURNS HALF MOVES. §10.3(i) pays the same -1 whoever the
-    opponent is, so scaling the blended estimate would quietly make an easy
-    fixture a reason to own a man who is not in the side. The two halves come
-    back separately and are recombined here, which is what the live path does
-    and why it asks for `parts=True`.
-
-    A club with no fixture on the round comes back UNADJUSTED, never zero. The
-    live path scores zero there because §15.3 means the round genuinely does
-    not exist for that club; here a missing row means only that the
-    reconstruction could not tell us, and the real -1 is already in `points`.
-    Those are different facts and only one of them is worth acting on.
-    """
-    playing, returns = two_part_projection(
-        points, minutes, cells, upto=upto, parts=True, **kwargs
+    """The opponent alone, for callers that have no card table to give."""
+    return adjusted_projection(
+        points, minutes, cells, upto=upto, fixtures=table, **kwargs
     )
-    rates, league_against, league_for = club_form_upto(table, upto)
-
-    adjusted: dict[str, float] = {}
-    for player, rate in returns.items():
-        cell = cells.get(player)
-        fixture = table.get((upto, cell[0])) if cell else None
-        if fixture is None or cell is None:
-            adjusted[player] = playing[player] * rate + (1 - playing[player]) * ABSENT
-            continue
-        opponent, at_home, _, _ = fixture
-        club_against, club_for = rates.get(cell[0], (league_against, league_for))
-        opponent_against, opponent_for = rates.get(
-            opponent, (league_against, league_for)
-        )
-        defensive, attacking = fixture_multipliers(
-            max(club_against, 1e-9),
-            max(club_for, 1e-9),
-            opponent_against,
-            opponent_for,
-            league_against,
-            league_for,
-            at_home=at_home,
-        )
-        moved = adjust_for_fixture(rate, Position(cell[1]), defensive, attacking)
-        adjusted[player] = playing[player] * moved + (1 - playing[player]) * ABSENT
-    return adjusted
-
 
 def _rows(squad_ids: Sequence[str], market: Mapping[str, Player]) -> list[dict[str, Any]]:
     return [
