@@ -44,6 +44,7 @@ from liga_record_mcp.models import LAST_MATCHDAY, Position  # noqa: E402
 from liga_record_mcp.source import OpenFootballClient  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
     MEAN_MARK_POINTS,
+    UNUSED_PENALTY,
     adjust_for_fixture,
     coach_season,
     describe_pick,
@@ -403,6 +404,49 @@ def holiday_section(data: dict) -> str:
     )
 
 
+def round_fixtures(round_number: int) -> dict[str, dict]:
+    """Each club's opponent that round, and how hard it looks.
+
+    The same multipliers `fixture_grid` draws, lifted out so the grid and the
+    recommendation cannot disagree about a week. A club missing from the result
+    has no fixture at all that round — which is not a hard week, it is no week,
+    and §15.3 scores its players zero if the game is not played before the next
+    round begins.
+    """
+    fixtures = mcp._market.fixtures()
+    records = OpenFootballClient(timeout=60.0).club_records()
+    known = [r for r in records.values() if r.has_history]
+    league_ga = sum(r.goals_against_per_match for r in known) / len(known)
+    league_gf = sum(r.goals_for_per_match for r in known) / len(known)
+
+    def rates(club):
+        record = records.get(club)
+        if record is None or not record.has_history:
+            return league_ga, league_gf
+        return record.goals_against_per_match, record.goals_for_per_match
+
+    out: dict[str, dict] = {}
+    for fixture in fixtures:
+        if fixture.round_number != round_number:
+            continue
+        for club, opponent, at_home in (
+            (fixture.home, fixture.away, True),
+            (fixture.away, fixture.home, False),
+        ):
+            own_ga, own_gf = rates(club)
+            opp_ga, opp_gf = rates(opponent)
+            defensive, attacking = fixture_multipliers(
+                own_ga, own_gf, opp_ga, opp_gf, league_ga, league_gf, at_home=at_home
+            )
+            out[club] = {
+                "opponent": opponent,
+                "at_home": at_home,
+                "defensive": defensive,
+                "attacking": attacking,
+            }
+    return out
+
+
 def model_sheet(stored: dict, round_number: int) -> dict:
     """What the model would field next round, beside what was actually filed.
 
@@ -437,7 +481,39 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     rows = [
         {"id": p.id, "position": p.position, "value": p.value} for p in squad.players
     ]
-    expected = {i: v["expected"] for i, v in view.items()}
+
+    # THE OPPONENT MOVES THE ELEVEN, NOT THE TRANSFER. A team sheet is set one
+    # round at a time and a defender away at Porto is not the same bet as the
+    # same defender at home to the weakest attack in the league. A transfer
+    # runs to May, and over thirty rounds the fixtures average out — adjusting
+    # it for one week would sell a good player for a bad week.
+    #
+    # And the adjustment scales what he returns WHEN HE PLAYS, never the
+    # blended estimate: §10.3(i)'s -1 for a week he does not play is the same
+    # -1 whoever the opponent is, and scaling it would make an easy fixture
+    # look like a reason to own someone who is not in the side.
+    weeks = round_fixtures(round_number)
+    expected = {}
+    fixture_of = {}
+    for player_id, entry in view.items():
+        person = market[player_id]
+        week = weeks.get(person.club)
+        if week is None:
+            # No fixture. §15.3 gives zero if the game is not played before the
+            # next round begins, which is worse than a hard week and better
+            # than -1 — and either way he should not be in the eleven.
+            expected[player_id] = 0.0
+            fixture_of[player_id] = None
+            continue
+        adjusted = adjust_for_fixture(
+            entry["returns"], person.position, week["defensive"], week["attacking"]
+        )
+        expected[player_id] = (
+            entry["playing"] * adjusted
+            + (1 - entry["playing"]) * float(UNUSED_PENALTY)
+        )
+        fixture_of[player_id] = week
+
     sheet = best_eleven(rows, expected)
     if sheet is None:
         return {}
@@ -448,15 +524,19 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     def described(player_id: str) -> dict:
         entry = view[player_id]
         person = market[player_id]
+        week = fixture_of.get(player_id)
         return {
             "name": person.name,
             "position": person.position.value,
             "club": person.club,
-            "expected": entry["expected"],
+            "expected": expected[player_id],
+            "season": entry["expected"],
             "playing": entry["playing"],
             "returns": entry["returns"],
             "label": LABEL_PT.get(entry["label"], entry["label"]),
             "appearances": entry["appearances"],
+            "opponent": None if week is None else week["opponent"],
+            "at_home": None if week is None else week["at_home"],
         }
 
     # The transfer §6.8 allows, judged on what it does to the ELEVEN rather
@@ -485,6 +565,7 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     swap = best_transfer(
         [p.id for p in squad.players],
         whole,
+        # Season values, not this week's: a transfer runs to May.
         {i: v["expected"] for i, v in wide.items()},
         budget=squad.budget,
         rounds_left=max(1, LAST_MATCHDAY - round_number + 1),
@@ -543,6 +624,15 @@ def model_section(data: dict) -> str:
             + '<span class="sub">' + esc(POS_PT[entry["position"]]) + " · "
             + esc(entry["club"]) + "</span></td>" + chr(10)
             + '              <td class="fig strong">' + f"{entry['expected']:.2f}"
+            + '<span class="sub">' + f"{entry['expected'] - entry['season']:+.2f}"
+            + " vs média</span></td>" + chr(10)
+            + '              <td class="name">'
+            + (
+                "sem jogo"
+                if entry["opponent"] is None
+                else esc(entry["opponent"])
+                + ('<span class="sub">casa</span>' if entry["at_home"] else '<span class="sub">fora</span>')
+            )
             + "</td>" + chr(10)
             + '              <td class="fig">' + f"{entry['playing']:.0%}" + "</td>" + chr(10)
             + '              <td class="verdict">' + esc(entry["label"])
@@ -605,16 +695,22 @@ def model_section(data: dict) -> str:
       <strong>{esc(found['captain']['name'])}</strong>, e o onze todo vale
       <strong>{found['expected']:.0f}</strong> pontos esperados (§10.3(l) conta
       o capitão duas vezes).</p>
+      <p class="lede">O <strong>adversário desta semana</strong> já está no
+      número: o que sobra acima do que um jogador leva só por entrar em campo é
+      reescalado pela dificuldade do jogo, e o "vs média" diz quanto isso o
+      moveu. Um clube <strong>sem jogo</strong> na ronda não é uma semana
+      difícil — é nenhuma, e o §15.3 dá zero aos jogadores dele se o jogo não
+      se realizar antes da ronda seguinte começar.</p>
 {changes}
 {transfer}
       <table class="data">
-        <thead><tr><th>o onze</th><th>esperado</th><th>joga</th><th>o que é</th></tr></thead>
+        <thead><tr><th>o onze</th><th>esperado</th><th>adversário</th><th>joga</th><th>o que é</th></tr></thead>
         <tbody>
 {eleven}
         </tbody>
       </table>
       <table class="data">
-        <thead><tr><th>o banco</th><th>esperado</th><th>joga</th><th>o que é</th></tr></thead>
+        <thead><tr><th>o banco</th><th>esperado</th><th>adversário</th><th>joga</th><th>o que é</th></tr></thead>
         <tbody>
 {bench}
         </tbody>
