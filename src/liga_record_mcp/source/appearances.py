@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ..stats import NO_MATCH, PLAYED, UNUSED
 from .base import SquadSourceError
 
 #: Bumped if the file layout ever changes, so an old file fails loudly.
@@ -90,3 +91,59 @@ def history_for(store: dict[str, Any], player_id: str) -> dict[str, str]:
 
 def recorded_rounds(store: dict[str, Any]) -> list[int]:
     return sorted(int(r) for r in (store.get("rounds") or {}))
+
+
+def current_records(
+    market, counts, store: dict[str, Any] | None = None
+) -> dict[str, dict[str, Any]]:
+    """This season's appearances and points-when-playing, per player.
+
+    The shape `advice.valuation` wants, for the rounds already scored. The
+    archives cover sixty-eight matchdays and these are two, which is exactly
+    why they must not be left out: they are the only two that describe the
+    squads as they are now.
+
+    Where `record_round` has written a status down it is used. Where it has
+    not, §10.3(i) supplies one: a score of exactly -1 for a player whose club
+    played is a man who did not. That reading is not certain — someone who did
+    take the field and whose rating and events netted to -1 is
+    indistinguishable — but it is right far more often than not, and there are
+    only two rounds of it.
+
+    `points` is what he scored on the days he PLAYED. §10.3(i)'s -1 for the
+    weeks he sat belongs to the other half of the estimate, so it is added back
+    here rather than counted twice.
+    """
+    seen: dict[str, dict[int, str]] = {}
+    for rnd, entry in ((store or {}).get("rounds") or {}).items():
+        for player_id, status in (entry.get("players") or {}).items():
+            seen.setdefault(player_id, {})[int(rnd)] = status
+
+    out: dict[str, dict[str, Any]] = {}
+    for player in market.values():
+        rounds = counts.get(player.club, 0)
+        if rounds <= 0:
+            continue
+        recorded = seen.get(player.id, {})
+        available = appearances = 0
+        for rnd in range(1, rounds + 1):
+            status = recorded.get(rnd)
+            if status == NO_MATCH:
+                continue
+            if status is None:
+                # Only the latest round is separable from a running total.
+                points = (
+                    player.points_round
+                    if rnd == rounds
+                    else player.points_total - player.points_round
+                )
+                status = UNUSED if points == -1 else PLAYED
+            available += 1
+            if status == PLAYED:
+                appearances += 1
+        out[player.id] = {
+            "played": appearances,
+            "points": player.points_total + (available - appearances),
+            "available": available,
+        }
+    return out

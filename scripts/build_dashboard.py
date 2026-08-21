@@ -36,9 +36,9 @@ sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp import server as mcp  # noqa: E402
 from liga_record_mcp.advice import MIN_OWN_HISTORY, valuation  # noqa: E402
-from liga_record_mcp.backtest import best_transfer  # noqa: E402
-from liga_record_mcp.optimise import best_eleven  # noqa: E402
-from liga_record_mcp.source import ManualSquadSource  # noqa: E402
+from liga_record_mcp.optimise import best_eleven, improve_squad  # noqa: E402
+from liga_record_mcp.source import ManualSquadSource, load_appearances  # noqa: E402
+from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
 from liga_record_mcp.models import LAST_MATCHDAY, Position  # noqa: E402
 from liga_record_mcp.source import OpenFootballClient  # noqa: E402
@@ -56,6 +56,11 @@ from liga_record_mcp.stats import (  # noqa: E402
 
 LOG_PATH = ROOT / "data" / "projections.json"
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
+
+#: Draws the transfer search plays each candidate squad through. Four
+#: hundred is where the churn stopped in testing: below it, near ties are
+#: decided by the sampling and the recommendation changes between runs.
+SWAP_DRAWS = 400
 HISTORY_PATH = ROOT / "data" / "history.json"
 MY_TEAM_ID = 156412
 ORDER = {"GK": 0, "DEF": 1, "MID": 2, "FWD": 3}
@@ -469,10 +474,20 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     market = {p.id: p for p in squad.players}
 
     archive = archive_records(ROOT / "data")
+    # This season's two rounds go in as well. They are two against sixty-eight,
+    # and they are the only two that describe the squads as they are now — the
+    # page left them out and recommended a different transfer from the script
+    # for exactly that reason.
+    whole = {p.id: p.as_player() for p in mcp_players()}
+    now = current_records(
+        whole,
+        matches_played(mcp._market.fixtures()),
+        load_appearances(ROOT / "data" / "appearances.json"),
+    )
     view = valuation(
         market,
         archive,
-        {},
+        now,
         owned={i: q.get("owned_percent") for i, q in quoted.items()},
     )
     if not any(v["appearances"] for v in view.values()):
@@ -542,11 +557,10 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # The transfer §6.8 allows, judged on what it does to the ELEVEN rather
     # than to the player: only eleven score, so a better substitute is worth
     # nothing, and comparing the two men's own rates cannot see that.
-    whole = {p.id: p.as_player() for p in mcp_players()}
     wide = valuation(
         whole,
         archive,
-        {},
+        now,
         owned={i: q.get("owned_percent") for i, q in quoted.items()},
     )
     # Only players with a real record are candidates. A man with no top-flight
@@ -562,18 +576,37 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         for i, entry in wide.items()
         if entry["appearances"] >= MIN_OWN_HISTORY or i in market
     ]
-    swap = best_transfer(
+    # The same search the squad proposal runs, capped at the one transfer §6.8
+    # allows. It plays the round out hundreds of times — drawing who turns up
+    # from each man's own chance of playing, applying §11's substitutions — and
+    # takes the swap that most improves that. The simpler criterion this used
+    # to run judged the projected eleven instead, and the two recommended
+    # different players, which is the worst way for a model to be wrong: not
+    # visibly, but in two voices.
+    #
+    # Season values, not this week's. A transfer runs to May, and adjusting it
+    # for one fixture would sell a good player for a bad Saturday.
+    improved = improve_squad(
         [p.id for p in squad.players],
         whole,
-        # Season values, not this week's: a transfer runs to May.
-        {i: v["expected"] for i, v in wide.items()},
+        {i: v["returns"] for i, v in wide.items()},
+        {i: v["playing"] for i, v in wide.items()},
         budget=squad.budget,
-        rounds_left=max(1, LAST_MATCHDAY - round_number + 1),
         candidates=known,
+        max_swaps=1,
+        draws=SWAP_DRAWS,
     )
     move = None
-    if swap is not None:
-        out_id, in_id, gain = swap
+    if improved["swaps"]:
+        held = {p.id for p in squad.players}
+        out_id = next(i for i in held if i not in improved["players"])
+        in_id = next(i for i in improved["players"] if i not in held)
+        # Per round, and over the rounds that are left. The search reports what
+        # the swap is worth in a single round; a reader deciding whether to
+        # spend a transfer wants the season.
+        gain = improved["swaps"][0]["gain"] * max(
+            1, LAST_MATCHDAY - round_number + 1
+        )
         move = {
             "out": described(out_id) if out_id in market else None,
             "in": {

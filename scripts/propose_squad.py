@@ -48,6 +48,7 @@ from liga_record_mcp.models import (  # noqa: E402
     LAST_MATCHDAY,
     Position,
 )
+from liga_record_mcp.advice import MIN_OWN_HISTORY  # noqa: E402
 from liga_record_mcp.optimise import (  # noqa: E402
     best_eleven,
     best_squad_under_budget,
@@ -162,6 +163,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--draws", type=int, default=400)
     parser.add_argument("--budget", type=int, default=BASE_BUDGET)
+    parser.add_argument(
+        "--moves",
+        type=int,
+        default=6,
+        help="how many rungs of the ladder to work out",
+    )
     args = parser.parse_args()
 
     client = LigaRecordClient(timeout=60.0)
@@ -324,43 +331,54 @@ def main() -> None:
           f"{proposed['expected_round'] - yours:+.1f}, or "
           f"{(proposed['expected_round'] - yours) * ROUNDS_LEFT:+.0f} over the season")
 
-    # The changes, one at a time, worst first — so the list can be stopped
+    # The changes, one at a time, best first — so the list can be stopped
     # anywhere rather than taken whole. A squad rebuilt in fifteen moves on a
     # model that explains a quarter of the week-to-week variation is a lot of
-    # conviction to spend at once, and the gains are not evenly spread: the
-    # first few are usually most of it.
+    # conviction to spend at once, and the gains are not evenly spread.
+    #
+    # THE SEARCH IS THE ONE THE PAGE RUNS. It was restricted to the ideal
+    # squad's players, which made the first rung here and the page's
+    # recommendation two different men — and a model that answers the same
+    # question twice, differently, is worse than one that answers it wrongly
+    # once, because neither answer is its opinion. Both now search the whole
+    # market, minus anyone with too little record to recommend.
+    known = [
+        i
+        for i in market
+        if basis.get(i, (0, 0))[0] >= MIN_OWN_HISTORY or i in covered
+    ]
     print()
     print("THE CHANGES, BEST FIRST")
     print(f"  {'':4}{'sai':<20}{'entra':<20}{'ganho':>8}   o que é")
+
     working = list(covered)
     running = yours
     ladder = []
-    while True:
-        best = None
-        for going in working:
-            if going in proposed["players"]:
-                continue
-            for coming in proposed["players"]:
-                if coming in working:
-                    continue
-                if market[coming].position is not market[going].position:
-                    continue
-                trial = [coming if i == going else i for i in working]
-                if sum(market[i].value for i in trial) > args.budget:
-                    continue
-                score = squad_value(
-                    trial, market, returns, playing, draws=args.draws
-                )
-                if best is None or score > best[2]:
-                    best = (going, coming, score, trial)
-        if best is None or best[2] <= running + 1e-9:
+    while len(ladder) < args.moves:
+        step = improve_squad(
+            working,
+            market,
+            returns,
+            playing,
+            budget=args.budget,
+            candidates=known,
+            max_swaps=1,
+            draws=args.draws,
+        )
+        if not step["swaps"]:
             break
-        going, coming, score, working = best
-        ladder.append((going, coming, score - running))
-        running = score
+        held = set(working)
+        going = next(i for i in held if i not in step["players"])
+        coming = next(i for i in step["players"] if i not in held)
+        ladder.append((going, coming, step["expected_round"] - running))
+        working, running = step["players"], step["expected_round"]
+        # A man sold is not bought back: two near-identical players make the
+        # estimate flicker between them, and the ladder would spend its rungs
+        # swapping one for the other and back.
+        known = [i for i in known if i != going]
 
     for going, coming, gain in ladder:
-        seen, _ = basis[coming]
+        seen, _ = basis.get(coming, (0, 0))
         said = describe_pick(
             appearances=seen,
             availability=known_rate(coming, playing),
@@ -378,9 +396,8 @@ def main() -> None:
         print()
         print(
             f"  all {len(ladder)}: {running:.1f} a round "
-            f"({running - yours:+.1f}). The first five: "
-            f"{yours + sum(g for _, _, g in ladder[:5]):.1f} "
-            f"({sum(g for _, _, g in ladder[:5]):+.1f})."
+            f"({running - yours:+.1f}). The first is the one to make this "
+            f"round; §6.8 allows one."
         )
 
     sheet = best_eleven(
