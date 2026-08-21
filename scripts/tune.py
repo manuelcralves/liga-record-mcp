@@ -64,6 +64,19 @@ WIDE = {
     "rotation_prior": (1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0),
 }
 
+#: The wide grid put its optimum on the boundary — window 2 and rotation prior
+#: 1, the smallest of each — in both directions. An optimum at the edge is the
+#: grid saying it is too small, not the model saying it has found something, so
+#: this reaches past it until the curve turns.
+#:
+#: Extending after seeing that is legitimate: the boundary is visible on the
+#: TUNING season alone, and the held-out season is still touched twice.
+EDGE = {
+    "prior_strength": (12.0, 20.0, 28.0, 40.0, 60.0, 90.0),
+    "window": (1, 2, 3, 4),
+    "rotation_prior": (0.25, 0.5, 1.0, 2.0),
+}
+
 
 def load(path: Path):
     loaded = json.loads(path.read_text(encoding="utf-8"))["players"]
@@ -87,21 +100,46 @@ def load(path: Path):
     return points, minutes, cells
 
 
-def error(season, **kwargs) -> float:
-    """Mean absolute error predicting each round from the ones before it."""
+def score(season, **kwargs) -> tuple[float, float]:
+    """How well a parameter set predicts, by both measures that matter.
+
+    Returns (correlation, mean absolute error) — and the ORDER matters, because
+    the first is the one to optimise and the second is the one that is tempting.
+
+    MEAN ERROR IS THE WRONG OBJECTIVE HERE, and it took being caught to see it.
+    About half the market does not play in a given round, so an estimate that
+    says -1 confidently about anyone absent last week is exactly right very
+    often, and its mean error falls a long way. It is not better advice: an
+    eleven is picked by RANKING players against each other, and a transfer by
+    ranking a swap against no swap. Neither cares how close a number is in
+    absolute terms.
+
+    Tuned on mean error alone this search chose window 1 and a rotation prior
+    of 0.25, which beat what is in use by 0.046 of error — and lost 0.007 of
+    correlation on both seasons. That is a model made worse at its actual job
+    while every number on the page said it had improved.
+    """
     points, minutes, cells = season
-    total, n = 0.0, 0
+    actual, guess = [], []
     for matchday in range(FIRST_SCORING_MATCHDAY, LAST_MATCHDAY + 1):
         view = two_part_projection(points, minutes, cells, upto=matchday, **kwargs)
         for player_id, by_matchday in points.items():
-            total += abs(view[player_id] - by_matchday[matchday])
-            n += 1
-    return total / n if n else float("inf")
+            actual.append(by_matchday[matchday])
+            guess.append(view[player_id])
+    n = len(actual)
+    if not n:
+        return 0.0, float("inf")
+    mean_a, mean_g = statistics.mean(actual), statistics.mean(guess)
+    covariance = sum((a - mean_a) * (g - mean_g) for a, g in zip(actual, guess)) / n
+    spread_a, spread_g = statistics.pstdev(actual), statistics.pstdev(guess)
+    correlation = covariance / (spread_a * spread_g) if spread_a and spread_g else 0.0
+    return correlation, sum(abs(a - g) for a, g in zip(actual, guess)) / n
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--wide", action="store_true")
+    parser.add_argument("--edge", action="store_true", help="reach past the boundary")
     args = parser.parse_args()
 
     missing = [name for name, path in SEASONS.items() if not path.exists()]
@@ -109,7 +147,7 @@ def main() -> None:
         raise SystemExit(f"no reconstruction for {', '.join(missing)}")
     loaded = {name: load(path) for name, path in SEASONS.items()}
 
-    grid = WIDE if args.wide else NARROW
+    grid = EDGE if args.edge else (WIDE if args.wide else NARROW)
     names = list(grid)
     combinations = list(itertools.product(*(grid[k] for k in names)))
     current = {
@@ -121,31 +159,33 @@ def main() -> None:
     print(f"in use today: {current}")
 
     for tune_on, test_on in (("2025/26", "2024/25"), ("2024/25", "2025/26")):
-        scored = []
-        for values in combinations:
-            kwargs = dict(zip(names, values))
-            scored.append((error(loaded[tune_on], **kwargs), kwargs))
-        scored.sort(key=lambda row: row[0])
-        best_error, best = scored[0]
-        worst_error = scored[-1][0]
+        scored = [
+            (score(loaded[tune_on], **dict(zip(names, values))), dict(zip(names, values)))
+            for values in combinations
+        ]
+        # Sorted by correlation, descending. Not by error — see `score`.
+        scored.sort(key=lambda row: -row[0][0])
+        (best_r, best_mae), best = scored[0]
 
         # Everything below this line touches the held-out season exactly twice:
         # once for the winner, once for what is in use. Any more and the
         # held-out season stops being held out.
-        winner_out = error(loaded[test_on], **best)
-        current_out = error(loaded[test_on], **current)
-        current_in = error(loaded[tune_on], **current)
+        out_r, out_mae = score(loaded[test_on], **best)
+        cur_out_r, cur_out_mae = score(loaded[test_on], **current)
+        cur_in_r, _ = score(loaded[tune_on], **current)
 
         print()
         print(f"  tuned on {tune_on}, reported on {test_on}")
-        print(f"    the grid on {tune_on} spans {best_error:.4f} to {worst_error:.4f}")
         print(f"    best there:      {best}")
-        print(f"      on {tune_on}:  {best_error:.4f}   (in use: {current_in:.4f})")
-        print(f"      on {test_on}:  {winner_out:.4f}   (in use: {current_out:.4f})")
-        gain = current_out - winner_out
+        print(f"      on {tune_on}:  r {best_r:.4f}   (in use: {cur_in_r:.4f})")
         print(
-            f"    carried over:    {gain:+.4f}"
-            + ("  — worth taking" if gain > 0.005 else "  — nothing that survives")
+            f"      on {test_on}:  r {out_r:.4f}   (in use: {cur_out_r:.4f})"
+            f"    error {out_mae:.4f} against {cur_out_mae:.4f}"
+        )
+        gain = out_r - cur_out_r
+        print(
+            f"    carried over:    {gain:+.4f} of correlation"
+            + ("  — worth taking" if gain > 0.003 else "  — nothing that survives")
         )
 
 

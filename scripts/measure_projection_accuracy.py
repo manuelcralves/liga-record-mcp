@@ -96,20 +96,20 @@ def main() -> None:
     points, minutes, cells, season = load(args.season)
     print(f"{len(points)} players, season {season}, from {args.season.name}")
 
-    # The ceiling for anything that works from a rate, and getting it right
-    # took two attempts. A player's average over the whole season is NOT the
-    # ceiling: it is one fixed number, and the model beat it — because the
-    # model adapts, and knows in March that a man stopped playing in January.
+    # A strong reference, and NOT a ceiling — which is what it was called here
+    # for two revisions, wrongly.
     #
-    # So the oracle has to adapt too. It is given his form in the rounds either
-    # side of the one being predicted, from the future as well as the past, and
-    # never that round itself. No causal model can have that. Whatever error
-    # survives it is not the model failing; it is football — the same player,
-    # in the same form, scores 0 one week and 12 the next.
+    # It is given a player's form in the rounds either side of the one being
+    # predicted, from the future as well as the past, and never that round
+    # itself. No causal model can have that, which is why it reads like an
+    # upper bound. It is not one: it is a smoother of a player's own scores and
+    # nothing else, while the model also knows his club, his position and
+    # whether he is in the side. The model beats it on one season and loses on
+    # the other, which is exactly what happens when two different estimators
+    # are compared — and could not happen against a real ceiling.
     #
-    # Without this line the other numbers cannot be read at all. An error of
-    # 1.59 sounds poor beside zero and excellent beside the most anyone could
-    # manage.
+    # What it is good for is scale. An error of 1.53 means nothing beside zero,
+    # and a great deal beside 1.55 from something allowed to see the future.
     def oracle(matchday: int) -> dict[str, float]:
         window = range(matchday - ORACLE_WINDOW, matchday + ORACLE_WINDOW + 1)
         view = {}
@@ -124,7 +124,7 @@ def main() -> None:
 
     signals = {
         "the league average": None,
-        "an oracle that knows his form": oracle,
+        "an oracle shown both sides": oracle,
         "form only": lambda upto: shrunk_projection(points, cells, upto=upto),
         "plays x returns": lambda upto: two_part_projection(
             points, minutes, cells, upto=upto
@@ -162,13 +162,13 @@ def main() -> None:
         note = "" if name == "the league average" else f"{share:>11.1%}"
         print(f"  {name:<28}{mean_error:>8.3f}{note}")
 
-    floor = statistics.mean(errors["an oracle that knows his form"])
+    floor = statistics.mean(errors["an oracle shown both sides"])
     model = statistics.mean(errors["plays x returns"])
     print()
     print(f"  {len(errors['form only']):,} player-rounds predicted")
     print(
-        f"  of the {baseline - floor:.3f} that is knowable at all, the model "
-        f"gets {baseline - model:.3f} — {(baseline - model) / (baseline - floor):.0%}"
+        f"  removed by an oracle shown both sides: {baseline - floor:.3f}"
+        f"   by the model: {baseline - model:.3f}"
     )
 
     # And how much of the round-to-round spread it actually accounts for.

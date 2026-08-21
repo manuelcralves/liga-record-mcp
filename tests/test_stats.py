@@ -169,8 +169,17 @@ def test_two_appearances_are_not_a_guarantee():
     """The error this shrinkage exists to stop. A player who appeared in both
     of the two rounds on file used to come out at a flat 100%, and since a
     certain starter projects at roughly twice a naive average, the
-    overconfidence went straight into the recommendation."""
-    assert availability(played_rounds(PLAYED, PLAYED), league_rate=0.51) < 0.9
+    overconfidence went straight into the recommendation.
+
+    The band is measured rather than chosen. Across both reconstructed seasons,
+    a player who played the previous two rounds played the next one 87.3% of
+    the time, over 5395 cases — so an estimate near there is right and one at
+    100% is not. The bound used to be a flat 0.9, which was a guess that
+    happened to be close and would have failed for the wrong reason.
+    """
+    estimate = availability(played_rounds(PLAYED, PLAYED), league_rate=0.51)
+    assert 0.80 < estimate < 0.95
+    assert abs(estimate - 0.873) < 0.06
 
 
 def test_a_season_of_appearances_is_close_to_a_guarantee():
