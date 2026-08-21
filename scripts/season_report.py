@@ -27,7 +27,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import statistics
+from typing import Any
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -59,8 +61,20 @@ from liga_record_mcp.source import LigaRecordClient, OpenFootballClient  # noqa:
 from liga_record_mcp.stats import MEAN_MARK_POINTS, coach_season  # noqa: E402
 
 SEASON_PATH = ROOT / "data" / "last-season.json"
+ARCHIVE_PATH = ROOT / "data" / "season-2024-25.json"
 ARCHIVE_TAG = "2025-26"
 ALL_MATCHDAYS = list(range(1, LAST_MATCHDAY + 1))
+
+#: The season before is laid out on NEGATIVE matchdays: its round 1 becomes
+#: -33, its round 34 becomes 0. Nothing else in this file has to know.
+#:
+#: The alternative was to shift this season forward by 34 and translate every
+#: number back for display, which is the same arithmetic done in more places
+#: and forgotten in one of them. Negatives keep `upto=5` meaning exactly what
+#: it says — everything before matchday 5 of the season being replayed — while
+#: the archive falls before it for free. The recency window keeps working too:
+#: at matchday 5 it looks at 3 and 4, and never reaches back into last year.
+ARCHIVE_OFFSET = -LAST_MATCHDAY
 
 #: Manuel's own account of the site: the squad locks at matchday 5 and the four
 #: before it do not count. §16.4 says the standings start at 6. One round apart,
@@ -68,27 +82,92 @@ ALL_MATCHDAYS = list(range(1, LAST_MATCHDAY + 1))
 DEFAULT_FIRST = 5
 
 
-def load(market):
-    """Points, minutes and goals per matchday, and the club to pool each with."""
+def _matches_of(player) -> list:
+    return player.get("matches") or []
+
+
+def load(market, *, use_archive: bool = True, order_seed: int | None = None):
+    """Points, minutes and goals per matchday, and the club to pool each with.
+
+    Two seasons, not one. The squad is bought at matchday 5 and four rounds is
+    almost nothing to buy on — this report used to do exactly that, and the
+    number it produced was a measurement of the model with its memory removed.
+    The pages Manuel actually reads have always used both reconstructions; only
+    the backtest was starved, because it was written before the second one
+    existed and nobody went back.
+
+    A player is given last season's rounds ONLY IF HE PLAYED IN IT. Padding a
+    newcomer with thirty-four absences would not say "we have no record of
+    him", it would say "he was left out thirty-four times", and the model would
+    price every arrival as a permanent substitute.
+    """
     if not SEASON_PATH.exists():
         raise SystemExit(f"no {SEASON_PATH} — run scripts/build_last_season.py first")
     loaded = json.loads(SEASON_PATH.read_text(encoding="utf-8"))["players"]
 
+    archive: dict[str, Any] = {}
+    if use_archive and ARCHIVE_PATH.exists():
+        archive = json.loads(ARCHIVE_PATH.read_text(encoding="utf-8"))["players"]
+
     points, minutes, goals, cells = {}, {}, {}, {}
-    for player_id, player in loaded.items():
-        if player_id not in market or not player["matches"]:
+    # In file order, NEVER by iterating a set. Python randomises string hashing
+    # per process, so a set of player ids comes out in a different order every
+    # run — and that order becomes the order of every dict built here, which
+    # the hill climb walks when it looks for a swap. Two runs of identical code
+    # returned seasons 35 points apart before this line was written down.
+    ordered = list(loaded) + [i for i in archive if i not in loaded]
+    # A DELIBERATE reordering, for measuring what an arbitrary one is worth.
+    # The hill climb walks the candidates in whatever order they arrive and
+    # stops at the first swap that helps, so the order decides which local
+    # optimum it lands in. That is not a knob on the model — every order is
+    # equally defensible — which makes the spread across orders the floor
+    # below which no improvement here can be called demonstrated.
+    if order_seed is not None:
+        random.Random(order_seed).shuffle(ordered)
+    for player_id in ordered:
+        if player_id not in market:
             continue
+        this_season = _matches_of(loaded.get(player_id, {}))
+        last_season = _matches_of(archive.get(player_id, {}))
+        if not this_season and not last_season:
+            continue
+
+        # This season, always the full calendar: a round he was left out of is
+        # a real -1 and has to be on file as one.
         points[player_id] = {m: ABSENT for m in ALL_MATCHDAYS}
         minutes[player_id] = {m: 0 for m in ALL_MATCHDAYS}
         goals[player_id] = {m: 0 for m in ALL_MATCHDAYS}
+
+        # Last season, only for those who were there — and then in full, for
+        # the same reason.
+        if last_season:
+            for m in ALL_MATCHDAYS:
+                points[player_id][m + ARCHIVE_OFFSET] = ABSENT
+                minutes[player_id][m + ARCHIVE_OFFSET] = 0
+                goals[player_id][m + ARCHIVE_OFFSET] = 0
+
+        for match in last_season:
+            m = int(match["round"]) + ARCHIVE_OFFSET
+            points[player_id][m] = float(match["points"])
+            minutes[player_id][m] = int(match.get("minutes") or 0)
+            goals[player_id][m] = int(match.get("goals") or 0)
+
         clubs = defaultdict(int)
-        for match in player["matches"]:
-            matchday = int(match["round"])
-            points[player_id][matchday] = float(match["points"])
-            minutes[player_id][matchday] = int(match.get("minutes") or 0)
-            goals[player_id][matchday] = int(match.get("goals") or 0)
+        for match in this_season:
+            m = int(match["round"])
+            points[player_id][m] = float(match["points"])
+            minutes[player_id][m] = int(match.get("minutes") or 0)
+            goals[player_id][m] = int(match.get("goals") or 0)
             if match.get("club"):
                 clubs[match["club"]] += 1
+
+        # Pooled with THIS season's club. A man who moved in the summer is
+        # judged against the team he plays for now, not the one he left, and
+        # falling back on last season's is only for someone yet to appear.
+        if not clubs:
+            for match in last_season:
+                if match.get("club"):
+                    clubs[match["club"]] += 1
         cells[player_id] = (
             max(clubs, key=clubs.get) if clubs else "",
             market[player_id].position.value,
@@ -107,7 +186,7 @@ def pick_top_scorer(market, goals, minutes, upto):
     league = statistics.mean(
         [
             sum(g for m, g in by.items() if m < upto)
-            / max(1, sum(1 for m in range(1, upto) if minutes[i].get(m, 0) > 0))
+            / max(1, sum(1 for m, x in minutes[i].items() if m < upto and x > 0))
             for i, by in goals.items()
             if market[i].position is Position.FWD
         ]
@@ -117,7 +196,9 @@ def pick_top_scorer(market, goals, minutes, upto):
     for player_id, by_matchday in goals.items():
         if market[player_id].position is not Position.FWD:
             continue
-        played = sum(1 for m in range(1, upto) if minutes[player_id].get(m, 0) > 0)
+        played = sum(
+            1 for m, x in minutes[player_id].items() if m < upto and x > 0
+        )
         scored = sum(g for m, g in by_matchday.items() if m < upto)
         rate = (scored + league * 6) / (played + 6)
         ranked.append((rate * market[player_id].value, player_id))
@@ -129,6 +210,32 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--from", dest="first", type=int, default=DEFAULT_FIRST)
     parser.add_argument("--draws", type=int, default=400)
+    parser.add_argument(
+        "--order-seed",
+        type=int,
+        default=None,
+        help="shuffle the candidate order reproducibly, to measure the noise floor",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help=(
+            "the Monte Carlo stream the squad search draws from. Changing it "
+            "changes nothing about the model and only breaks near-ties a "
+            "different way, so the spread across seeds is the noise floor: an "
+            "improvement smaller than it has not been demonstrated"
+        ),
+    )
+    parser.add_argument(
+        "--no-archive",
+        action="store_true",
+        help=(
+            "buy the squad on this season's opening matchdays alone, with no "
+            "memory of the season before — what this report did until the "
+            "archive was wired in, and the control for measuring what it is worth"
+        ),
+    )
     parser.add_argument(
         "--window",
         choices=("ration", "all"),
@@ -147,7 +254,11 @@ def main() -> None:
     market = {
         p.id: p.as_player() for position in Position for p in client.search(position)
     }
-    points, minutes, goals, cells = load(market)
+    points, minutes, goals, cells = load(
+        market,
+        use_archive=not args.no_archive,
+        order_seed=args.order_seed,
+    )
     market = {i: market[i] for i in points}
     rows = [
         {"id": p.id, "position": p.position, "value": p.value} for p in market.values()
@@ -164,8 +275,13 @@ def main() -> None:
     opening_view = two_part_projection(points, minutes, cells, upto=args.first)
     returns, playing = {}, {}
     for player_id in market:
-        played = [m for m in range(1, args.first) if minutes[player_id][m] > 0]
-        playing[player_id] = len(played) / max(1, args.first - 1)
+        # Over every round on file before the squad locks — last season's
+        # included, for the players who have one. Four matchdays cannot tell a
+        # starter from a man who happened to be fit in August.
+        his = minutes.get(player_id, {})
+        earlier = [m for m in his if m < args.first]
+        played = [m for m in earlier if his[m] > 0]
+        playing[player_id] = len(played) / max(1, len(earlier))
         returns[player_id] = (
             statistics.mean([points[player_id][m] for m in played]) if played else 2.5
         )
@@ -175,7 +291,7 @@ def main() -> None:
     if bought is None:
         raise SystemExit("no legal squad fits the budget")
     squad = improve_squad(
-        bought["players"], market, returns, playing, budget=BASE_BUDGET, draws=args.draws
+        bought["players"], market, returns, playing, budget=BASE_BUDGET, draws=args.draws, seed=args.seed
     )["players"]
 
     bet = pick_top_scorer(market, goals, minutes, args.first)
@@ -254,7 +370,7 @@ def main() -> None:
                 returns_now,
                 playing_now,
                 budget=BASE_BUDGET,
-                draws=args.draws,
+                draws=args.draws, seed=args.seed,
                 max_swaps=REOPENED_MAX_SWAPS,
                 candidates=[i for i in market if i not in sold],
             )["players"]
@@ -304,7 +420,11 @@ def main() -> None:
             + "  ".join(market[i].name.split()[-1][:11] for i in played["starters"])
         )
 
-    scored = {i: sum(by.values()) for i, by in goals.items()}
+    # THIS season's goals, and only this season's. The archive sits on matchdays
+    # at or below zero, and summing the lot settles the golden boot across two
+    # years: it crowned Pavlidis with 41, paid out a bet that had actually lost
+    # to Luis Suárez, and quietly added twenty points that were never earned.
+    scored = {i: sum(g for m, g in by.items() if m > 0) for i, by in goals.items()}
     podium = sorted(scored, key=lambda i: -scored[i])[:3]
     bonus = 0
     for prize, place in zip((GOLDEN_BOOT_BONUS, SILVER_BOOT_BONUS, BRONZE_BOOT_BONUS), podium):

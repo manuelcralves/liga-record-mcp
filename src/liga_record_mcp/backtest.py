@@ -172,10 +172,17 @@ def two_part_projection(
     everything = [v for values in played_pool.values() for v in values]
     overall = mean(everything) if everything else 0.0
 
+    # Over the matchdays each player ACTUALLY HAS, not a fixed range. Within one
+    # season the two are the same, because every player is padded to the full
+    # calendar — a round he was left out of is a real -1 and has to be there.
+    # Across two, they are not: a player who was in another league last season
+    # has no rounds then, and counting those absences as "did not play" would
+    # make every newcomer look like a substitute who never gets on.
     appearances = [
-        1.0 if by_matchday.get(m, 0) > 0 else 0.0
+        1.0 if played > 0 else 0.0
         for by_matchday in minutes.values()
-        for m in range(1, upto)
+        for m, played in by_matchday.items()
+        if m < upto
     ]
     league_availability = mean(appearances) if appearances else 0.5
 

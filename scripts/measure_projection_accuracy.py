@@ -62,18 +62,43 @@ FIRST_PREDICTED = FIRST_SCORING_MATCHDAY
 ORACLE_WINDOW = 3
 
 
-def load(path: Path):
+#: The season before, laid out on NEGATIVE matchdays: its round 1 becomes -33,
+#: its round 34 becomes 0. Everything the projection already does — "rounds
+#: before `upto`", the recency window, the club-and-position pool — then reaches
+#: back into it without a line of it knowing there are two seasons.
+ARCHIVE_OFFSET = -LAST_MATCHDAY
+
+
+def load(path: Path, archive_path: Path | None = None):
     if not path.exists():
         raise SystemExit(f"no {path} — run scripts/build_last_season.py first")
     loaded = json.loads(path.read_text(encoding="utf-8"))
     players = loaded["players"]
 
+    archive: dict = {}
+    if archive_path is not None:
+        if not archive_path.exists():
+            raise SystemExit(f"no {archive_path}")
+        archive = json.loads(archive_path.read_text(encoding="utf-8"))["players"]
+
     points, minutes, cells = {}, {}, {}
     for player_id, player in players.items():
         if not player["matches"]:
             continue
-        points[player_id] = {m: ABSENT for m in ALL_MATCHDAYS}
-        minutes[player_id] = {m: 0 for m in ALL_MATCHDAYS}
+        # Last season only for those who were IN it. Padding a newcomer with
+        # thirty-four absences would say he was left out thirty-four times,
+        # which is a different claim from having no record of him.
+        before = (archive.get(player_id) or {}).get("matches") or []
+        if before:
+            for m in ALL_MATCHDAYS:
+                points.setdefault(player_id, {})[m + ARCHIVE_OFFSET] = ABSENT
+                minutes.setdefault(player_id, {})[m + ARCHIVE_OFFSET] = 0
+            for match in before:
+                m = int(match["round"]) + ARCHIVE_OFFSET
+                points[player_id][m] = float(match["points"])
+                minutes[player_id][m] = int(match.get("minutes") or 0)
+        points.setdefault(player_id, {}).update({m: ABSENT for m in ALL_MATCHDAYS})
+        minutes.setdefault(player_id, {}).update({m: 0 for m in ALL_MATCHDAYS})
         clubs: dict[str, int] = defaultdict(int)
         for match in player["matches"]:
             matchday = int(match["round"])
@@ -91,9 +116,19 @@ def load(path: Path):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--season", type=Path, default=SEASON_PATH)
+    parser.add_argument(
+        "--archive",
+        type=Path,
+        default=None,
+        help=(
+            "a reconstruction of the season BEFORE this one, given to the model "
+            "as memory. Every round of it precedes every round being predicted, "
+            "so it cannot leak: the no-lookahead rule is untouched"
+        ),
+    )
     args = parser.parse_args()
 
-    points, minutes, cells, season = load(args.season)
+    points, minutes, cells, season = load(args.season, args.archive)
     print(f"{len(points)} players, season {season}, from {args.season.name}")
 
     # A strong reference, and NOT a ceiling — which is what it was called here
@@ -173,11 +208,36 @@ def main() -> None:
 
     # And how much of the round-to-round spread it actually accounts for.
     actual, guessed = [], []
+    by_band: dict[str, list[tuple[float, float]]] = {}
     for matchday in range(FIRST_PREDICTED, LAST_MATCHDAY + 1):
         view = signals["plays x returns"](matchday)
+        band = (
+            "early  5-11" if matchday <= 11
+            else "middle 12-22" if matchday <= 22
+            else "late   23-34"
+        )
         for player_id, by_matchday in points.items():
             actual.append(by_matchday[matchday])
             guessed.append(view[player_id])
+            by_band.setdefault(band, []).append((by_matchday[matchday], view[player_id]))
+
+    # BY PHASE OF THE SEASON, because the average over thirty rounds hides the
+    # only question worth asking of a memory: does it help while this season is
+    # still too short to speak for itself? By matchday 25 the rounds in hand
+    # drown any archive, and an improvement that shows up only in August is
+    # still worth having — August is when the squad is bought.
+    print()
+    print(f"  {'phase':<16}{'error':>8}{'r':>8}{'n':>10}")
+    for band in sorted(by_band):
+        pairs = by_band[band]
+        err = sum(abs(a - g) for a, g in pairs) / len(pairs)
+        ma = statistics.mean([a for a, _ in pairs])
+        mg = statistics.mean([g for _, g in pairs])
+        cov = sum((a - ma) * (g - mg) for a, g in pairs) / len(pairs)
+        sa = statistics.pstdev([a for a, _ in pairs])
+        sg = statistics.pstdev([g for _, g in pairs])
+        r = cov / (sa * sg) if sa and sg else 0.0
+        print(f"  {band:<16}{err:>8.3f}{r:>8.3f}{len(pairs):>10,}")
     mean_a, mean_g = statistics.mean(actual), statistics.mean(guessed)
     cov = sum((a - mean_a) * (g - mean_g) for a, g in zip(actual, guessed)) / len(actual)
     sa, sg = statistics.pstdev(actual), statistics.pstdev(guessed)
