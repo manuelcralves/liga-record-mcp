@@ -188,6 +188,33 @@ def coach_snapshot(history, counts, round_number):
     }
 
 
+def settle_wrote_anything(
+    *,
+    settled: int,
+    coach_settled: bool,
+    pending: list,
+    was_fully_settled: bool,
+) -> bool:
+    """Whether a --settle run has anything worth writing to the ledger.
+
+    A run that settles nothing must leave the file BYTE-IDENTICAL, and the
+    reason is not tidiness. The ledger has two writers — the laptop's scheduled
+    task and the job on GitHub — and most runs settle nothing, because clubs
+    have not played yet. Stamping `settled_at` anyway would dirty the file on
+    every run on both sides: the laptop's `git pull --ff-only` would refuse
+    forever, each side would go on reporting success, and the two ledgers would
+    drift apart in silence. That is the one failure a track record cannot
+    survive, and it hid behind a one-line timestamp.
+
+    Completeness is in the test because it can change with nothing settled: a
+    player who has left the league stops being pending without ever being
+    scored.
+    """
+    if settled or coach_settled:
+        return True
+    return (not pending) != was_fully_settled
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -234,6 +261,7 @@ def main() -> None:
             settled += 1
 
         coach = stored.get("coach")
+        coach_settled = False
         if coach and coach.get("actual") is None:
             if coach["club"] in playing:
                 current = next(
@@ -248,6 +276,7 @@ def main() -> None:
                         "site, then run --settle again"
                     )
                 else:
+                    coach_settled = True
                     coach["actual"] = current.points_total - coach["points_before"]
                     coach["error"] = round(coach["actual"] - coach["projected_rate"], 2)
                     print(
@@ -258,9 +287,15 @@ def main() -> None:
             else:
                 pending.append(f"{coach['name']} (treinador)")
 
-        stored["settled_at"] = now
-        stored["fully_settled"] = not pending
-        LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
+        if settle_wrote_anything(
+            settled=settled,
+            coach_settled=coach_settled,
+            pending=pending,
+            was_fully_settled=stored.get("fully_settled", False),
+        ):
+            stored["settled_at"] = now
+            stored["fully_settled"] = not pending
+            LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
 
         print(f"round {key}: {settled} newly settled, {already} already on file")
         if pending:

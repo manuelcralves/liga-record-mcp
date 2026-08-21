@@ -19,8 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "registar-previsoes.yml"
 
 
-def load_routine():
-    spec = importlib.util.spec_from_file_location("routine", ROOT / "scripts" / "routine.py")
+def load_script(name: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -28,7 +28,12 @@ def load_routine():
 
 @pytest.fixture(scope="module")
 def routine():
-    return load_routine()
+    return load_script("routine")
+
+
+@pytest.fixture(scope="module")
+def settle():
+    return load_script("record_projection").settle_wrote_anything
 
 
 @pytest.fixture(scope="module")
@@ -109,3 +114,43 @@ def test_the_job_is_scheduled(workflow):
 def test_two_runs_never_write_the_ledger_at_once(workflow):
     assert workflow["concurrency"]["group"]
     assert workflow["concurrency"]["cancel-in-progress"] is False
+
+
+# --- The ledger has two writers, so a no-op must write nothing ----------------
+#
+# This is the bug that got past everything else. Settling stamped `settled_at`
+# on every run, including the overwhelming majority that settle nothing because
+# the clubs have not played yet. Alone on a laptop that was invisible. With a
+# second writer on GitHub it is corrosive: both sides dirty the same file on
+# every run, the laptop's `git pull --ff-only` refuses forever, and two ledgers
+# drift apart while every run on both sides reports success.
+
+
+def test_a_settle_that_settles_nothing_writes_nothing(settle):
+    assert not settle(
+        settled=0, coach_settled=False, pending=["Zaidu"], was_fully_settled=False
+    )
+
+
+def test_a_settled_player_is_worth_writing(settle):
+    assert settle(
+        settled=1, coach_settled=False, pending=["Zaidu"], was_fully_settled=False
+    )
+
+
+def test_a_settled_coach_is_worth_writing(settle):
+    """The coach settles on his own path, and used to be easy to forget."""
+    assert settle(
+        settled=0, coach_settled=True, pending=["Zaidu"], was_fully_settled=False
+    )
+
+
+def test_becoming_complete_is_worth_writing(settle):
+    """A player who has left the league stops being pending without scoring."""
+    assert settle(settled=0, coach_settled=False, pending=[], was_fully_settled=False)
+
+
+def test_a_round_already_complete_is_left_alone(settle):
+    assert not settle(
+        settled=0, coach_settled=False, pending=[], was_fully_settled=True
+    )
