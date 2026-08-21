@@ -29,6 +29,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from statistics import pstdev
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
@@ -37,7 +38,10 @@ from liga_record_mcp import server as mcp  # noqa: E402
 from liga_record_mcp.models import Position  # noqa: E402
 from liga_record_mcp.source import OpenFootballClient  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
+    MEAN_MARK_POINTS,
     adjust_for_fixture,
+    coach_season,
+    describe_pick,
     fixture_multipliers,
     matches_played,
     per_match,
@@ -131,7 +135,335 @@ def gather(round_number: int) -> dict:
         "table": mcp.primeira_liga(),
         "market": market_leaders(stored),
         "ratings": mcp.editorial_ratings(),
+        "seasons": two_seasons(stored),
+        "coaches": coach_data(),
+        "race": scorer_race(),
+        "holidays": holiday_rows(round_number),
         "as_of": national.get("as_of", ""),
+    }
+
+
+#: What a pick's label is called on the page. stats.py speaks English like the
+#: rest of the code; the translation lives here so the model and the page never
+#: have to agree on a language.
+LABEL_PT = {
+    "safe": "seguro",
+    "volatile": "volátil",
+    "uncertain": "incerto",
+    "risky": "arriscado",
+    "bet": "aposta",
+    "fair": "razoável",
+}
+FIELD_PT = {"template": "toda a gente tem", "differential": "diferencial"}
+
+
+def holiday_rows(round_number: int) -> list[dict]:
+    """What §6.17 would have paid in each round already scored.
+
+    One live read per round, which is cheap and is the only way to know: the
+    round winner's score is not derivable from anything held locally.
+    """
+    rows = []
+    for played in range(1, round_number + 1):
+        found = mcp.holiday_round(played)
+        if not found.get("round_winner"):
+            # Not scored yet. A zero here would read as "the holiday was worth
+            # nothing that week" instead of "that week has not happened".
+            continue
+        rows.append(
+            {
+                "round": played,
+                "winner": found["round_winner"],
+                "pays": found["holiday_pays"],
+                "ours": found.get("our_score"),
+            }
+        )
+    return rows
+
+
+def scorer_race() -> list[dict]:
+    """Who is leading the race §10.3(m) pays for.
+
+    The bet is made once, when the team is first submitted, and is worth +20 /
+    +10 / +5 in the final standings. It costs nothing, which is exactly why it
+    goes unmade: nothing that costs nothing feels like a decision.
+
+    Ranked on goals per appearance across the archives, because four matchdays
+    of finishing is mostly luck — but this season's minutes are shown beside
+    it, and they are what changes a mind. A striker on a goal a game who is
+    playing twenty-seven minutes a week is not leading anything.
+    """
+    goals, apps, this_year = {}, {}, {}
+    for path, current in (
+        (ROOT / "data" / "last-season.json", False),
+        (ROOT / "data" / "season-2024-25.json", False),
+    ):
+        if not path.exists():
+            continue
+        for player_id, player in json.loads(
+            path.read_text(encoding="utf-8")
+        )["players"].items():
+            for match in player["matches"]:
+                if match.get("used"):
+                    apps[player_id] = apps.get(player_id, 0) + 1
+                    goals[player_id] = goals.get(player_id, 0) + int(match.get("goals") or 0)
+    if not goals:
+        return []
+
+    forwards = mcp.search_market(position="FWD", limit=500).get("players", [])
+    rows = []
+    for player in forwards:
+        seen = apps.get(player["id"], 0)
+        if seen < 15:
+            continue
+        rows.append(
+            {
+                "name": player["name"],
+                "club": player["club"],
+                "value": player["value"],
+                "goals": goals.get(player["id"], 0),
+                "apps": seen,
+                "rate": goals.get(player["id"], 0) / seen,
+                "owned": player.get("owned_percent"),
+                "points": player.get("points_total", 0),
+            }
+        )
+    rows.sort(key=lambda r: -r["rate"])
+    return rows[:8]
+
+
+def scorer_section(data: dict) -> str:
+    rows = data.get("race") or []
+    if not rows:
+        return '      <p class="lede">Sem épocas reconstruídas.</p>'
+    body = chr(10).join(
+        '            <tr>' + chr(10)
+        + '              <td class="name">' + esc(r["name"])
+        + '<span class="sub">' + esc(r["club"]) + '</span></td>' + chr(10)
+        + '              <td class="fig strong">' + f"{r['rate']:.2f}" + '</td>' + chr(10)
+        + '              <td class="fig">' + str(r["goals"]) + '</td>' + chr(10)
+        + '              <td class="fig">' + str(r["apps"]) + '</td>' + chr(10)
+        + '              <td class="fig">'
+        + ("—" if r["owned"] is None else f"{r['owned']:.0f}%") + '</td>' + chr(10)
+        + '            </tr>'
+        for r in rows
+    )
+    return (
+        '      <p class="lede">O §10.3(m) paga <strong>+20</strong> por acertares '
+        "no bota-de-ouro, +10 no prata, +5 no bronze. É gratuito, é opcional, e "
+        "faz-se <strong>uma única vez</strong>, ao constituir a equipa — que é "
+        "precisamente porque fica por fazer: o que não custa nada não parece uma "
+        "decisão. A tabela ordena por golos por jogo nas duas épocas "
+        "reconstruídas, e não por golos: quatro jornadas de eficácia são sorte. "
+        "Mas confirma sempre os minutos desta época antes de decidir — um "
+        "avançado a golo por jogo que anda a jogar vinte e sete minutos não está "
+        "a liderar coisa nenhuma.</p>"
+        + chr(10) + '      <table class="data">' + chr(10)
+        + "        <thead><tr><th>avançado</th><th>golos/jogo</th><th>golos</th>"
+        + "<th>jogos</th><th>posse</th></tr></thead>" + chr(10)
+        + "        <tbody>" + chr(10) + body + chr(10)
+        + "        </tbody>" + chr(10) + "      </table>"
+    )
+
+
+def coach_data() -> dict:
+    """What each club's coach returns, this season and across the archives.
+
+    §14.4 adds a coach to the team every round and §6.4 charges nothing for
+    him, so this is the only pick in the game with no constraint on it at all —
+    and one most people set once in August and never look at again.
+
+    The spread reported is over THIS season's eighteen clubs, with §14.1's
+    unpublished mark credited to everyone alike so that it cancels. It is not
+    the same as the 86 points measured across last season's table, which had
+    different clubs in it and left the mark out entirely. Two honest numbers
+    answering two questions.
+    """
+    coaches = mcp.list_coaches().get("coaches") or []
+    fixtures = OpenFootballClient().season_fixtures("2025-26")
+    history = coach_season(
+        (f.model_dump() | {"round": f.round_number} for f in fixtures),
+        rating_points=round(MEAN_MARK_POINTS),
+    )
+    rates = {
+        club: (sum(rounds.values()) / len(rounds) if rounds else 0.0)
+        for club, rounds in history.items()
+    }
+
+    def matched(name: str):
+        """openfootball writes clubs out in full where Liga Record abbreviates.
+
+        Compared word by word rather than as substrings, for the reason the
+        zerozero matcher learned the hard way: "Nacional" is inside
+        "Internacional", and a club that quietly matches the wrong one puts
+        another team's season against this coach's name.
+        """
+        ours = {w for w in name.lower().replace(".", " ").split() if len(w) > 2}
+        for club, rate in rates.items():
+            theirs = {w for w in club.lower().split() if len(w) > 2}
+            if ours and (ours <= theirs or theirs <= ours):
+                return rate
+        return None
+
+    rows = [
+        {
+            "name": c["name"],
+            "club": c["club"],
+            "now": c.get("points_total", 0),
+            "round": c.get("points_round", 0),
+            "history": matched(c["club"]),
+        }
+        for c in coaches
+    ]
+    rows.sort(key=lambda r: -(r["history"] if r["history"] is not None else -9))
+    known = [r["history"] for r in rows if r["history"] is not None]
+    return {"rows": rows, "spread": (max(known) - min(known)) * 29 if known else None}
+
+
+def coach_section(data: dict) -> str:
+    found = data.get("coaches") or {}
+    rows = found.get("rows") or []
+    if not rows:
+        return '      <p class="lede">Sem dados de treinadores.</p>'
+    body = chr(10).join(
+        '            <tr>' + chr(10)
+        + '              <td class="name">' + esc(r["name"])
+        + '<span class="sub">' + esc(r["club"]) + '</span></td>' + chr(10)
+        + '              <td class="fig">'
+        + ("—" if r["history"] is None else f"{r['history']:+.2f}") + '</td>' + chr(10)
+        + '              <td class="fig strong">' + str(r["now"]) + '</td>' + chr(10)
+        + '              <td class="fig">' + f"{r['round']:+d}" + '</td>' + chr(10)
+        + '            </tr>'
+        for r in rows
+    )
+    spread = found.get("spread")
+    gap = (
+        f"Na época passada, escolher sempre o melhor em vez do pior valia "
+        f"<strong>{spread:.0f} pontos</strong>. "
+        if spread
+        else ""
+    )
+    return (
+        '      <p class="lede">Escolhe-se um todas as jornadas, não custa '
+        "orçamento (§6.4), e sem ele a equipa faz <strong>zero</strong> "
+        "(§6.17). Os pontos dele somam-se aos da equipa (§14.4). " + gap
+        + "A cláusula que decide é o §14.3(b): empatar depois de estar dois "
+        "abaixo vale +2, <em>ganhar</em> vale +4, porque duplica. E o §14.5 é "
+        "o aviso — um treinador castigado ou despedido <strong>não pontua de "
+        "todo</strong>: a equipa dele pode ganhar 5-0 e tu não levas nada.</p>"
+        + chr(10) + '      <table class="data">' + chr(10)
+        + "        <thead><tr><th>treinador</th><th>época passada</th>"
+        + "<th>total</th><th>jornada</th></tr></thead>" + chr(10)
+        + "        <tbody>" + chr(10) + body + chr(10)
+        + "        </tbody>" + chr(10) + "      </table>"
+    )
+
+
+def holiday_section(data: dict) -> str:
+    rows = data.get("holidays") or []
+    if not rows:
+        return '      <p class="lede">Ainda sem jornadas pontuadas.</p>'
+    body = chr(10).join(
+        '            <tr>' + chr(10)
+        + '              <td class="name">Jornada ' + str(r["round"]) + '</td>' + chr(10)
+        + '              <td class="fig">' + str(r["winner"]) + '</td>' + chr(10)
+        + '              <td class="fig strong">' + str(r["pays"]) + '</td>' + chr(10)
+        + '              <td class="fig">'
+        + ("—" if r["ours"] is None else str(r["ours"])) + '</td>' + chr(10)
+        + '              <td class="fig '
+        + ("up" if r["pays"] > (r["ours"] or 0) else "down") + '">'
+        + ("—" if r["ours"] is None else f"{r['pays'] - r['ours']:+d}")
+        + '</td>' + chr(10)
+        + '            </tr>'
+        for r in rows
+    )
+    return (
+        '      <p class="lede">O §6.17 dá <strong>três rondas por época</strong>'
+        " — seguidas ou não, nunca nas três últimas — em que recebes metade da "
+        "pontuação do vencedor da ronda, arredondada para cima, faças o que "
+        "fizeres. E o vencedor é <strong>nacional</strong>: o §16.1 define-o "
+        "como uma das trinta equipas que mais pontuam no país. "
+        "Isto não é um bónus, é um chão — o pagamento é metade de um máximo "
+        "sobre 127 mil equipas, alto e estável, enquanto a tua pontuação é um "
+        "sorteio só. Gasta-as nas rondas em que o <em>teu</em> plantel está "
+        "desfalcado e a liga não está: seleções, castigos, semanas de três "
+        "jogos. O pagamento não depende de nada teu.</p>"
+        + chr(10) + '      <table class="data">' + chr(10)
+        + "        <thead><tr><th></th><th>vencedor</th><th>Férias pagam</th>"
+        + "<th>fizeste</th><th>diferença</th></tr></thead>" + chr(10)
+        + "        <tbody>" + chr(10) + body + chr(10)
+        + "        </tbody>" + chr(10) + "      </table>"
+    )
+
+
+def two_seasons(stored: dict) -> dict:
+    """What the reconstructed seasons know about each player in the squad.
+
+    Everything on this page before it was drawn from the current season, which
+    at this point is two rounds. These are sixty-eight matchdays of the same
+    players, rebuilt from §10.3 and zerozero — the difference between "he
+    scored well on Sunday" and "this is what he is".
+
+    Absent until the sweeps have been run, and the section simply does not
+    appear rather than rendering empty rows.
+    """
+    seasons = [ROOT / "data" / "last-season.json", ROOT / "data" / "season-2024-25.json"]
+    played, points, available, each = {}, {}, {}, {}
+    for path in seasons:
+        if not path.exists():
+            continue
+        for player_id, player in json.loads(
+            path.read_text(encoding="utf-8")
+        )["players"].items():
+            for match in player["matches"]:
+                available[player_id] = available.get(player_id, 0) + 1
+                if match.get("used"):
+                    played[player_id] = played.get(player_id, 0) + 1
+                    points[player_id] = points.get(player_id, 0.0) + float(match["points"])
+                    each.setdefault(player_id, []).append(float(match["points"]))
+    if not played:
+        return {}
+
+    owned = {
+        p["id"]: p
+        for position in ("GK", "DEF", "MID", "FWD")
+        for p in mcp.search_market(position=position, limit=500).get("players", [])
+    }
+
+    rows = []
+    for player_id, player in stored["players"].items():
+        appearances = played.get(player_id, 0)
+        of = available.get(player_id, 0)
+        spread = pstdev(each[player_id]) if len(each.get(player_id, [])) >= 15 else None
+        rate = points[player_id] / appearances if appearances else None
+        said = describe_pick(
+            appearances=appearances,
+            availability=(appearances / of) if of >= 20 else None,
+            volatility=spread,
+            owned_percent=(owned.get(player_id) or {}).get("owned_percent"),
+        )
+        rows.append(
+            {
+                "name": player["name"],
+                "position": player["position"],
+                "club": player["club"],
+                "appearances": appearances,
+                "of": of,
+                "rate": rate,
+                "availability": (appearances / of) if of else None,
+                "spread": spread,
+                "owned": (owned.get(player_id) or {}).get("owned_percent"),
+                "label": LABEL_PT.get(said["label"], said["label"]),
+                "field": FIELD_PT.get(said["field_label"], ""),
+                "thin": said["evidence"] == "thin",
+            }
+        )
+    order = {"GK": 0, "DEF": 1, "MID": 2, "FWD": 3}
+    rows.sort(key=lambda r: (order[r["position"]], -(r["rate"] or -9)))
+    return {
+        "rows": rows,
+        "thin": sum(1 for r in rows if r["thin"]),
+        "matchdays": max(available.values()) if available else 0,
     }
 
 
@@ -833,6 +1165,46 @@ def ratings_section(data: dict) -> str:
 {spread}"""
 
 
+def seasons_section(data: dict) -> str:
+    """What sixty-eight matchdays say about each of the twenty-three."""
+    found = data.get("seasons") or {}
+    rows = found.get("rows") or []
+    if not rows:
+        return """      <p class="lede">Ainda sem épocas reconstruídas. Corre
+      <code>scripts/build_last_season.py</code> para as duas épocas.</p>"""
+
+    body = chr(10).join(
+        f"""            <tr>
+              <td class="name">{esc(r['name'])}<span class="sub">{esc(POS_PT[r['position']])} · {esc(r['club'])}</span></td>
+              <td class="fig">{'—' if r['rate'] is None else f"{r['rate']:.1f}"}</td>
+              <td class="fig">{'—' if r['availability'] is None else f"{r['availability']:.0%}"}</td>
+              <td class="fig">{'—' if r['spread'] is None else f"{r['spread']:.1f}"}</td>
+              <td class="fig">{'—' if r['owned'] is None else f"{r['owned']:.0f}%"}</td>
+              <td class="fig">{r['appearances']}<span class="sub">de {r['of']}</span></td>
+              <td class="verdict">{esc(r['label'])}{f'<span class="sub">{esc(r["field"])}</span>' if r['field'] else ''}</td>
+            </tr>"""
+        for r in rows
+    )
+    thin = found["thin"]
+    return f"""      <p class="lede">O resto desta página olha para esta época, que
+      são duas jornadas. Isto são <strong>{found['matchdays']} jornadas</strong> de
+      2024/25 e 2025/26, reconstruídas a partir do §10.3 e do registo de cada
+      jogo — a diferença entre "fez uma boa tarde no domingo" e "é isto que ele
+      é". <strong>Rende</strong> é quanto faz nos dias em que joga;
+      <strong>joga</strong> é em que fração das jornadas entrou em campo, que é
+      o maior facto sobre um jogador de fantasy e o que uma média esconde.
+      {f'<strong>{thin}</strong> dos teus vêm da II Liga ou do estrangeiro e têm evidência a menos para dizerem alguma coisa: a projeção deles é a média do clube com o nome deles.' if thin else ''}</p>
+      <table class="data wide">
+        <thead>
+          <tr><th>jogador</th><th>rende</th><th>joga</th><th>oscila</th>
+          <th>posse</th><th>jogos</th><th>o que é</th></tr>
+        </thead>
+        <tbody>
+{body}
+        </tbody>
+      </table>"""
+
+
 def league_distribution(data: dict) -> str:
     """The league's shape without its members.
 
@@ -1201,6 +1573,26 @@ a {{ color: var(--red); }}
     </section>
 
     <section>
+      <h2>O que sabemos de cada um</h2><div class="rule"></div>
+{seasons_section(data)}
+      </section>
+
+      <section>
+      <h2>O treinador</h2><div class="rule"></div>
+{coach_section(data)}
+      </section>
+
+      <section>
+      <h2>As Férias</h2><div class="rule"></div>
+{holiday_section(data)}
+      </section>
+
+      <section>
+      <h2>A corrida ao melhor marcador</h2><div class="rule"></div>
+{scorer_section(data)}
+      </section>
+
+      <section>
       <h2>A nota do Record</h2><div class="rule"></div>
 {ratings_section(data)}
     </section>
