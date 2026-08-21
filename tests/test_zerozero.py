@@ -24,6 +24,7 @@ from liga_record_mcp.source.zerozero import (
     clubs_agree,
     fold,
     parse_search,
+    parse_matches,
     parse_seasons,
     pick,
 )
@@ -377,3 +378,135 @@ def test_a_club_page_with_no_players_is_an_error_not_an_empty_squad(tmp_path, mo
 
     with pytest.raises(ZeroZeroError, match="senior squad"):
         ZeroZeroClient(tmp_path, pause=0).squad("Benfica")
+
+
+# --------------------------------------------------------------------------
+# Reading a season match by match
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def matches_html() -> str:
+    return (FIXTURES / "zerozero_matches_pavlidis.html").read_text(encoding="utf-8")
+
+
+def league(html: str) -> dict[int, object]:
+    return {m.round_number: m for m in parse_matches(html)}
+
+
+def test_only_the_competition_asked_for_comes_back(matches_html):
+    """Liga Record scores the league and nothing else. Pavlidis had 218
+    European minutes in a season Liga Record ignored entirely."""
+    parsed = parse_matches(matches_html)
+    assert {m.competition for m in parsed} == {"D1"}
+    assert all(m.opponent != "Real Madrid" for m in parsed)
+
+
+def test_the_scoreline_is_read_from_the_players_side(matches_html):
+    """`1-3` away is a win, and which number is his club's decides the clean
+    sheet, the win bonus and the conceded penalty — three §10.3 terms."""
+    away_win = league(matches_html)[34]
+    assert (away_win.at_home, away_win.scored, away_win.conceded) == (False, 3, 1)
+
+
+def test_a_players_own_goals_are_read_per_match(matches_html):
+    """The season total cannot do this. Points are scored per match, so a
+    reconstruction needs to know which match the goals were in — and for a
+    forward the goals are most of the score."""
+    rounds = league(matches_html)
+    assert rounds[2].goals == 3
+    assert rounds[1].goals == 1
+    assert rounds[34].goals == 0
+
+
+def test_a_single_goal_is_not_lost_for_having_no_count_beside_it(matches_html):
+    """Only multiples are spelled out: three goals read `x3`, one reads as a
+    bare icon with no text at all. Counting the text alone would have scored
+    every one-goal match as a blank."""
+    assert league(matches_html)[1].goals == 1
+
+
+def test_a_perfect_ten_is_a_rating_and_not_a_missing_one(matches_html):
+    """A rating reads `7.4`; a perfect one reads `10`, with no decimal. The
+    decimal-only form dropped it as absent — losing precisely the best
+    performances, which is where a rating model has the most to learn."""
+    assert league(matches_html)[2].rating == 10.0
+    assert league(matches_html)[1].rating == 7.1
+
+
+def test_a_substitution_is_not_recorded_as_a_sending_off(matches_html):
+    """Coming off and being sent off share an icon and differ by colour, and
+    the substitution column carries a green icon and a red one together. A
+    booking in the same match must still be read."""
+    booked = league(matches_html)[13]
+    assert booked.yellow_cards == 1
+    assert booked.red_card is False
+    assert league(matches_html)[2].red_card is False
+
+
+def test_an_unused_substitute_has_no_minutes_and_no_rating(matches_html):
+    """`NU` is the whole row: no minutes, no mark, and under §10.3(i) a flat
+    -1 whatever the club did."""
+    bench = league(matches_html)[32]
+    assert bench.used is False
+    assert bench.minutes == 0
+    assert bench.rating is None
+
+
+def test_the_statistics_columns_are_located_not_counted():
+    """Column order has been identical on every page read, but a shift would
+    file goals as assists in silence, which is the failure worth guarding."""
+    swapped = (
+        "<table><tr>"
+        + "<th></th>" * 9
+        + '<th><span title="Assistência">B</span></th>'
+        + '<th><span class="zz-icn" title="Golos"></span></th>'
+        + "</tr><tr>"
+        "<td>V</td><td>2026/05/16</td><td>D1</td><td>J7</td><td>Benfica</td>"
+        "<td>(C)</td><td>Arouca</td><td>2-0</td><td>90</td>"
+        '<td><span class="zz-icn"></span></td>'
+        '<td><div><span class="zz-icn"></span><b>x2</b></div></td>'
+        "</tr></table>"
+    )
+    only = parse_matches(swapped)[0]
+    assert (only.goals, only.assists) == (2, 1)
+
+
+def test_a_table_without_a_header_still_yields_its_ratings():
+    """The header is what makes goals readable, but a page that arrives
+    without one must not lose the rating as well."""
+    bare = (
+        "<table><tr>"
+        "<td>V</td><td>2026/05/16</td><td>D1</td><td>J7</td><td>Benfica</td>"
+        "<td>(C)</td><td>Arouca</td><td>2-0</td><td>90</td><td>-</td>"
+        "<td>-</td><td>-</td><td>-</td><td>-</td><td>7.3</td>"
+        "</tr></table>"
+    )
+    only = parse_matches(bare)[0]
+    assert only.rating == 7.3
+    assert only.goals == 0
+
+
+def test_a_keepers_goal_column_is_goals_he_scored_not_goals_he_let_in():
+    """The season table sets this trap — keepers get GS where outfielders get
+    GM, and reading the column by position filed every keeper's conceded goals
+    as goals he had scored. The match table does not repeat it: the header says
+    "Golos" for everyone. Checked against twelve real keeper-matches in which
+    the club conceded, all of which read zero.
+
+    Getting this wrong would be expensive rather than merely wrong: §10.3 pays
+    a keeper twenty points a goal.
+    """
+    beaten = (
+        "<table><tr>"
+        + "<th></th>" * 12
+        + '<th><span class="zz-icn" title="Golos"></span></th>'
+        + "</tr><tr>"
+        "<td>D</td><td>2026/05/16</td><td>D1</td><td>J7</td><td>Nacional</td>"
+        "<td>(F)</td><td>Benfica</td><td>3-0</td><td>90</td><td>-</td>"
+        "<td>-</td><td>-</td><td>-</td>"
+        "</tr></table>"
+    )
+    only = parse_matches(beaten)[0]
+    assert only.conceded == 3
+    assert only.goals == 0

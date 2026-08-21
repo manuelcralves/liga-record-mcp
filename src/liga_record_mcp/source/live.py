@@ -273,12 +273,19 @@ class LigaRecordClient:
         page: int = 1,
         page_size: int = 20,
         round_number: int | None = None,
+        order: str = "total",
     ) -> tuple[list[TeamStanding], int]:
         """A leaderboard page, and how many pages there are.
 
         With `league_guid` this reads one private league; without it, the
         national ranking. `team` filters by name, which is the only way to find
         a specific entry without walking thousands of pages.
+
+        `order` picks which table: "total" is the season, "round" is that round
+        alone. They are not the same field and not the same population — the
+        season table lists only teams complete enough to be classified, the
+        round table lists everyone who played. That matters for §6.17, which
+        pays half of whatever the round's best score was.
 
         The page count is returned rather than discarded because a position is
         meaningless without it — 6598th is a different story out of 19 000 than
@@ -288,7 +295,7 @@ class LigaRecordClient:
             "page": str(page),
             "pagesize": str(page_size),
             "round": "" if round_number is None else str(round_number),
-            "type": "total",
+            "type": order,
             "team": team,
             "sex": "",
             "region": "",

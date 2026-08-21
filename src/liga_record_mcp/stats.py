@@ -13,8 +13,9 @@ total without the number of matches behind it.
 from __future__ import annotations
 
 import math
-from collections.abc import Collection, Iterable, Sequence
-from statistics import mean
+from collections.abc import Collection, Iterable, Mapping, Sequence
+from statistics import mean, pstdev
+from typing import Any
 
 from .models import ClubRecord, Fixture, MarketPlayer, Player, Position
 
@@ -127,11 +128,143 @@ def appearance_rate(history: dict[str, str]) -> float | None:
 # argued with rather than hidden.
 # --------------------------------------------------------------------------
 
-#: How many matches the prior is worth. The variance decomposition on two
-#: rounds suggests roughly 1, but that measures week-to-week consistency —
-#: largely "does he play" — rather than how well a hot start predicts a season.
-#: 4 is deliberately more conservative than the data alone would justify.
-PRIOR_STRENGTH = 4.0
+#: How many matches the prior is worth.
+#:
+#: This was 4.0 and chosen rather than measured — there was no past season to
+#: measure against, since Liga Record publishes none. There is one now,
+#: reconstructed match by match, and it says 4 was too low.
+#:
+#: Standing at the end of every round from 3 to 26 and predicting the rest of
+#: the season, over 4300 player-splits (mean absolute error, points per round):
+#:
+#:      trusting his own record alone      0.938
+#:      K = 4, as it was                   0.855
+#:      K = 10, as it is                   0.839
+#:      K = 12, the best                   0.838
+#:      trusting the club alone            0.851
+#:
+#: The finding is not the optimum, which is flat anywhere from 8 to 20 and puts
+#: 10 and 12 a thousandth apart. It is that a player's own season to date is
+#: WORSE evidence than what a player at his club in his position typically
+#: returns — 0.938 against 0.851. Individual fantasy scoring is far noisier
+#: than it looks, and a hot start is mostly not about the player.
+#:
+#: Repeated on the objective half alone, which is computed from events and
+#: contains no estimate at all, the same holds and harder: 0.514 against 0.464,
+#: best at 20. So the reconstruction's estimated mark is not producing this.
+#:
+#: CONFIRMED ON A SECOND SEASON. 2024/25 was reconstructed afterwards and
+#: nothing was tuned on it. Over 2433 player-splits: own record 1.083, K=4
+#: 0.974, K=10 0.947, K=12 0.944, the club alone 0.957. Same ordering, same
+#: optimum, same finding — a player's own season is the weaker evidence.
+#:
+#: 10 sits inside the flat region of both, and stays on the conservative side
+#: of the exact-half answer. See scripts/measure_prior_strength.py.
+PRIOR_STRENGTH = 10.0
+
+#: Rounds in the window that decides whether a man is currently in the team.
+#: Five is a month of football: long enough not to be one afternoon, short
+#: enough to notice a player who has just lost his place.
+ROTATION_WINDOW = 5
+
+#: How many rounds the season-long appearance rate is worth against that
+#: window. Far lower than PRIOR_STRENGTH, and deliberately: whether a player is
+#: in the side changes much faster than how well he plays when he is, so the
+#: two halves of a projection should not be smoothed at the same speed.
+#:
+#: Splitting them was measured directly, by predicting each round from what
+#: came before it and comparing with what happened. Mean absolute error per
+#: player-round, over two seasons and roughly ten thousand predictions:
+#:
+#:                                2025/26   2024/25
+#:      the league average          2.152     2.208
+#:      form alone                  1.764     1.788
+#:      plays x returns             1.591     1.591
+#:      plays x returns, minutes    1.632     1.636
+#:
+#: The split is worth about a tenth of the remaining error over form alone, and
+#: it lands on the same number in a season nothing was tuned on.
+#:
+#: THE MINUTES WEIGHTING IS WORSE, in both. An earlier reading had it winning,
+#: from six squad-and-threshold comparisons in a transfer backtest; this is ten
+#: thousand predictions and it says the opposite. Six noisy comparisons should
+#: not have been believed over that, and the option stays off by default.
+ROTATION_PRIOR = 4.0
+
+#: How many rounds the league's own appearance rate is worth against a
+#: player's. Small, because a player's record is the better evidence as soon as
+#: there is any — but not zero, or two appearances would read as certainty.
+APPEARANCE_PRIOR = 3.0
+
+#: A start, as opposed to a man who came on at the end. §10.3(h) uses the same
+#: threshold for docking a blank forward, which is as close to an official
+#: definition of "played properly" as the regulation gives.
+STARTER_MINUTES = 75
+
+
+def recent_appearance_rate(
+    history: dict[str, str], *, window: int = ROTATION_WINDOW
+) -> tuple[float, int] | None:
+    """How often he played in the last `window` rounds his club had a match.
+
+    Returns the rate and how many rounds it rests on, because a rate from two
+    rounds and a rate from five are not the same claim and the caller has to
+    weight them differently.
+
+    Rounds where the club did not play are skipped rather than counted as
+    absences — a postponement is not a dropping, and the whole point of this
+    signal is to tell those apart.
+    """
+    counted = [
+        (int(rnd), status)
+        for rnd, status in history.items()
+        if status != NO_MATCH
+    ]
+    if not counted:
+        return None
+    counted.sort()
+    lately = counted[-window:]
+    return sum(1 for _, status in lately if status == PLAYED) / len(lately), len(lately)
+
+
+def availability(
+    history: dict[str, str] | None,
+    *,
+    league_rate: float,
+    window: int = ROTATION_WINDOW,
+    rotation_prior: float = ROTATION_PRIOR,
+) -> float:
+    """The chance he takes the field, weighted toward what has happened lately.
+
+    Three levels, each shrunk into the next: the last few rounds, his own
+    season, and the league. A player nobody has a record for gets the league
+    rate, which is what "we do not know" should mean and is a long way from
+    zero.
+
+    Both shrinkages matter, and the second one caught a real error. Without it,
+    a player who has appeared in both of the two rounds on file comes out at a
+    flat 100% — and since a certain starter projects at roughly twice a naive
+    average, that overconfidence goes straight into the recommendation. Two
+    rounds is not proof of anything, so his own rate is pulled toward the
+    league's before the recent window is weighed against it.
+    """
+    if not history:
+        return league_rate
+    counted = [status for status in history.values() if status != NO_MATCH]
+    if not counted:
+        return league_rate
+
+    played = sum(1 for status in counted if status == PLAYED)
+    season = (played + league_rate * APPEARANCE_PRIOR) / (
+        len(counted) + APPEARANCE_PRIOR
+    )
+
+    lately = recent_appearance_rate(history, window=window)
+    if lately is None:
+        return season
+    rate, rounds = lately
+    return (rate * rounds + season * rotation_prior) / (rounds + rotation_prior)
+
 
 #: Price correlates with points at about r = 0.30, so it is a real signal but a
 #: weak one. A player at twice his position's average price is credited with
@@ -241,14 +374,33 @@ def project(
     club_index: float = 1.0,
     prior_strength: float = PRIOR_STRENGTH,
     rounds_remaining: int | None = None,
+    appearances: int | None = None,
+    expected_availability: float | None = None,
+    league_availability: float | None = None,
 ) -> dict[str, object]:
     """Blend observed form with a prior, and show the working.
 
     The components are returned alongside the answer so the number can be
     explained — an unexplained projection is worse than none, because it
     cannot be argued with.
+
+    Given `appearances` — how many of those matches he was actually used in —
+    the estimate splits in two, which is a real improvement rather than a
+    refinement:
+
+        expected = P(plays) x (what he returns when he plays) + P(not) x -1
+
+    A season average folds those together, and the fold hides the largest
+    single fact about a fantasy footballer. A nailed-on starter returning four
+    and a rotation player returning eight half the time both average four, and
+    they are not remotely the same bet. Worse, the fold moves slowly: a man who
+    has just lost his place keeps months of the points he scored when he had
+    it, and the projection goes on recommending him for weeks.
+
+    Measured on the reconstructed season, judging transfers on the folded
+    average was worth nothing at all against never transferring. The split,
+    with minutes, won all six squad-and-threshold comparisons.
     """
-    observed = per_match(player.points_total, matches)
     baseline = baselines.get(player.position, 0.0)
     club, has_history = club_factor(
         record, player.position, league_goals_against, league_goals_for
@@ -256,12 +408,36 @@ def project(
     price = price_factor(player.value, position_mean_value, club_index)
     prior = baseline * club * price
 
+    observed = per_match(player.points_total, matches)
+    playing = None
+    if appearances is not None and matches > 0 and league_availability:
+        playing = (
+            expected_availability
+            if expected_availability is not None
+            else appearances / matches
+        )
+        # The prior is a rate per club match, so it already carries the
+        # league's absences. Taking it back out is what makes it comparable
+        # with a per-appearance return rather than half a size too small.
+        prior = (prior - (1 - league_availability) * UNUSED_PENALTY) / league_availability
+        # §10.3(i) pays -1 for every round he sat, so adding those back
+        # recovers what he scored on the days he played.
+        observed = (
+            (player.points_total - UNUSED_PENALTY * (matches - appearances)) / appearances
+            if appearances > 0
+            else None
+        )
+
     if observed is None:
         projected = prior
         weight = 0.0
     else:
-        weight = matches / (matches + prior_strength)
+        seen = appearances if appearances is not None else matches
+        weight = seen / (seen + prior_strength)
         projected = weight * observed + (1 - weight) * prior
+
+    if playing is not None:
+        projected = playing * projected + (1 - playing) * UNUSED_PENALTY
 
     out: dict[str, object] = {
         "id": player.id,
@@ -278,6 +454,22 @@ def project(
             "position_baseline": round(baseline, 2),
             "club_factor": round(club, 2),
             "price_factor": round(price, 2),
+            **(
+                {}
+                if playing is None
+                else {
+                    "chance_of_playing": round(playing, 2),
+                    # `prior_rate` above is now a rate per appearance, not per
+                    # club match. A player at exactly the league's availability
+                    # projects the same either way — the inversion is a change
+                    # of units, not a thumb on the scale.
+                    "prior_basis": "per appearance",
+                    "appearances": appearances,
+                    "rate_when_playing": None
+                    if observed is None
+                    else round(observed, 2),
+                }
+            ),
         },
         "club_has_history": has_history,
         "never_played": never_played(player, matches),
@@ -536,6 +728,155 @@ def differential_rows(
 COACH_DEFENSIVE_SHARE = 0.5
 
 
+# --------------------------------------------------------------------------
+# What a coach scores (§14)
+# --------------------------------------------------------------------------
+#
+# A coach is a scoring slot in every single round. §14.4 says his points "será
+# somada aos pontos acumulados pelos jogadores escolhidos", §6.17 makes the
+# team invalid without one, and §6.4 makes him free — he costs no budget and
+# may be changed every round.
+#
+# So he is the one pick with no constraint on it at all, and until this was
+# written the project had a projection for coaches without ever encoding the
+# rules that generate their points.
+
+#: §14.3(a) — the result, from the coach's side.
+COACH_WIN = 1
+COACH_DRAW = 0
+COACH_LOSS = -1
+
+#: §14.3(c) — what the goals themselves are worth to him.
+COACH_FAILED_TO_SCORE = -1
+COACH_CLEAN_SHEET = 1
+COACH_BIG_WIN = 1
+COACH_BIG_LOSS = -1
+
+#: The margin §14.3(c) calls "mais de 2 golos de diferença".
+COACH_BIG_MARGIN = 2
+
+#: §14.3(d) — a goal off the bench is credited to the man who made the change.
+COACH_SUBSTITUTE_GOAL = 1
+
+#: §14.3(e) and §14.5 — sent to the stand.
+COACH_SENT_OFF = -3
+
+
+#: Checked against Record's own published coach points, which the team-sheet
+#: page shows and which nobody had thought to compare against. Of the eighteen
+#: coaches in round 2 of 2026/27, sixteen had a match, and §14.3 accounted for
+#: all sixteen: every remainder was a legal §10.1 mark, some with §14.3(d)'s
+#: goals off the bench on top. The other two clubs had a postponed fixture.
+#:
+#: That is the same test the player rules passed, and it is worth more here,
+#: because unlike a player's mark a coach's is not the largest term — if the
+#: arithmetic were wrong the remainders would not be legal marks at all.
+
+
+def coach_points(
+    *,
+    scored: int,
+    conceded: int,
+    trailed_by: int = 0,
+    substitute_goals: int = 0,
+    sent_off: bool = False,
+    rating_points: int = 0,
+    available: bool = True,
+) -> int:
+    """One coach's round under §14.3, given what his team did.
+
+    `trailed_by` is the largest deficit the side came back from, which §14.3(b)
+    pays for and pays double if the comeback ended in a win: two goals down and
+    drawn is worth 2, two goals down and won is worth 4. Losing pays nothing
+    for it, however close the recovery came.
+
+    `rating_points` is §14.1's editorial mark, already converted through
+    §10.1's table. It is the one term that cannot be computed, exactly as with
+    players, and §14.2 says Record will not discuss it.
+
+    `available` is §14.5: a coach who cannot take the bench and is replaced by
+    an assistant scores nothing at all — not zero-and-the-result, nothing. A
+    sacked coach is the same. Being sent off is different and does score, at
+    -3, because he was there.
+    """
+    if not available:
+        return 0
+
+    total = rating_points
+    if scored > conceded:
+        total += COACH_WIN
+    elif scored < conceded:
+        total += COACH_LOSS
+    else:
+        total += COACH_DRAW
+
+    # §14.3(b). Doubled for turning it into a win, nothing for still losing.
+    if trailed_by > 0:
+        if scored > conceded:
+            total += 2 * trailed_by
+        elif scored == conceded:
+            total += trailed_by
+
+    if scored == 0:
+        total += COACH_FAILED_TO_SCORE
+    if conceded == 0:
+        total += COACH_CLEAN_SHEET
+    margin = scored - conceded
+    if margin > COACH_BIG_MARGIN:
+        total += COACH_BIG_WIN
+    elif -margin > COACH_BIG_MARGIN:
+        total += COACH_BIG_LOSS
+
+    total += COACH_SUBSTITUTE_GOAL * substitute_goals
+    if sent_off:
+        total += COACH_SENT_OFF
+    return total
+
+
+def coach_season(
+    fixtures: Iterable[Mapping[str, Any]],
+    *,
+    rating_points: int = 0,
+) -> dict[str, dict[int, int]]:
+    """What each club's coach scored on each matchday, under §14.3.
+
+    A coach's points follow from his club's result, so a season can be scored
+    without knowing who was in charge on a given weekend — which is fortunate,
+    because no public archive records that.
+
+    Each fixture is a mapping with `round`, `home`, `away`, `home_goals`,
+    `away_goals`, and optionally `home_half` and `away_half`. The half-time
+    score stands in for §14.3(b)'s coming from behind: it misses a side that
+    went behind and equalised inside the same half, so it undercounts
+    comebacks rather than inventing them.
+
+    Two terms are simply absent. §14.1's editorial mark is unpublished, as for
+    players, and is credited to everyone alike through `rating_points` — which
+    shifts every club by the same amount and so decides nothing, only totals.
+    §14.3(d)'s goals off the bench and §14.3(e)'s sendings-off are not in a
+    results archive at all. Both omissions make a coach's round smaller than
+    it was, never larger.
+    """
+    season: dict[str, dict[int, int]] = {}
+    for fixture in fixtures:
+        matchday = int(fixture["round"])
+        home_half = fixture.get("home_half")
+        away_half = fixture.get("away_half")
+        sides = (
+            (fixture["home"], fixture["home_goals"], fixture["away_goals"], home_half, away_half),
+            (fixture["away"], fixture["away_goals"], fixture["home_goals"], away_half, home_half),
+        )
+        for club, scored, conceded, ours, theirs in sides:
+            trailed = max(0, theirs - ours) if ours is not None and theirs is not None else 0
+            season.setdefault(str(club), {})[matchday] = coach_points(
+                scored=int(scored),
+                conceded=int(conceded),
+                trailed_by=trailed,
+                rating_points=rating_points,
+            )
+    return season
+
+
 def project_coach(
     points_total: int,
     matches: int,
@@ -722,20 +1063,64 @@ PLAYER_OF_THE_WEEK_BONUS = 5
 HAT_TRICK_BONUS = 5
 
 
-def objective_points(
-    position: Position, *, conceded: int, won: bool
-) -> int:
-    """The part of a score the calendar alone determines.
+#: §10.3(h) — the threshold a forward has to cross before a blank costs him.
+FORWARD_BLANK_MINUTES = 75
 
-    Win bonus, clean sheet and goals conceded — nothing that needs to know who
-    did what. Assumes the player was used; an unused player scores a flat -1
-    (§10.3(i)) and never reaches this.
+#: §10.3 — a straight red, and two yellows.
+RED_CARD_POINTS = -3
+SECOND_YELLOW_POINTS = -1
+
+
+def objective_points(
+    position: Position,
+    *,
+    conceded: int,
+    won: bool,
+    goals: int = 0,
+    own_goals: int = 0,
+    red_card: bool = False,
+    second_yellow: bool = False,
+    minutes: int | None = None,
+) -> int:
+    """Everything §10.3 pays for except Record's own mark.
+
+    Called with only the scoreline it gives the part the calendar determines —
+    win bonus, clean sheet, goals conceded — which is all Liga Record's own
+    pages support, since they publish a total and never the events behind it.
+
+    Called with the events as well it gives the whole of the score bar the
+    rating, and that is the difference between guessing at a mark and reading
+    it. zerozero publishes the events per match, which is where they come from.
+
+    Assumes the player was used; an unused player scores a flat -1 (§10.3(i))
+    and never reaches this.
+
+    One §10.3 distinction is not available: a converted penalty is a flat +2
+    whoever takes it, while an ordinary goal pays by position. Nothing in the
+    source separates them, so a defender's penalty is credited +4 here. It
+    would take a defender scoring from the spot for it to matter.
     """
     total = WIN_BONUS if won else 0
     if conceded == 0:
         total += CLEAN_SHEET_POINTS.get(position, 0)
     else:
         total += CONCEDED_POINTS.get(position, 0) * conceded
+
+    total += GOAL_POINTS[position] * goals
+    if goals >= 3:
+        total += HAT_TRICK_BONUS
+    total += OWN_GOAL_POINTS * own_goals
+    if red_card:
+        total += RED_CARD_POINTS
+    if second_yellow:
+        total += SECOND_YELLOW_POINTS
+    if (
+        position is Position.FWD
+        and goals == 0
+        and minutes is not None
+        and minutes >= FORWARD_BLANK_MINUTES
+    ):
+        total += FORWARD_BLANK_PENALTY
     return total
 
 
@@ -815,6 +1200,583 @@ def decompose_round(
         "certain": certain,
         "candidates": candidates or ["nothing in §10.3 explains this"],
     }
+
+
+def read_rating(
+    points_round: int,
+    position: Position,
+    *,
+    conceded: int,
+    won: bool,
+    used: bool = True,
+    goals: int = 0,
+    minutes: int | None = None,
+    own_goals: int = 0,
+    red_card: bool = False,
+    second_yellow: bool = False,
+    player_of_the_week: bool = False,
+) -> dict[str, object]:
+    """Record's editorial mark, read off a total once the events are known.
+
+    The companion to `decompose_round`, and the reason the scraping was worth
+    doing. Working from Liga Record alone the events are invisible, so a
+    residual of 9 for a midfielder is a 3 with two goals, or a 6 with one, or a
+    0 with three — and a forward is never certain at all, because §10.3(h)
+    docks every blank one and there is no way to know whether he blanked.
+
+    With the events supplied the objective half is complete and the residual is
+    the mark, full stop. Nothing is inferred and nothing is chosen between.
+
+    A residual outside 0-7 means an assumption failed rather than that Record
+    marked out of range — a penalty credited by position, a missing own goal, a
+    Player of the Week not accounted for. It is returned as it stands, with
+    `certain` false, because a reading that quietly clamps itself into the
+    legal range would hide exactly the cases worth looking at.
+    """
+    if not used:
+        return {
+            "used": False,
+            "objective": UNUSED_PENALTY,
+            "residual": points_round - UNUSED_PENALTY,
+            "rating": None,
+            "certain": points_round == UNUSED_PENALTY,
+            "candidates": ["not used (§10.3(i))"],
+        }
+
+    objective = objective_points(
+        position,
+        conceded=conceded,
+        won=won,
+        goals=goals,
+        own_goals=own_goals,
+        red_card=red_card,
+        second_yellow=second_yellow,
+        minutes=minutes,
+    )
+    if player_of_the_week:
+        objective += PLAYER_OF_THE_WEEK_BONUS
+    residual = points_round - objective
+
+    legal = residual in RATING_POINTS
+    return {
+        "used": True,
+        "objective": objective,
+        "residual": residual,
+        "rating": residual if legal else None,
+        "certain": legal,
+        "candidates": [f"rating {residual}"]
+        if legal
+        else [f"residual {residual} is not a rating in §10.1"],
+    }
+
+
+# --------------------------------------------------------------------------
+# Standing in for the editorial mark, so a past season can be scored
+# --------------------------------------------------------------------------
+#
+# §10.2 says Record will not discuss an individual mark with anyone, and no
+# past season's marks are published. Everything else in §10.3 survives in
+# zerozero's match pages — goals, cards, minutes, scorelines — so a past
+# season's score is exact but for this one term.
+#
+# zerozero's own 0-10 rating is the only public verdict on the same
+# performance. Fitted against 489 marks read off real 2026/27 scores, it lands
+# within 0.44 points of the mark on held-out rounds, against scores whose own
+# spread is 2.66. It cuts the error of simply assuming the average mark by
+# about two fifths, so it is doing real work, and it is not doing miracles.
+#
+# What makes that good enough is what it is NOT asked to do. The large, spiky
+# part of a score — a hat-trick, a clean sheet, a sending off, a man left on
+# the bench — is computed from the events and never estimated. Only the mark
+# is, and the mark is the flattest term there is.
+#
+# Checked a third way, against nothing this code has ever seen: Record's own
+# editorial team set every price for this season after watching last season,
+# and those prices correlate r = 0.63 with what the reconstruction says a
+# player was worth (n = 170; GK 0.85, DEF 0.70, FWD 0.72, MID 0.54). No price
+# is used anywhere in building it. Two groups looked at the same football and
+# broadly agree.
+
+#: Fitted on 489 player-rounds of 2026/27. Refit when the season is longer.
+MARK_FIT_SLOPE = 0.9883
+MARK_FIT_INTERCEPT = -4.0686
+
+#: What to use when a match went unrated — the market's own average mark,
+#: which is what "no information" should mean.
+MEAN_MARK_POINTS = 2.59
+
+#: zerozero rates 0-10 but hands out very little of that range; anything
+#: outside is a data error rather than a performance.
+RATING_SCALE = (0.0, 10.0)
+
+
+def expected_rating_points(rating: float) -> float:
+    """The mark, in points, on average, for a zerozero rating.
+
+    Unrounded, and therefore unbiased. This is the one to sum over a season:
+    rounding each match first would throw away the halves that cancel.
+    """
+    if not RATING_SCALE[0] <= rating <= RATING_SCALE[1]:
+        raise ValueError(f"{rating} is not a zerozero rating")
+    estimate = MARK_FIT_INTERCEPT + MARK_FIT_SLOPE * rating
+    return min(max(estimate, min(RATING_POINTS)), max(RATING_POINTS))
+
+
+def likely_rating_points(rating: float) -> int:
+    """The mark a single match most likely carried, as a mark Record can give.
+
+    §10.1 allows six values and no others — note that 5 and 6 points are not
+    among them — so a per-match reconstruction has to land on one of them.
+    Snapping measures slightly more accurate per match than the unrounded
+    estimate, and slightly worse over a season, which is why both exist.
+    """
+    estimate = expected_rating_points(rating)
+    return min(RATING_POINTS, key=lambda points: abs(points - estimate))
+
+
+def reconstruct_points(
+    position: Position,
+    *,
+    conceded: int,
+    won: bool,
+    used: bool,
+    rating: float | None = None,
+    goals: int = 0,
+    minutes: int | None = None,
+    own_goals: int = 0,
+    red_card: bool = False,
+    second_yellow: bool = False,
+    per_match: bool = True,
+) -> dict[str, object]:
+    """What Liga Record would have paid for one match, rebuilt from the events.
+
+    The inverse of `read_rating`: that one takes a published score and works
+    out the mark, this one takes the mark and works out the score. Everything
+    but the mark is §10.3 arithmetic on facts, so `objective` is not an
+    estimate and is reported separately from the part that is.
+
+    Player of the Week is deliberately absent. §10.3(k) gives it to the round's
+    highest scorer, which cannot be known for one player in isolation — it is a
+    property of the whole round, and belongs to whatever assembles these.
+    """
+    if not used:
+        return {
+            "points": float(UNUSED_PENALTY),
+            "objective": UNUSED_PENALTY,
+            "mark": 0.0,
+            "mark_source": "unused",
+            "estimated": False,
+        }
+
+    objective = objective_points(
+        position,
+        conceded=conceded,
+        won=won,
+        goals=goals,
+        own_goals=own_goals,
+        red_card=red_card,
+        second_yellow=second_yellow,
+        minutes=minutes,
+    )
+    if rating is None:
+        mark, source = MEAN_MARK_POINTS, "assumed average"
+    elif per_match:
+        mark, source = float(likely_rating_points(rating)), "rating"
+    else:
+        mark, source = expected_rating_points(rating), "rating"
+
+    return {
+        "points": objective + mark,
+        "objective": objective,
+        "mark": mark,
+        "mark_source": source,
+        "estimated": True,
+    }
+
+
+# --------------------------------------------------------------------------
+# Telling one country's first division from another's
+# --------------------------------------------------------------------------
+#
+# zerozero labels a competition by its tier, not by its country: the Swiss
+# Super League, the Belgian Pro League and the Danish Superliga are all "D1",
+# exactly like the Primeira Liga. Filtering a player's season to "D1" therefore
+# keeps every league he played in, and a reconstruction built on that scores a
+# Swiss August as though it were a Portuguese one.
+#
+# It is not a small share and it is not visibly wrong: 9% of a first sweep, and
+# the only outward sign was a handful of players with thirty-seven matches in a
+# thirty-four-round league.
+#
+# The fix is to check the matches against a calendar that is definitely the
+# right competition. A club belongs if its matches keep turning up in it.
+
+#: How much of a club's record has to appear in the calendar before the club is
+#: taken to belong to it. Well clear of both populations in practice — real
+#: members land near 1.0, foreign clubs near 0.0 — so the exact value does not
+#: decide anything.
+CALENDAR_AGREEMENT = 0.5
+
+
+def _same_day(date: str) -> str:
+    """One spelling for a date, since the two sources punctuate differently."""
+    return (date or "").strip().replace("/", "-")
+
+
+def clubs_in_calendar(
+    appearances: Iterable[Mapping[str, Any]],
+    calendar: Iterable[Mapping[str, Any]],
+    *,
+    agreement: float = CALENDAR_AGREEMENT,
+) -> dict[str, dict[str, Any]]:
+    """Which clubs in a pile of match records belong to a known competition.
+
+    Decided by evidence rather than by a list of names. A club's matches are
+    checked against the calendar on round, date and scoreline, none of which
+    needs the two sources to spell the club the same way — and they do not:
+    one says "Sporting Clube de Braga" where the other says "SC Braga".
+
+    Membership is judged per club rather than per match on purpose. Sources
+    disagree about individual results — these two disagree about three matches
+    of the final round — and a per-match rule would silently drop a real
+    round of real football over a scoreline typo. A club that turns up all
+    season is a member on its last day too.
+
+    Returns every club seen, so the ones being excluded can be looked at.
+    """
+    known = {
+        (
+            int(fixture["round"]),
+            _same_day(str(fixture["date"])),
+            int(fixture["home_goals"]),
+            int(fixture["away_goals"]),
+        )
+        for fixture in calendar
+    }
+
+    seen: dict[str, list[bool]] = {}
+    for appearance in appearances:
+        club = str(appearance.get("club") or "")
+        if not club:
+            continue
+        key = (
+            int(appearance["round"]),
+            _same_day(str(appearance["date"])),
+            int(appearance["home_goals"]),
+            int(appearance["away_goals"]),
+        )
+        seen.setdefault(club, []).append(key in known)
+
+    return {
+        club: {
+            "matches": len(hits),
+            "in_calendar": sum(hits),
+            "share": round(sum(hits) / len(hits), 3),
+            "member": sum(hits) / len(hits) >= agreement,
+        }
+        for club, hits in seen.items()
+    }
+
+
+def fill_absent_rounds(
+    matches: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Add the rounds a player was not even in the squad for.
+
+    A match archive lists a player when he was involved — playing, or on the
+    bench. It has no row at all for the weeks he was injured, suspended or left
+    out, because from football's point of view nothing happened.
+
+    From a Liga Record manager's point of view something very much happened: he
+    paid for that player and §10.3(i) gave him -1. Leaving the gap out divides
+    a season by the weeks that went well, which is how a defender with six
+    appearances in a thirty-four-round season comes out looking like one of the
+    best in the league. He was, on the six days he played.
+
+    Only the span between his first and last appearance is filled. Before and
+    after that he was somewhere else — another country, another division — and
+    could not have been owned, so those rounds are nobody's loss.
+    """
+    present = {int(m["round"]): dict(m) for m in matches}
+    if not present:
+        return []
+
+    for round_number in range(min(present), max(present) + 1):
+        if round_number in present:
+            continue
+        present[round_number] = {
+            "round": round_number,
+            "used": False,
+            "absent": True,
+            "minutes": 0,
+            "goals": 0,
+            "assists": 0,
+            "yellow_cards": 0,
+            "red_card": False,
+            "rating": None,
+            "objective": UNUSED_PENALTY,
+            "mark": 0.0,
+            "mark_source": "not in the squad",
+            "points": float(UNUSED_PENALTY),
+            "player_of_the_week": False,
+        }
+    return [present[round_number] for round_number in sorted(present)]
+
+
+#: A score at or below this is a wasted week — the player was on the pitch and
+#: returned nothing, or was not on it at all.
+BLANK_POINTS = 0
+
+#: A score at or above this is the kind of week a season turns on. Set from the
+#: reconstructed distribution: about one match in twenty clears it.
+HAUL_POINTS = 8
+
+#: Rounds in a form window. Five is a month of football, short enough to move
+#: and long enough not to be one good afternoon.
+FORM_WINDOW = 5
+
+
+# --------------------------------------------------------------------------
+# Saying how much a recommendation should be trusted
+# --------------------------------------------------------------------------
+#
+# Two different things get called "risk" and running them together is the
+# mistake worth avoiding.
+#
+# HOW SURE IS THE NUMBER. A player with sixty matches behind him is measured;
+# one with two is his club's average wearing his name. That is a statement
+# about the estimate, and it is the same whoever is reading it.
+#
+# WHAT HAVING HIM DOES TO YOUR POSITION. A player half the country owns cannot
+# move you up the table, only stop you falling; one nobody owns is the only way
+# to gain ground, and the only way to lose it. That is a statement about the
+# field, and it has nothing to do with how well he is measured.
+#
+# A confident estimate of a differential is the rare, valuable case. A thin
+# estimate of a player everybody owns is the worst of both.
+#
+# Every cut below is a percentile of the real market, measured rather than
+# chosen — 498 players, and the two reconstructed seasons behind them.
+
+#: Matches behind an estimate. The median player with any history has 30; a
+#: quarter have fewer than 17. Over half the market has none at all.
+EVIDENCE_MEASURED = 30
+EVIDENCE_THIN = 15
+
+#: Share of rounds a player takes the field in. Measured over 186 players with
+#: at least twenty matchdays on the books: the quartiles are 0.64 and 0.88 and
+#: the median is 0.76.
+#:
+#: The first version put the cut at 0.75, which is the median — so half the
+#: league fell on the wrong side of it by a hundredth, and eleven of a
+#: twenty-three-man squad came out with the same label. A threshold sitting on
+#: the median does not divide anything.
+#:
+#: Feed this the rate a player's HISTORY shows, not a projection shrunk toward
+#: the league on two rounds of a new season. The projection is right to be
+#: cautious and the label is answering a different question: is this a man who
+#: plays, as far as anyone can tell.
+AVAILABILITY_REGULAR = 0.85
+AVAILABILITY_FRINGE = 0.65
+
+#: Spread of a player's points from round to round. The market's median is
+#: 1.67, the quartiles 1.17 and 2.20.
+VOLATILITY_STEADY = 1.2
+VOLATILITY_SWINGY = 2.2
+
+#: Ownership. The median player is held by 0.9% of teams and the ninetieth
+#: percentile by 11.9%, so "everybody has him" starts a long way below half.
+OWNED_TEMPLATE = 10.0
+OWNED_DIFFERENTIAL = 1.0
+
+
+def describe_pick(
+    *,
+    appearances: int,
+    availability: float | None = None,
+    volatility: float | None = None,
+    owned_percent: float | None = None,
+) -> dict[str, Any]:
+    """How much to trust a recommendation, and what it does to your position.
+
+    Returns both readings separately and a plain sentence that leads with
+    whichever matters most, because a label on its own invites the wrong
+    reading: "risky" could mean the player is unpredictable, that the estimate
+    is a guess, or that nobody else owns him, and those call for three
+    different decisions.
+    """
+    if appearances >= EVIDENCE_MEASURED:
+        evidence = "measured"
+    elif appearances >= EVIDENCE_THIN:
+        evidence = "partial"
+    else:
+        evidence = "thin"
+
+    role = None
+    if availability is not None:
+        if availability >= AVAILABILITY_REGULAR:
+            role = "regular"
+        elif availability >= AVAILABILITY_FRINGE:
+            role = "rotated"
+        else:
+            role = "fringe"
+
+    swing = None
+    if volatility is not None:
+        swing = (
+            "steady"
+            if volatility <= VOLATILITY_STEADY
+            else "swingy"
+            if volatility >= VOLATILITY_SWINGY
+            else "normal"
+        )
+
+    field = None
+    if owned_percent is not None:
+        field = (
+            "template"
+            if owned_percent >= OWNED_TEMPLATE
+            else "differential"
+            if owned_percent <= OWNED_DIFFERENTIAL
+            else "common"
+        )
+
+    # One word for a table, one sentence for a decision. The word alone is not
+    # enough — "risky" could mean unpredictable, unmeasured, or unowned — but a
+    # sentence in every row of a list of twenty-three is unreadable, and an
+    # unreadable recommendation is not read.
+    #
+    # Both lead with the largest caveat. A thin estimate outranks everything
+    # else: there is no point discussing the shape of a number that is not
+    # really about this player.
+    if evidence == "thin":
+        label = "bet"
+        verdict = (
+            f"a bet — {appearances} matches behind him, so this is his club's "
+            "average with his name on it"
+        )
+    elif role == "fringe":
+        label = "risky"
+        verdict = "risky — often not in the side, and §10.3(i) charges -1 for that"
+    elif role == "rotated":
+        label = "uncertain"
+        verdict = "uncertain — he is in and out of the team"
+    elif swing == "swingy":
+        label = "volatile"
+        verdict = "safe to own, wild to captain — the returns swing hard"
+    elif evidence == "measured" and role == "regular":
+        label = "safe"
+        verdict = "safe — measured, and he plays"
+    else:
+        label = "fair"
+        verdict = "reasonable"
+
+    if field == "differential" and evidence != "thin":
+        verdict += "; almost nobody owns him, so he moves you either way"
+    elif field == "template":
+        verdict += "; most of the field owns him, so he mostly keeps you level"
+
+    return {
+        "label": label,
+        # The field is a separate word on purpose. Folding it into the first
+        # one would say a differential is risky, and it is not: it is a
+        # different question, with the same answer for a good player and a bad
+        # one.
+        "field_label": {"template": "template", "differential": "differential"}.get(
+            field, ""
+        )
+        if evidence != "thin"
+        else "",
+        "evidence": evidence,
+        "appearances": appearances,
+        "role": role,
+        "availability": None if availability is None else round(availability, 2),
+        "swing": swing,
+        "volatility": None if volatility is None else round(volatility, 2),
+        "field": field,
+        "owned_percent": owned_percent,
+        "verdict": verdict,
+    }
+
+
+def season_summary(matches: Sequence[dict[str, object]]) -> dict[str, object]:
+    """One player's season, from the matches reconstructed for him.
+
+    `per_match` divides by matches in the squad, not by matches played, because
+    a Liga Record manager pays for a player every round whether he starts or
+    sits. A forward who scores 8 in a third of the rounds and -1 in the rest is
+    not an 8-point forward, and dividing by appearances would say he was.
+
+    `per_90` is the other question — how good he is when he plays — and is
+    reported beside it rather than instead of it.
+    """
+    if not matches:
+        return {
+            "matches": 0,
+            "played": 0,
+            "points": 0.0,
+            "per_match": None,
+            "per_90": None,
+            "minutes": 0,
+            "goals": 0,
+            "blanks": 0,
+            "hauls": 0,
+            "best": None,
+            "worst": None,
+            "consistency": None,
+        }
+
+    points = [float(m["points"]) for m in matches]
+    played = [m for m in matches if m.get("used")]
+    minutes = sum(int(m.get("minutes") or 0) for m in matches)
+    played_points = [float(m["points"]) for m in played]
+
+    return {
+        "matches": len(matches),
+        "played": len(played),
+        "points": round(sum(points), 1),
+        "per_match": round(sum(points) / len(points), 2),
+        "per_90": round(sum(played_points) / (minutes / 90), 2) if minutes else None,
+        "minutes": minutes,
+        "goals": sum(int(m.get("goals") or 0) for m in matches),
+        "blanks": sum(1 for p in points if p <= BLANK_POINTS),
+        "hauls": sum(1 for p in points if p >= HAUL_POINTS),
+        "best": max(points),
+        "worst": min(points),
+        # Spread of what he actually returns. Two players can average the same
+        # and be entirely different bets, and the captaincy is a bet.
+        "consistency": round(pstdev(points), 2) if len(points) > 1 else 0.0,
+    }
+
+
+def form_curve(
+    matches: Sequence[dict[str, object]], *, window: int = FORM_WINDOW
+) -> list[dict[str, object]]:
+    """A rolling average through the season, in round order.
+
+    The point of reconstructing a season match by match rather than as a total:
+    a total says a player was worth 3.1 a round, and the curve says he was
+    worth 6 until January and 1 after it. Only the second one is a reason to
+    buy or sell.
+
+    Rounds are sorted before the window is taken — a match list that arrives
+    newest-first, as zerozero's does, would otherwise produce a curve running
+    backwards through the season without ever looking wrong.
+    """
+    ordered = sorted(matches, key=lambda m: int(m["round"]))
+    curve: list[dict[str, object]] = []
+    for index, match in enumerate(ordered):
+        recent = ordered[max(0, index - window + 1) : index + 1]
+        points = [float(m["points"]) for m in recent]
+        curve.append(
+            {
+                "round": int(match["round"]),
+                "points": float(match["points"]),
+                "form": round(sum(points) / len(points), 2),
+                "window": len(points),
+            }
+        )
+    return curve
 
 
 def rating_history(

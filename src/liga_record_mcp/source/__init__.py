@@ -16,6 +16,15 @@ from .appearances import (
     save_appearances,
 )
 from .base import SquadSource, SquadSourceError
+from .decisions import (
+    holidays_used,
+    load_decisions,
+    record_decision,
+    record_season_choice,
+    save_decisions,
+    track_record,
+)
+from .last_season import LastSeasonError, LastSeasonSource
 from .history import (
     CLUB_NAMES,
     DEFAULT_SEASONS,
@@ -44,6 +53,8 @@ __all__ = [
     "MARKET_MIN_VALUE",
     "POSITION_CODE",
     "POSITION_FROM_CODE",
+    "LastSeasonError",
+    "LastSeasonSource",
     "LigaRecordClient",
     "OpenFootballClient",
     "combine",
@@ -54,11 +65,17 @@ __all__ = [
     "SquadSource",
     "SquadSourceError",
     "history_for",
+    "holidays_used",
+    "load_decisions",
     "load_appearances",
     "load_coaches",
+    "record_decision",
     "record_round",
+    "record_season_choice",
     "recorded_rounds",
     "save_appearances",
+    "save_decisions",
+    "track_record",
     "parse_fixtures",
     "parse_market_player",
     "parse_standing",

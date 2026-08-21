@@ -21,6 +21,7 @@ import time
 from typing import Any
 
 import httpx
+from pydantic import BaseModel, ConfigDict
 
 from ..models import ClubRecord
 from .live import SiteError
@@ -51,6 +52,80 @@ CLUB_NAMES: dict[str, str | None] = {
 
 #: Newest last. More recent seasons carry more weight when combined.
 DEFAULT_SEASONS = ("2024-25", "2025-26")
+
+
+class SeasonFixture(BaseModel):
+    """One completed match from the archive, with its round and its date.
+
+    Separate from `Fixture`, which models the live calendar and carries the
+    site's own kickoff label with no year in it. This one is history: the date
+    is a full ISO date, and the score is always there, because a match without
+    one is not kept.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    round_number: int
+    date: str
+    home: str
+    away: str
+    home_goals: int
+    away_goals: int
+    #: Half time, where the archive carries it. §14.3(b) pays a coach for
+    #: coming from behind, and the break is the only moment a public archive
+    #: records the state of a match at. It misses a side that went behind and
+    #: equalised inside the same half, so it undercounts comebacks rather than
+    #: inventing them.
+    home_half: int | None = None
+    away_half: int | None = None
+
+
+def parse_season_fixtures(payload: dict[str, Any]) -> list[SeasonFixture]:
+    """Every completed match of one season.
+
+    `parse_season` folds the same payload into per-club totals, which is what
+    the projection needs. This keeps the matches themselves, which is what it
+    takes to tell whether some other source's match really was in this
+    competition — zerozero labels the Swiss, Belgian and Danish first divisions
+    "D1" exactly as it labels the Portuguese one.
+    """
+    matches = payload.get("matches")
+    if not isinstance(matches, list):
+        raise SiteError("season payload has no `matches` list")
+
+    found: list[SeasonFixture] = []
+    for match in matches:
+        result = _full_time(match.get("score"))
+        if result is None:
+            continue
+        label = str(match.get("round") or "")
+        digits = "".join(c for c in label if c.isdigit())
+        if not digits:
+            continue
+        home, away = match.get("team1"), match.get("team2")
+        date = match.get("date")
+        if not (home and away and date):
+            continue
+        raw = match.get("score")
+        interval = raw.get("ht") if isinstance(raw, dict) else None
+        half = (
+            (int(interval[0]), int(interval[1]))
+            if isinstance(interval, (list, tuple)) and len(interval) >= 2
+            else (None, None)
+        )
+        found.append(
+            SeasonFixture(
+                round_number=int(digits),
+                date=str(date),
+                home=str(home),
+                away=str(away),
+                home_goals=result[0],
+                away_goals=result[1],
+                home_half=half[0],
+                away_half=half[1],
+            )
+        )
+    return found
 
 
 def _full_time(score: Any) -> tuple[int, int] | None:
@@ -165,6 +240,10 @@ class OpenFootballClient:
             raise SiteError("no club records could be read from the archive")
         self._cache = (now + self.cache_ttl, records)
         return records
+
+    def season_fixtures(self, season: str) -> list[SeasonFixture]:
+        """One season's matches, for checking whether a match was in it."""
+        return parse_season_fixtures(self._fetch(season))
 
     def _fetch(self, season: str) -> dict[str, Any]:
         url = f"{self.base_url}/{season}/pt.1.json"

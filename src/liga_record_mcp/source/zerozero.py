@@ -279,6 +279,198 @@ def parse_seasons(html: str) -> list[ZeroZeroSeason]:
     return rows
 
 
+class ZeroZeroMatch(BaseModel):
+    """One row of a player's season match list.
+
+    Everything §10.3 needs to score a round except Record's own mark: the
+    scoreline gives the win, the clean sheet and the goals conceded; `minutes`
+    and `used` give the appearance; `goals` and the cards give the events; and
+    `rating` is zerozero's own verdict on the performance, which is the closest
+    public thing to the editorial mark.
+
+    One §10.3 distinction is beyond this table: a converted penalty scores a
+    flat +2 whoever takes it, while an ordinary goal pays by position. zerozero
+    marks every goal with the same icon here, so a defender's penalty would be
+    read as +4. Forwards are unaffected, both being +2.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    date: str
+    competition: str
+    round_number: int | None
+    club: str
+    opponent: str
+    at_home: bool
+    scored: int | None
+    conceded: int | None
+    used: bool
+    minutes: int
+    rating: float | None
+    goals: int = 0
+    assists: int = 0
+    yellow_cards: int = 0
+    red_card: bool = False
+
+
+_ROUND_CELL = re.compile(r"^J(\d+)$")
+_SCORE_CELL = re.compile(r"^(\d+)\s*-\s*(\d+)$")
+
+#: A rating reads `7.4`. A perfect one reads `10`, with no decimal at all —
+#: which the decimal-only form silently dropped, and a 10 is never a stray row:
+#: it is the best performance of the round, the anchor any rating model needs
+#: most. Bare integers are only accepted from the header-located column, never
+#: from a shape scan, where `10` is far more likely to be ten minutes played.
+_RATING_CELL = re.compile(r"^\d{1,2}\.\d$")
+_RATING_CELL_STRICT = re.compile(r"^(?:10(?:\.0)?|\d(?:\.\d)?)$")
+
+#: A goal cell carries one icon per scorer-row and spells the count only when
+#: there is more than one: `x3`.
+_REPEAT_CELL = re.compile(r"^(?:\w\s*)?x(\d+)$")
+
+
+def _match_columns(header) -> dict[str, int]:
+    """Which column holds which statistic, read from the table's header row.
+
+    The first eight columns — result, date, competition, round, club, ground,
+    opponent, score — are unlabelled and are still found by shape. The ones
+    after them are labelled, and reading those labels is what makes a player's
+    own goals available per match instead of only as a season total. Without
+    them a past season can be told apart into wins and clean sheets but never
+    into goals, which for a forward is most of his score.
+
+    Column order has been identical on every page read so far, but it is
+    located rather than assumed: a shifted column would misfile goals as
+    assists in silence, and silence is the failure mode worth spending a
+    function on.
+    """
+    columns: dict[str, int] = {}
+    for index, cell in enumerate(header.find_all(["td", "th"])):
+        titles = [
+            (el.get("title") or "").strip().lower()
+            for el in cell.find_all(attrs={"title": True})
+        ]
+        if any(t.startswith("golo") for t in titles):
+            columns["goals"] = index
+        elif any(t.startswith("assist") for t in titles):
+            columns["assists"] = index
+
+        # Cards and substitutions share an icon class and differ by colour. The
+        # substitution column carries a green icon and a red one together; a
+        # red card sits alone. Requiring the icon to be alone is what keeps
+        # every substituted player from being recorded as sent off.
+        icons = cell.find_all("span", class_="icn_zerozero")
+        colours = {c for icon in icons for c in icon.get("class", [])}
+        if len(icons) == 1 and "yellow" in colours:
+            columns["yellow"] = index
+        elif len(icons) == 1 and "red" in colours:
+            columns["red"] = index
+
+        marker = cell.find("span")
+        if (
+            marker is not None
+            and not marker.get("class")
+            and marker.get_text(strip=True) == "R"
+        ):
+            columns["rating"] = index
+    return columns if "goals" in columns else {}
+
+
+def _repeats(cell) -> int:
+    """How many times an event happened in one cell.
+
+    An icon on its own means once; `x3` means three. Counting only the icons
+    would read a hat-trick as a single goal, and reading only the text would
+    miss every goal that was not a multiple.
+    """
+    icons = cell.select("span[class]")
+    if not icons:
+        return 0
+    text = " ".join(cell.get_text(" ", strip=True).split())
+    if match := _REPEAT_CELL.match(text):
+        return int(match.group(1))
+    return len(icons)
+
+
+def parse_matches(html: str, *, competition: str = "D1") -> list[ZeroZeroMatch]:
+    """A player's matches for one season, filtered to one competition.
+
+    Defaults to D1, the Primeira Liga, because that is the only competition
+    Liga Record scores. A player's European minutes are real and irrelevant
+    here — Pavlidis had 218 of them in a season Liga Record ignored.
+
+    The unlabelled left half is found by shape: the round reads `J34`, the
+    score `2-1`, and minutes are a bare number or `NU` for an unused
+    substitute. The labelled right half — goals, assists, cards, rating — is
+    found by header, falling back to a shape scan for the rating alone when a
+    table arrives without one.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    found: list[ZeroZeroMatch] = []
+    for table in soup.select("table"):
+        rows = table.select("tr")
+        if not rows:
+            continue
+        columns = _match_columns(rows[0])
+
+        for row in rows:
+            raw = row.select("td")
+            cells = [" ".join(c.get_text(" ", strip=True).split()) for c in raw]
+            if len(cells) < 9 or competition not in cells[:4]:
+                continue
+
+            round_number = next(
+                (int(m.group(1)) for c in cells if (m := _ROUND_CELL.match(c))), None
+            )
+            score = next((m for c in cells if (m := _SCORE_CELL.match(c))), None)
+
+            def at(key: str):
+                index = columns.get(key)
+                return raw[index] if index is not None and index < len(raw) else None
+
+            rating = None
+            if (cell := at("rating")) is not None:
+                text = " ".join(cell.get_text(" ", strip=True).split())
+                rating = float(text) if _RATING_CELL_STRICT.match(text) else None
+            if rating is None and "rating" not in columns:
+                rating = next(
+                    (float(c) for c in cells[8:] if _RATING_CELL.match(c)), None
+                )
+
+            minutes_cell = cells[8]
+            used = minutes_cell.upper() != "NU"
+            minutes = _number(minutes_cell) if used and minutes_cell.isdigit() else 0
+
+            at_home = "(C)" in cells
+            scored = conceded = None
+            if score is not None:
+                home, away = int(score.group(1)), int(score.group(2))
+                scored, conceded = (home, away) if at_home else (away, home)
+
+            goals_cell, assists_cell = at("goals"), at("assists")
+            yellow_cell, red_cell = at("yellow"), at("red")
+            found.append(
+                ZeroZeroMatch(
+                    date=cells[1],
+                    competition=competition,
+                    round_number=round_number,
+                    club=cells[4] if len(cells) > 4 else "",
+                    opponent=cells[6] if len(cells) > 6 else "",
+                    at_home=at_home,
+                    scored=scored,
+                    conceded=conceded,
+                    used=used,
+                    minutes=minutes,
+                    rating=rating,
+                    goals=_repeats(goals_cell) if goals_cell is not None else 0,
+                    assists=_repeats(assists_cell) if assists_cell is not None else 0,
+                    yellow_cards=_repeats(yellow_cell) if yellow_cell is not None else 0,
+                    red_card=bool(_repeats(red_cell)) if red_cell is not None else False,
+                )
+            )
+    return found
+
+
 def pick(
     candidates: list[ZeroZeroPlayer], *, club: str
 ) -> tuple[ZeroZeroPlayer | None, str]:
@@ -365,6 +557,18 @@ class ZeroZeroClient:
 
     def seasons(self, player: ZeroZeroPlayer) -> list[ZeroZeroSeason]:
         return parse_seasons(self._fetch(player.path))
+
+    def matches(
+        self, player: ZeroZeroPlayer, season_id: int, *, competition: str = "D1"
+    ) -> list[ZeroZeroMatch]:
+        """A player's season, match by match, in one competition."""
+        return parse_matches(
+            self._fetch(
+                f"{player.path}/jogos",
+                {"epoca_id": str(season_id), "tpstats": "club", "ps": "0"},
+            ),
+            competition=competition,
+        )
 
     def squad(self, club: str) -> list[ZeroZeroPlayer]:
         """Every player on a club's zerozero page, as bare name and link.

@@ -44,6 +44,10 @@ STEPS = [
     ("histórico por jornada", ["scripts/record_history.py"], ()),
     ("página privada", ["scripts/build_dashboard.py"], ()),
     ("página pública", ["scripts/build_dashboard.py", "--public"], ()),
+    # Last, and it changes nothing: it says what the ledger is still waiting
+    # for. Everything above records what the site says; this names the part
+    # only Manuel knows, which is the part that goes missing.
+    ("decisões em falta", ["scripts/pending_decisions.py"], ()),
 ]
 
 

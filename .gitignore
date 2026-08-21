@@ -26,3 +26,12 @@ data/zerozero-cache/
 # Player history scraped from zerozero: regenerable, and not ours to
 # redistribute wholesale.
 data/players.json
+
+# Rebuildable from zerozero, and large.
+data/last-season.json
+data/rating-bridge.json
+
+# Record's own regulation text, kept for checking what this code claims
+# it says. Theirs, not ours to redistribute.
+data/regulation/
+data/season-*.json

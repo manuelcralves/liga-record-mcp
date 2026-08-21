@@ -59,8 +59,103 @@ STARTER_RANGE: dict[Position, tuple[int, int]] = {
 BASE_BUDGET = 40_000_000
 MIN_PRICE = 500_000
 
-# --- Transfers (§6.8, §6.9) ---
+# --- Transfers (§6.8, §6.9, §6.10, §6.11) ---
+#: §6.8 — "a transferência de um só jogador entre cada ronda". One per round,
+#: and nothing in the regulation banks an unused one. Every extra it grants is
+#: scoped to "a ronda em questão", which is the same rule read from the other
+#: side: allowances belong to a round and expire with it.
+TRANSFERS_PER_ROUND = 1
+
+#: §6.9 — the February reopening, 2 to 28 February 2027, covering Liga Record
+#: rounds 16 to 19. Six swaps for the whole window, not six a round, and the
+#: per-round transfer of §6.8 is switched off while it runs.
 REOPENED_MAX_SWAPS = 6
+REOPENED_FIRST_ROUND = 16
+REOPENED_LAST_MATCHDAY = 24
+
+#: §6.10 and §6.11 — compensation when the game changes under a participant:
+#: two extra transfers if a player of his changes position, one if the player
+#: moves to another competition. Per affected player, and for that round only.
+#: §6.11 suspends both during the reopening and in the round before it.
+POSITION_CHANGE_TRANSFERS = 2
+COMPETITION_CHANGE_TRANSFERS = 1
+
+# --- The calendar (§16.3, §16.4, §16.5, §19) ---
+#: Liga Record is shorter than the league it scores, and a "ronda" is not a
+#: "jornada" — the regulation uses both words in one sentence without ever
+#: saying they differ.
+#:
+#: WHERE IT STARTS IS DISPUTED BY THE REGULATION ITSELF. Four clauses say the
+#: competition is 29 rounds over matchdays 6 to 34:
+#:
+#:   §16.4  the standings count "entre a 6.ª e a 34.ª jornadas (inclusive)"
+#:   §16.5  "cada uma das 29 rondas da Liga Record"
+#:   §16.3  round 13 is matchday 18, and round 29 is matchday 34
+#:   §12.1  the first price list is "para a 6.ª jornada"
+#:
+#: One clause says otherwise. §19 calls "a 5ª jornada do campeonato" the one
+#: "que marca o início efetivo do passatempo", and says the trial covers "estas
+#: 4 primeiras jornadas" and "dura até dia 1 de setembro" — which fits the
+#: calendar exactly, since matchday 4 ends on 31 August. That reading gives 30
+#: rounds over matchdays 5 to 34.
+#:
+#: Six is used here because four numbered statements agree on it and one piece
+#: of prose does not, and because §16.4 is the clause that actually defines the
+#: classification. It is an assumption, not a reading, and it is worth one
+#: round either way.
+#:
+#: SETTLED BY WATCHING, not by re-reading. Two things are already observed and
+#: they agree with §19 rather than §16:
+#:
+#:   * the squad locks at matchday 5 — transfers are unlimited until then, one
+#:     a round after, which is the participant's own account of the site
+#:   * the trial is described everywhere as the first FOUR matchdays
+#:
+#: So matchday 5 is probably the first that counts, which would make the
+#: competition 30 rounds and not 29. What settles it is whether matchday 5's
+#: score appears in the season total; until it is scored, nobody can look.
+#:
+#: The one thing that does NOT depend on the answer, and the only one with a
+#: deadline attached: the squad has to be finished before matchday 5.
+FIRST_SCORING_MATCHDAY = 6
+LAST_MATCHDAY = 34
+RECORD_ROUNDS = LAST_MATCHDAY - FIRST_SCORING_MATCHDAY + 1  # 29, if §16 is right
+
+#: §19's reading, kept so the difference can be reasoned about rather than
+#: forgotten the moment the constant above stops being questioned.
+DISPUTED_FIRST_MATCHDAY = 5
+
+
+def matchday_of_round(round_number: int) -> int:
+    """Which Primeira Liga matchday a Liga Record round scores (§16.3)."""
+    return round_number + FIRST_SCORING_MATCHDAY - 1
+
+
+def round_of_matchday(matchday: int) -> int | None:
+    """Which Liga Record round a matchday belongs to, or None before the start.
+
+    Matchdays 1 to 5 are the trial period of §19: points are awarded exactly as
+    in the real thing, and §16.4 does not count them.
+    """
+    if matchday < FIRST_SCORING_MATCHDAY:
+        return None
+    return matchday - FIRST_SCORING_MATCHDAY + 1
+
+
+# --- The holiday mechanism (§6.17) ---
+#: Three rounds a season, consecutive or not, never in the last three, a
+#: participant may take half the round winner's score instead of his own team's
+#: — rounded up, and whatever his team actually did.
+HOLIDAY_ROUNDS = 3
+HOLIDAY_SHARE_OF_WINNER = 0.5
+HOLIDAY_BLOCKED_LAST_ROUNDS = 3
+
+# --- The top-scorer bet (§10.3(m)) ---
+#: Chosen once, when the first version of the team is submitted, and never
+#: again. Costs nothing and is optional, so not making it is a choice too.
+GOLDEN_BOOT_BONUS = 20
+SILVER_BOOT_BONUS = 10
+BRONZE_BOOT_BONUS = 5
 
 # --- Coaches (§6.15) — one per club, and they never cost budget ---
 COACH_COUNT = 18

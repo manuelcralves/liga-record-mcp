@@ -25,7 +25,19 @@ from .models import (
     BENCH_SIZE,
     MAX_SUBS_ON,
     MIN_PRICE,
+    BRONZE_BOOT_BONUS,
+    COMPETITION_CHANGE_TRANSFERS,
+    FIRST_SCORING_MATCHDAY,
+    GOLDEN_BOOT_BONUS,
+    HOLIDAY_BLOCKED_LAST_ROUNDS,
+    HOLIDAY_ROUNDS,
+    LAST_MATCHDAY,
+    POSITION_CHANGE_TRANSFERS,
+    RECORD_ROUNDS,
+    REOPENED_FIRST_ROUND,
+    REOPENED_LAST_MATCHDAY,
     REOPENED_MAX_SWAPS,
+    SILVER_BOOT_BONUS,
     SQUAD_QUOTA,
     SQUAD_SIZE,
     STARTER_RANGE,
@@ -46,6 +58,16 @@ from .rules import (
     validate_transfer,
 )
 from .stats import (
+    COACH_BIG_LOSS,
+    COACH_BIG_MARGIN,
+    COACH_BIG_WIN,
+    COACH_CLEAN_SHEET,
+    COACH_DRAW,
+    COACH_FAILED_TO_SCORE,
+    COACH_LOSS,
+    COACH_SENT_OFF,
+    COACH_SUBSTITUTE_GOAL,
+    COACH_WIN,
     NO_MATCH,
     PLAYED,
     PRIOR_STRENGTH,
@@ -54,10 +76,12 @@ from .stats import (
     classify_appearance,
     club_concentration,
     club_price_index,
+    availability,
     clubs_playing_in,
     decompose_round,
     differential_rows,
     fixture_exposure,
+    form_curve,
     last_scored_round,
     league_table,
     matches_played,
@@ -67,9 +91,12 @@ from .stats import (
     position_baselines,
     project,
     rate_rows,
+    season_summary,
 )
 from .source import (
     MARKET_MAX_VALUE,
+    LastSeasonError,
+    LastSeasonSource,
     LigaRecordClient,
     ManualSquadSource,
     MarketError,
@@ -77,12 +104,21 @@ from .source import (
     SiteError,
     SquadSourceError,
     history_for,
+    holidays_used,
     load_appearances,
+    load_decisions,
     load_coaches,
+    record_decision,
     record_round,
+    record_season_choice,
     recorded_rounds,
     save_appearances,
+    save_decisions,
 )
+# Aliased because the tools below take the plain names: a tool called
+# `track_record` and a function called `track_record` cannot both win.
+from .source.decisions import recorded_rounds as recorded_decisions  # noqa: E402
+from .source.decisions import track_record as track_record_of  # noqa: E402
 
 #: Module level so the caches survive across tool calls.
 _market = LigaRecordClient()
@@ -105,7 +141,20 @@ COACHES_PATH = Path(
 #: committed. Set it in the shell, never in a tracked config.
 DEFAULT_LEAGUE = os.environ.get("LIGA_RECORD_LEAGUE") or None
 
-#: The only file this server writes to.
+#: Last season, as this project reconstructed it. Absent until the sweep has
+#: been run, and every tool that reads it must survive its absence.
+LAST_SEASON_PATH = Path(
+    os.environ.get("LIGA_RECORD_LAST_SEASON")
+    or Path(__file__).resolve().parents[2] / "data" / "last-season.json"
+)
+
+#: What was decided each round, and what the team scored for it.
+DECISIONS_PATH = Path(
+    os.environ.get("LIGA_RECORD_DECISIONS")
+    or Path(__file__).resolve().parents[2] / "data" / "decisions.json"
+)
+
+#: Files this server writes to. Both are local; nothing is ever sent to the site.
 APPEARANCES_PATH = Path(
     os.environ.get("LIGA_RECORD_APPEARANCES")
     or Path(__file__).resolve().parents[2] / "data" / "appearances.json"
@@ -1316,9 +1365,16 @@ def project_points(rounds_remaining: int = 32, prior_strength: float = PRIOR_STR
     `prior_strength` is how many matches the prior is worth; raise it to lean
     harder on history, lower it to trust the current season more.
 
-    This is not validated. Liga Record has never published past scores, so
-    there is nothing to backtest against — the only honest test is to record
-    these projections now and check them in a few rounds.
+    Partly validated, and it is worth knowing which part. Liga Record still
+    publishes no past scores, so no projection this tool has made has ever been
+    checked against a real season — record them now and settle them later.
+
+    What has been measured is `prior_strength`, on a season reconstructed from
+    §10.3 and zerozero's match record. Over 4232 player-splits, blending beat
+    both extremes, and a player's own season to date turned out to be WORSE
+    evidence than what a player at his club in his position typically returns.
+    That is why the prior is worth ten rounds here and not four: early-season
+    form is mostly not about the player.
     """
     snapshot = _load()
     matches = _matches_by_club()
@@ -1356,32 +1412,435 @@ def project_points(rounds_remaining: int = 32, prior_strength: float = PRIOR_STR
     )
     club_index = club_price_index(played, league_mean_value)
 
-    rows = [
-        project(
-            player,
-            matches.get(player.club, 0),
-            records.get(player.club),
-            baselines,
-            mean_value.get(player.position, 0.0),
-            league_ga,
-            league_gf,
-            club_index=club_index.get(player.club, 1.0),
-            prior_strength=prior_strength,
-            rounds_remaining=rounds_remaining,
+    # Whether a man is in the side is the largest single fact about him, and it
+    # is the one the running average hides. The record of who actually played
+    # comes from §10.3(i)'s -1, which is the only signal Liga Record gives:
+    # `record_appearances` writes it down after each round.
+    seen: dict[str, dict[str, str]] = {}
+    league_availability = None
+    try:
+        store = load_appearances(APPEARANCES_PATH)
+        if recorded_rounds(store):
+            seen = {p.id: history_for(store, p.id) for p in snapshot.squad.players}
+            everyone = [
+                status
+                for rounds in (store.get("rounds") or {}).values()
+                for status in (rounds.get("players") or {}).values()
+                if status != NO_MATCH
+            ]
+            if everyone:
+                league_availability = sum(
+                    1 for status in everyone if status == PLAYED
+                ) / len(everyone)
+    except SquadSourceError:
+        # An unreadable record is a reason to project the old way, not to
+        # refuse to project.
+        seen, league_availability = {}, None
+
+    rows = []
+    for player in snapshot.squad.players:
+        history = seen.get(player.id) or {}
+        appearances = (
+            sum(1 for status in history.values() if status == PLAYED)
+            if history and league_availability
+            else None
         )
-        for player in snapshot.squad.players
-    ]
+        rows.append(
+            project(
+                player,
+                matches.get(player.club, 0),
+                records.get(player.club),
+                baselines,
+                mean_value.get(player.position, 0.0),
+                league_ga,
+                league_gf,
+                club_index=club_index.get(player.club, 1.0),
+                prior_strength=prior_strength,
+                rounds_remaining=rounds_remaining,
+                appearances=appearances,
+                expected_availability=(
+                    availability(history, league_rate=league_availability)
+                    if appearances is not None
+                    else None
+                ),
+                league_availability=league_availability,
+            )
+        )
     rows.sort(key=lambda r: -(r["projected_rate"] or 0))
     return {
         **_provenance(snapshot),
         "rounds_remaining": rounds_remaining,
         "prior_strength_matches": prior_strength,
         "league_goals_against_per_match": round(league_ga, 2),
+        "availability_split": (
+            "off — no appearance record yet; run record_appearances after a round"
+            if league_availability is None
+            else f"on, against a league rate of {league_availability:.0%}"
+        ),
         "unvalidated": (
-            "no past Liga Record scores exist to test this against — treat it "
-            "as a reasoned estimate, not a measured one"
+            "no projection made here has been checked against a finished "
+            "season — treat it as a reasoned estimate. Its shrinkage weight is "
+            "measured; its output is not"
         ),
         "players": rows,
+    }
+
+
+@server.tool()
+def holiday_round(round_number: int | None = None) -> dict[str, Any]:
+    """What §6.17's holiday mechanism would pay, against what the team scored.
+
+    A participant may take three rounds off a season — consecutive or not,
+    never in the last three — and be credited **half the round winner's score,
+    rounded up**, whatever his own team did.
+
+    It reads like a courtesy for people going on holiday. It is not. The
+    payout is half of a maximum taken over more than a hundred thousand teams,
+    which is a high and steady number; a single team's score is one draw with
+    far more spread. So the mechanism is a floor, and the question each week is
+    whether the floor is above what this squad is likely to manage.
+
+    The right rounds to spend it on are the ones where the squad is
+    compromised and the league is not — an international break, a congested
+    week, three key players suspended. Nothing about the payout depends on who
+    is injured.
+
+    Three a season is the whole allowance and they do not come back.
+    """
+    snapshot = _load()
+    target = round_number if round_number is not None else snapshot.round_number
+    if target is None:
+        return {
+            **_provenance(snapshot),
+            "detail": "no round to report on — pass round_number",
+        }
+
+    try:
+        leaders, pages = _market.standings(
+            page_size=5, round_number=target, order="round"
+        )
+        mine, _ = _market.standings(
+            team=snapshot.squad.team_name, round_number=target, order="round"
+        )
+    except SiteError as exc:
+        return {**_provenance(snapshot), "detail": f"could not read the round: {exc}"}
+
+    if not leaders:
+        return {
+            **_provenance(snapshot),
+            "round": target,
+            "detail": "the round ranking is empty — it may not have been scored yet",
+        }
+
+    winner = leaders[0].points_round
+    payout = -(-winner // 2)  # §6.17 rounds up
+    ours = next(
+        (row.points_round for row in mine if row.team_id == snapshot.squad.team_id),
+        None,
+    )
+
+    verdict = None
+    if ours is not None:
+        difference = payout - ours
+        verdict = (
+            f"the holiday would have been worth {difference:+d}"
+            if difference
+            else "the holiday would have matched the team exactly"
+        )
+
+    return {
+        **_provenance(snapshot),
+        "round": target,
+        "round_winner": winner,
+        "holiday_pays": payout,
+        "our_score": ours,
+        "verdict": verdict,
+        "teams_ranked": pages * 20,
+        "allowance": (
+            f"{HOLIDAY_ROUNDS} rounds a season, consecutive or not, none in the "
+            f"last {HOLIDAY_BLOCKED_LAST_ROUNDS} (§6.17). This server cannot see "
+            "how many have been used — the site can."
+        ),
+        "leaders": [
+            {"team": row.team_name, "points_round": row.points_round}
+            for row in leaders[:3]
+        ],
+    }
+
+
+@server.tool()
+def settle_decision(
+    round_number: int,
+    transfer_out: str = "",
+    transfer_in: str = "",
+    suggested_out: str = "",
+    suggested_in: str = "",
+    holiday: bool = False,
+    captain: str = "",
+    coach: str = "",
+    top_scorer_bet: str = "",
+    note: str = "",
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Write down what was decided in a round, and what the team scored.
+
+    The projection ledger already records what was expected of each player and
+    what he did. This records the other half — what the manager did with that.
+    Only the pair answers the question the whole project rests on: over a
+    season, did taking the advice beat not taking it?
+
+    The score and the national rank are read from the site, so they are not
+    arguments. Everything else is what the participant himself did and only he
+    knows: which transfer he actually made, whether it was the suggested one,
+    whether a holiday round was spent (§6.17 allows three), and who wore the
+    armband.
+
+    Pass `suggested_out` and `suggested_in` to record what was advised, even
+    when it was not taken — an ignored suggestion that would have worked is the
+    most useful row in the ledger, and it is the one that disappears if only
+    the decisions are kept.
+
+    A round already on file is not overwritten unless asked. Rewriting a
+    decision after the result turns a record into a story.
+    """
+    snapshot = _load()
+    try:
+        store = load_decisions(DECISIONS_PATH)
+    except SquadSourceError as exc:
+        return {**_provenance(snapshot), "detail": f"could not read the ledger: {exc}"}
+
+    ours, rank, field = None, None, None
+    try:
+        # Two calls, and the second one is the reason. Filtering by team name
+        # narrows the RESULT, so its page count is the size of the filtered
+        # list and not of the field — which turned a 53rd percentile into
+        # 53380%. The field has to come from a query that filters nothing.
+        # This project has now made that mistake twice.
+        _, pages = _market.standings(
+            page_size=5, round_number=round_number, order="round"
+        )
+        field = pages * 20
+        rows, _ = _market.standings(
+            team=snapshot.squad.team_name, round_number=round_number, order="round"
+        )
+        for row in rows:
+            if row.team_id == snapshot.squad.team_id:
+                ours, rank = row.points_round, row.position_round
+                break
+    except SiteError:
+        # A ledger entry without the score is still worth having; the score can
+        # be filled in later, the decision cannot be remembered later.
+        pass
+
+    try:
+        entry = record_decision(
+            store,
+            round_number,
+            our_points=ours,
+            our_rank=rank,
+            field_size=field,
+            transfer_out=transfer_out or None,
+            transfer_in=transfer_in or None,
+            suggested_out=suggested_out or None,
+            suggested_in=suggested_in or None,
+            holiday=holiday,
+            captain=captain or None,
+            coach=coach or None,
+            note=note,
+            overwrite=overwrite,
+        )
+        if top_scorer_bet:
+            record_season_choice(store, top_scorer=top_scorer_bet)
+        save_decisions(DECISIONS_PATH, store)
+    except SquadSourceError as exc:
+        return {**_provenance(snapshot), "detail": str(exc)}
+
+    used = holidays_used(store)
+    return {
+        **_provenance(snapshot),
+        "round": round_number,
+        "recorded": entry,
+        "holidays_used": used,
+        "holidays_left": HOLIDAY_ROUNDS - len(used),
+        "written_to": str(DECISIONS_PATH),
+    }
+
+
+@server.tool()
+def track_record() -> dict[str, Any]:
+    """How the advice has actually done, from the ledger.
+
+    Plain arithmetic over what is written down, on purpose. Anything cleverer
+    would need more rounds than exist, and a confident summary of four rounds
+    would be worse than no summary at all.
+
+    `advice_taken` against `advice_given` is the line to watch. A model that
+    projects well and is ignored is worth nothing; one that is followed while
+    projecting badly is worse than nothing. Only the pair says which is
+    happening here.
+    """
+    snapshot = _load()
+    try:
+        store = load_decisions(DECISIONS_PATH)
+    except SquadSourceError as exc:
+        return {**_provenance(snapshot), "detail": f"could not read the ledger: {exc}"}
+
+    summary = track_record_of(store)
+    if not summary["rounds"]:
+        return {
+            **_provenance(snapshot),
+            "detail": "nothing recorded yet — call settle_decision after a round",
+        }
+    return {
+        **_provenance(snapshot),
+        **summary,
+        "rounds_on_file": recorded_decisions(store),
+        "caveat": (
+            "a handful of rounds is a handful of rounds. Read the direction, "
+            "not the decimal"
+        ),
+    }
+
+
+_last_season = LastSeasonSource(LAST_SEASON_PATH)
+
+#: Repeated on every answer built from the reconstruction. Liga Record did
+#: publish scores last season; it just did not keep them, and it never
+#: published the marks. Presenting these as Record's own numbers would be a
+#: fabrication, and the caveat is cheaper than the correction.
+RECONSTRUCTED = (
+    "Reconstructed, not published. Goals, cards, clean sheets, wins and "
+    "absences are computed from §10.3 on zerozero's match record and are "
+    "exact; Record's editorial mark is estimated from zerozero's rating, to "
+    "within about 0.44 points a match. Never quote these as Liga Record's own "
+    "figures."
+)
+
+
+@server.tool()
+def last_season(name: str) -> dict[str, Any]:
+    """One player's 2025/26, scored the way Liga Record would have scored it.
+
+    Liga Record keeps no history, so this is rebuilt rather than looked up —
+    read the `basis` field before repeating any number from it.
+
+    Returns the season total, the rate per round in the squad, the rate per 90
+    minutes, and a rolling form line. The form line is the reason to ask: a
+    total says a player was worth three a round, and the curve says whether he
+    was worth six until January and one after it. With one transfer a round
+    from round five, that difference is the whole decision.
+
+    Promoted clubs have no top-flight season and come back empty, which is a
+    fact about them and not a failure.
+    """
+    if not _last_season.available:
+        return {
+            "detail": (
+                "no reconstruction on file — run scripts/build_last_season.py "
+                "(about ten minutes, one polite read per player)"
+            ),
+        }
+    try:
+        found = _last_season.find(name)
+    except LastSeasonError as exc:
+        return {"detail": str(exc)}
+
+    if not found:
+        return {"query": name, "found": 0, "detail": "nobody by that name in the reconstruction"}
+    if len(found) > 1:
+        return {
+            "query": name,
+            "found": len(found),
+            "candidates": [f"{p['name']} ({p['club']}, {p['position']})" for p in found],
+            "detail": "more than one player matches — ask for one of these by full name",
+        }
+
+    player = found[0]
+    matches = player["matches"]
+    summary = season_summary(matches)
+    estimated = sum(1 for m in matches if m.get("mark_source") == "assumed average")
+    return {
+        "basis": RECONSTRUCTED,
+        "season": _last_season.load().get("season"),
+        "name": player["name"],
+        "club_now": player["club"],
+        "position": player["position"],
+        **summary,
+        "rounds_without_a_rating": estimated,
+        "form": form_curve(matches),
+        "matches": sorted(matches, key=lambda m: m["round"]),
+    }
+
+
+@server.tool()
+def last_season_leaders(
+    position: str | None = None,
+    limit: int = 15,
+    minimum_matches: int = 20,
+) -> dict[str, Any]:
+    """Who was actually worth having last season, by reconstructed points.
+
+    Ranked on the rate per round in the squad rather than the total, because a
+    manager pays for a player every round whether he plays or not — a forward
+    who returns eight in a third of the rounds and minus one in the rest is not
+    an eight-point forward.
+
+    `minimum_matches` guards against a man with four brilliant afternoons
+    topping the list. It counts rounds his club played while he was on the
+    books, not appearances.
+
+    These are last season's players at last season's clubs. A player who has
+    since moved carries his old club's fixtures, which is correct history and
+    a poor guide to his next fixture — pair it with `squad_fixtures`.
+    """
+    if not _last_season.available:
+        return {
+            "detail": (
+                "no reconstruction on file — run scripts/build_last_season.py "
+                "(about ten minutes, one polite read per player)"
+            ),
+        }
+    try:
+        players = _last_season.players()
+    except LastSeasonError as exc:
+        return {"detail": str(exc)}
+
+    wanted = position.upper() if position else None
+    if wanted and wanted not in {p.value for p in Position}:
+        return {"detail": f"unknown position {position!r}; use GK, DEF, MID or FWD"}
+
+    rows = []
+    for player in players.values():
+        if wanted and player["position"] != wanted:
+            continue
+        summary = season_summary(player["matches"])
+        if summary["matches"] < minimum_matches:
+            continue
+        rows.append(
+            {
+                "name": player["name"],
+                "club_now": player["club"],
+                "position": player["position"],
+                "points": summary["points"],
+                "per_match": summary["per_match"],
+                "per_90": summary["per_90"],
+                "matches": summary["matches"],
+                "played": summary["played"],
+                "goals": summary["goals"],
+                "hauls": summary["hauls"],
+                "blanks": summary["blanks"],
+                "consistency": summary["consistency"],
+            }
+        )
+
+    rows.sort(key=lambda r: r["per_match"], reverse=True)
+    return {
+        "basis": RECONSTRUCTED,
+        "season": _last_season.load().get("season"),
+        "position": wanted,
+        "minimum_matches": minimum_matches,
+        "qualified": len(rows),
+        "players": rows[:limit],
     }
 
 
@@ -1452,6 +1911,34 @@ That last -1 is what makes appearances readable at all: it is the only signal
 this project has for who actually took the field, since Liga Record never
 publishes a line-up.
 
+## The coach (§6.15, §14)
+
+A scoring slot in every round, and the only pick with no constraint on it: he
+costs no budget (§6.4), may be changed every round (§6.15), repeats if left
+alone (§6.16), and a team without one scores zero (§6.17). §14.4 adds his
+points straight to the team's.
+
+He is marked by the same newsroom on the same scale as a player (§14.1), and
+§14.2 refuses to discuss that mark too. On top of it:
+
+| Event | Coach |
+|---|---|
+| Win / draw / loss | +{COACH_WIN} / {COACH_DRAW} / {COACH_LOSS} |
+| Team fails to score | {COACH_FAILED_TO_SCORE} |
+| Team concedes none | +{COACH_CLEAN_SHEET} |
+| Winning by more than {COACH_BIG_MARGIN} goals | +{COACH_BIG_WIN} |
+| Losing by more than {COACH_BIG_MARGIN} goals | {COACH_BIG_LOSS} |
+| Each goal scored by a substitute | +{COACH_SUBSTITUTE_GOAL} |
+| Sent to the stand | {COACH_SENT_OFF} |
+
+- **Coming from behind (§14.3(b))** is the term worth knowing. Drawing after
+  being two down pays +2; **winning** after being two down pays +4, because the
+  clause doubles it. The regulation's own example is exactly that.
+- **A coach who cannot take the bench scores nothing at all (§14.5)** —
+  suspended, sacked, or replaced by an assistant. Not zero-plus-the-result:
+  nothing. His side can win 5-0 and the participant gets none of it. A coach
+  who moves to another Liga Portugal club keeps scoring, at his new club.
+
 ## Automatic substitutions (§11)
 - A starter who did not play, or whose match was abandoned or postponed after
   the round closed, is replaced.
@@ -1476,15 +1963,50 @@ efetivo do passatempo". It runs until 1 September.
   one who leaves the league is hidden from search, kept in the squad, and
   scores -1 every round thereafter.
 
-Whether the points carry into round 5 or the table restarts is NOT stated
-here, and the summer-championship table the site exposes comes back empty, so
-this server does not claim either. Check the site before treating a lead or a
-deficit from these rounds as meaning anything.
+**The points do not carry.** §16.4 is explicit: the final standings count "a
+pontuação acumulada entre a 6.ª e a 34.ª jornadas (inclusive)". Whatever a
+squad scores before matchday {FIRST_SCORING_MATCHDAY} is a rehearsal — real
+enough to learn from, and worth nothing in the table.
 
-## Transfers (§6.8, §6.9)
-- One per round, like for like: the positional contingent must hold.
-- Transfers close in February; the reopened market allows up to
-  {REOPENED_MAX_SWAPS} swaps.
+## A round is not a matchday (§16.3, §16.4)
+
+Liga Record is **{RECORD_ROUNDS} rounds** laid over the last {RECORD_ROUNDS} of
+a {LAST_MATCHDAY}-matchday league. Round 1 is matchday
+{FIRST_SCORING_MATCHDAY}; round {RECORD_ROUNDS} is matchday {LAST_MATCHDAY}.
+
+The regulation uses "ronda" and "jornada" in the same sentence and never says
+they differ. §16.3 is where it becomes checkable: round 13 is matchday 18 and
+round 29 is matchday 34. Confuse the two and every deadline lands five weeks
+out.
+
+## Transfers (§6.8 to §6.11)
+- **One per round**, like for like: the positional contingent must hold.
+- **They do not accumulate.** §6.8 grants "um só jogador entre cada ronda", and
+  every extra §6.10 and §6.11 give is "na ronda em questão". An allowance
+  belongs to its round and expires with it — skipping a round buys nothing.
+- A player of yours **changing position** is worth {POSITION_CHANGE_TRANSFERS}
+  extra transfers that round (§6.10); one **moving to another competition** is
+  worth {COMPETITION_CHANGE_TRANSFERS} (§6.11), from round 2 onwards. Per
+  affected player.
+- **February**: the ordinary transfer switches off and the market reopens from
+  2 February (round {REOPENED_FIRST_ROUND}) to fifteen minutes before matchday
+  {REOPENED_LAST_MATCHDAY} on 28 February. Up to {REOPENED_MAX_SWAPS} swaps
+  **for the whole window**, not per round. §6.11 suspends the compensations
+  during it and in the round before.
+
+## Two mechanisms that are easy to miss
+
+**Holiday rounds (§6.17).** Three rounds a season, consecutive or not, never in
+the last {HOLIDAY_BLOCKED_LAST_ROUNDS}, you may take **half the round winner's
+score, rounded up**, whatever your own team did. Worth doing the arithmetic on
+before filing it under "for when I am away": half of a winning round is
+generally well above what a good team returns.
+
+**The top-scorer bet (§10.3(m)).** Naming the season's leading scorer is worth
++{GOLDEN_BOOT_BONUS} in the final standings, +{SILVER_BOOT_BONUS} for the
+runner-up, +{BRONZE_BOOT_BONUS} for third. It costs nothing, it is optional,
+and it is made **once**, when the first version of the team is submitted. Not
+making it is a decision, and the kind only noticed in May.
 
 ## Quotes (§12.1-§12.4)
 - 10+ points: +{_eur(150_000)}. 6-9: +{_eur(100_000)}. 4-5: +{_eur(50_000)}.
