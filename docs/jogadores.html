@@ -1,0 +1,854 @@
+<title>Melro · Os jogadores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Instrument+Serif&display=swap">
+<style>
+/* Paper, below the hinge. The reader's theme moves these and nothing else. */
+/* Declared so the browser knows this page handles its own themes. Without it
+   Chrome's automatic dark mode forces a scheme on top of ours, and it reaches
+   inside tables: on a light ground the paper stayed light while every table
+   inherited dark ink, which renders the player names invisible. */
+:root {
+  color-scheme: light;
+  --paper: #eceae5;
+  --ink:   #16150f;
+  --dim:   #6a6860;
+  --rule:  #c9c6bd;
+  --hair:  #dcd9d1;
+  --wash:  #e3e0d9;
+  --red:   #a8112a;
+  --green: #1f6b4a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #14140f;
+    --ink:   #efece4;
+    --dim:   #918e85;
+    --rule:  #3a3931;
+    --hair:  #2a2923;
+    --wash:  #1e1e17;
+    --red:   #e0374f;
+    --green: #4fa87c;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #14140f;
+  --ink:   #efece4;
+  --dim:   #918e85;
+  --rule:  #3a3931;
+  --hair:  #2a2923;
+  --wash:  #1e1e17;
+  --red:   #e0374f;
+  --green: #4fa87c;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  font-size: 16.5px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.page { max-width: 1020px; margin: 0 auto; }
+.body { padding: 0 32px 64px; }
+
+/* ------------------------------------------------------------------ *
+ * The broadcast panel. A fixed graphic: it does not follow the        *
+ * reader's theme, the way a front page's photograph is the photograph *
+ * whatever paper it is printed on.                                    *
+ * ------------------------------------------------------------------ */
+.bcast {
+  --bg:   #0a0d14;
+  --sunk: #141a27;
+  --bink: #ffffff;
+  --bdim: #8b95a8;
+  --hot:  #ff2d46;
+  --mint: #00d9a3;
+  background: var(--bg); color: var(--bink); padding-bottom: 32px;
+}
+.mast { display: flex; align-items: stretch; height: 82px; }
+.mast-name {
+  background: var(--hot); display: flex; align-items: center;
+  padding: 0 40px 0 32px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 22px) 100%, 0 100%);
+}
+.mast-name span { font-family: Anton, Impact, "Arial Narrow", sans-serif; font-size: 44px; line-height: 1; }
+.mast-meta { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 20px; padding: 0 32px; }
+.mast-tag { font-size: 12.5px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: var(--bdim); }
+.mast-round { font-family: Anton, Impact, sans-serif; font-size: 25px; letter-spacing: .04em; }
+
+.hero { display: flex; align-items: flex-end; gap: 26px; padding: 30px 32px 0; }
+.hero-figure { font-family: Anton, Impact, sans-serif; font-size: 178px; line-height: .78; letter-spacing: -.03em; color: var(--hot); }
+.hero-side { display: flex; flex-direction: column; gap: 3px; padding-bottom: 15px; }
+.hero-of { font-family: Anton, Impact, sans-serif; font-size: 38px; line-height: 1; }
+.hero-label { font-size: 16px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }
+
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 3px; padding: 28px 32px 0; }
+.fig-block { background: var(--sunk); padding: 15px 19px 13px; }
+.fig-label { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }
+.fig-value { display: block; font-family: Anton, Impact, sans-serif; font-size: 40px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.fig-value.hot { color: var(--hot); }
+.fig-note { display: block; font-size: 14.5px; color: var(--bdim); }
+
+.form { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px; padding: 28px 32px 0; }
+.form-bars { display: grid; grid-auto-flow: column; grid-auto-columns: 126px; grid-template-rows: 140px auto auto; gap: 0 3px; }
+.bar-slot { display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }
+.bar { width: 100%; background: var(--sunk); display: flex; align-items: flex-start; justify-content: center; padding-top: 9px; align-self: end; }
+.bar.lead { background: var(--hot); }
+.bar-value { font-family: Anton, Impact, sans-serif; font-size: 44px; line-height: 1; }
+.bar-round { font-size: 12.5px; font-weight: 600; letter-spacing: .08em; color: var(--bdim); padding-top: 7px; }
+.move { display: block; font-size: 12px; font-weight: 600; line-height: 1.4; min-height: 1.4em; }
+.move.down { color: var(--hot); }
+.move.up { color: var(--mint); }
+.form-story {
+  background: var(--sunk); display: flex; flex-direction: column;
+  justify-content: center; gap: 1px; padding: 0 28px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 26px 100%);
+}
+.form-figure { font-family: Anton, Impact, sans-serif; font-size: 46px; line-height: 1; color: var(--hot); }
+.form-note { font-size: 15.5px; color: var(--bdim); }
+
+/* The hinge: graphics above, type below. */
+.hinge { height: 5px; background: var(--ink); }
+
+/* ------------------------------------------------------------------ *
+ * The results page. No boxes, no shadows: rules and weight only.      *
+ * ------------------------------------------------------------------ */
+section { padding-top: 34px; }
+h2 {
+  font-family: "Instrument Serif", Georgia, serif; font-weight: 400;
+  font-size: 31px; line-height: 1.1; margin: 0 0 3px; letter-spacing: -.01em;
+  text-wrap: balance;
+}
+.rule { height: 2px; background: var(--ink); margin-bottom: 14px; }
+.lede { margin: 0 0 16px; max-width: 68ch; color: var(--dim); }
+.lede strong { color: var(--ink); font-weight: 600; }
+.footnote { margin: 12px 0 0; font-size: 14.5px; color: var(--dim); max-width: 68ch; }
+code { font-family: ui-monospace, monospace; font-size: 14px; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0 34px; }
+@media (max-width: 780px) { .cols { grid-template-columns: 1fr; gap: 28px; } .rail { border-left: none; padding-left: 0; } }
+.rail { border-left: 1px solid var(--rule); padding-left: 26px; }
+.rail h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 23px; margin: 0; }
+.rail-note { margin: 0 0 4px; font-size: 14px; color: var(--dim); }
+
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; font-size: 11.5px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--dim); padding: 0 12px 6px 0;
+  border-bottom: 1px solid var(--rule); white-space: nowrap;
+}
+td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--hair); vertical-align: baseline; }
+tbody tr:last-child td { border-bottom: none; }
+.fig { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th.fig { text-align: right; }
+.name { font-weight: 600; }
+.sub { font-size: 14px; color: var(--dim); font-weight: 400; }
+td.name .sub { display: block; }
+.muted { color: var(--dim); font-weight: 400; }
+.strong { font-weight: 600; }
+.up { color: var(--green); }
+.down { color: var(--red); }
+.pending { font-size: 14px; color: var(--dim); font-style: italic; }
+
+.pos-row {
+  font-family: "Instrument Serif", Georgia, serif; font-size: 17px;
+  font-weight: 400; letter-spacing: .03em; text-transform: none;
+  color: var(--ink); border-bottom: 1px solid var(--rule); padding-top: 18px;
+}
+.ord { color: var(--dim); font-size: 13px; width: 16px; padding-right: 8px; }
+.cap, .late { font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 1px 5px; white-space: nowrap; }
+.cap { background: var(--red); color: #fff; }
+.late { color: var(--red); border: 1px solid currentColor; }
+.role.is-xi { font-weight: 600; }
+.role.is-xi::before { content: ""; display: inline-block; width: 3px; height: 11px; background: var(--red); margin-right: 7px; vertical-align: -1px; }
+
+.lead-fig { font-family: "Instrument Serif", Georgia, serif; font-size: 30px; width: 46px; text-align: right; padding-right: 16px; }
+
+.facts { margin: 20px 0 0; padding-top: 12px; border-top: 2px solid var(--ink); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 14px; font-size: 15px; }
+.facts dt { font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.facts dd { margin: 0; font-weight: 600; min-width: 0; }
+.facts .big { font-family: "Instrument Serif", Georgia, serif; font-size: 29px; font-weight: 400; }
+
+.grid td.cell { text-align: center; min-width: 92px; padding: 6px 8px; }
+.cell-opp { display: block; font-size: 12px; color: var(--dim); white-space: nowrap; }
+.cell-fig { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cell.easy { background: color-mix(in srgb, var(--green) 13%, transparent); }
+.cell.easy .cell-fig { color: var(--green); }
+.cell.hard { background: color-mix(in srgb, var(--red) 13%, transparent); }
+.cell.hard .cell-fig { color: var(--red); }
+
+tr.is-me td { background: var(--wash); }
+tr.is-me .name { font-weight: 700; }
+tr.is-me td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+tr.is-dead td, tr.is-dead .name { color: var(--dim); font-weight: 400; }
+.rank { width: 38px; color: var(--dim); }
+
+.dist { padding: 6px 0 0; }
+.dist-track { position: relative; height: 34px; border-bottom: 1px solid var(--rule); }
+.mark { position: absolute; bottom: 0; width: 2px; height: 20px; background: var(--rule); transform: translateX(-1px); }
+.mark.is-me { background: var(--red); height: 34px; width: 3px; }
+.dist-axis { position: relative; height: 22px; margin-top: 6px; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.dist-end { position: absolute; left: 0; }
+.dist-end.right { left: auto; right: 0; }
+.dist-me { position: absolute; transform: translateX(-50%); color: var(--red); font-weight: 600; white-space: nowrap; }
+
+.quad { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0 30px; }
+.quad h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0 0 2px; border-bottom: 1px solid var(--rule); padding-bottom: 4px; }
+.quad .cap { margin-left: 6px; }
+.spread { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rule); }
+.spread-label { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.ticks { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); grid-template-rows: 76px auto auto; gap: 0 14px; max-width: 460px; }
+.tick { display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }
+.tick-bar { width: 100%; background: var(--red); align-self: end; min-height: 2px; }
+.tick-n { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--dim); padding-top: 4px; }
+.tick-v { font-family: "Instrument Serif", Georgia, serif; font-size: 19px; padding-top: 2px; }
+.questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }
+.q h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }
+.q-state { margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }
+.q p { margin: 0; font-size: 14.5px; color: var(--dim); }
+
+footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 13.5px; color: var(--dim); display: flex; flex-wrap: wrap; gap: 4px 20px; }
+a { color: var(--red); }
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* The page nav. Five links, current one marked, and nothing clever: it has to
+   work from a file:// URL with no server behind it. */
+.nav {
+  display: flex; flex-wrap: wrap; gap: 0;
+  border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+  margin: 0 0 2.4rem 0; background: var(--wash);
+}
+.nav a {
+  padding: 0.7rem 1.15rem; text-decoration: none; color: var(--dim);
+  font: 600 0.78rem/1 "IBM Plex Sans Condensed", system-ui, sans-serif;
+  letter-spacing: 0.09em; text-transform: uppercase;
+  border-right: 1px solid var(--hair);
+}
+.nav a:hover { color: var(--ink); background: var(--paper); }
+.nav a[aria-current] { color: var(--paper); background: var(--ink); }
+.slim {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; padding: 1.6rem 0 1.1rem 0;
+}
+.slim .mark {
+  font: 400 2.1rem/1 Anton, Impact, sans-serif; letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+.slim .where { color: var(--dim); font-size: 0.82rem; }
+</style>
+
+<div class="page">
+  <div class="slim">
+    <span class="mark">Melro</span>
+    <span class="where">Os jogadores · jornada 3</span>
+  </div>
+  <div class="hinge"></div>
+  <div class="body">
+    <nav class="nav">
+      <a href="index.html">A equipa</a>
+      <a href="jogadores.html" aria-current="page">Os jogadores</a>
+      <a href="decisoes.html">As decisões</a>
+      <a href="modelo.html">O modelo</a>
+    </nav>
+
+    <section>
+      <h2>O que sabemos de cada um</h2><div class="rule"></div>
+      <p class="lede">O resto desta página olha para esta época, que
+      são duas jornadas. Isto são <strong>68 jornadas</strong> de
+      2024/25 e 2025/26, reconstruídas a partir do §10.3 e do registo de cada
+      jogo — a diferença entre "fez uma boa tarde no domingo" e "é isto que ele
+      é". <strong>Rende</strong> é quanto faz nos dias em que joga;
+      <strong>joga</strong> é em que fração das jornadas entrou em campo, que é
+      o maior facto sobre um jogador de fantasy e o que uma média esconde.
+      <strong>7</strong> dos teus vêm da II Liga ou do estrangeiro e têm evidência a menos para dizerem alguma coisa: a projeção deles é a média do clube com o nome deles.</p>
+      <table class="data wide">
+        <thead>
+          <tr><th>jogador</th><th>rende</th><th>joga</th><th>oscila</th>
+          <th>posse</th><th>jogos</th><th>o que é</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+              <td class="name">Diogo Costa<span class="sub">GR · FC Porto</span></td>
+              <td class="fig">3.5</td>
+              <td class="fig">96%</td>
+              <td class="fig">3.3</td>
+              <td class="fig">27%</td>
+              <td class="fig">65<span class="sub">de 68</span></td>
+              <td class="verdict">volátil<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Lucão<span class="sub">GR · Gil Vicente</span></td>
+              <td class="fig">0.1</td>
+              <td class="fig">50%</td>
+              <td class="fig">—</td>
+              <td class="fig">36%</td>
+              <td class="fig">8<span class="sub">de 16</span></td>
+              <td class="verdict">aposta</td>
+            </tr>
+            <tr>
+              <td class="name">Alfonso Pastor<span class="sub">GR · Marítimo</span></td>
+              <td class="fig">—</td>
+              <td class="fig">0%</td>
+              <td class="fig">—</td>
+              <td class="fig">19%</td>
+              <td class="fig">0<span class="sub">de 10</span></td>
+              <td class="verdict">aposta</td>
+            </tr>
+            <tr>
+              <td class="name">Zaidu<span class="sub">DEF · FC Porto</span></td>
+              <td class="fig">4.0</td>
+              <td class="fig">43%</td>
+              <td class="fig">1.8</td>
+              <td class="fig">32%</td>
+              <td class="fig">20<span class="sub">de 47</span></td>
+              <td class="verdict">arriscado<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Nehuén Pérez<span class="sub">DEF · FC Porto</span></td>
+              <td class="fig">3.5</td>
+              <td class="fig">49%</td>
+              <td class="fig">2.5</td>
+              <td class="fig">6%</td>
+              <td class="fig">31<span class="sub">de 63</span></td>
+              <td class="verdict">arriscado</td>
+            </tr>
+            <tr>
+              <td class="name">Javi Sánchez<span class="sub">DEF · Arouca</span></td>
+              <td class="fig">2.5</td>
+              <td class="fig">88%</td>
+              <td class="fig">2.2</td>
+              <td class="fig">24%</td>
+              <td class="fig">15<span class="sub">de 17</span></td>
+              <td class="verdict">volátil<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Léo Santos<span class="sub">DEF · Nacional</span></td>
+              <td class="fig">2.3</td>
+              <td class="fig">73%</td>
+              <td class="fig">2.2</td>
+              <td class="fig">4%</td>
+              <td class="fig">47<span class="sub">de 64</span></td>
+              <td class="verdict">incerto</td>
+            </tr>
+            <tr>
+              <td class="name">Buatu<span class="sub">DEF · Gil Vicente</span></td>
+              <td class="fig">2.2</td>
+              <td class="fig">76%</td>
+              <td class="fig">2.4</td>
+              <td class="fig">32%</td>
+              <td class="fig">52<span class="sub">de 68</span></td>
+              <td class="verdict">incerto<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Tiago Esgaio<span class="sub">DEF · Arouca</span></td>
+              <td class="fig">2.1</td>
+              <td class="fig">89%</td>
+              <td class="fig">3.1</td>
+              <td class="fig">6%</td>
+              <td class="fig">54<span class="sub">de 61</span></td>
+              <td class="verdict">volátil</td>
+            </tr>
+            <tr>
+              <td class="name">Jose Fontán<span class="sub">DEF · Arouca</span></td>
+              <td class="fig">1.5</td>
+              <td class="fig">88%</td>
+              <td class="fig">2.7</td>
+              <td class="fig">15%</td>
+              <td class="fig">59<span class="sub">de 67</span></td>
+              <td class="verdict">volátil<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Finn van Breemen<span class="sub">DEF · Famalicão</span></td>
+              <td class="fig">—</td>
+              <td class="fig">—</td>
+              <td class="fig">—</td>
+              <td class="fig">36%</td>
+              <td class="fig">0<span class="sub">de 0</span></td>
+              <td class="verdict">aposta</td>
+            </tr>
+            <tr>
+              <td class="name">Zalazar<span class="sub">MED · Sporting</span></td>
+              <td class="fig">4.9</td>
+              <td class="fig">70%</td>
+              <td class="fig">2.3</td>
+              <td class="fig">42%</td>
+              <td class="fig">47<span class="sub">de 67</span></td>
+              <td class="verdict">incerto<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Santi García<span class="sub">MED · Gil Vicente</span></td>
+              <td class="fig">3.7</td>
+              <td class="fig">92%</td>
+              <td class="fig">1.6</td>
+              <td class="fig">34%</td>
+              <td class="fig">60<span class="sub">de 65</span></td>
+              <td class="verdict">seguro<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Samu<span class="sub">MED · V. Guimarães</span></td>
+              <td class="fig">3.7</td>
+              <td class="fig">100%</td>
+              <td class="fig">1.6</td>
+              <td class="fig">33%</td>
+              <td class="fig">60<span class="sub">de 60</span></td>
+              <td class="verdict">seguro<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Gorby<span class="sub">MED · Sp. Braga</span></td>
+              <td class="fig">3.4</td>
+              <td class="fig">78%</td>
+              <td class="fig">1.0</td>
+              <td class="fig">12%</td>
+              <td class="fig">52<span class="sub">de 67</span></td>
+              <td class="verdict">incerto<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Cáseres<span class="sub">MED · Gil Vicente</span></td>
+              <td class="fig">3.1</td>
+              <td class="fig">73%</td>
+              <td class="fig">0.7</td>
+              <td class="fig">29%</td>
+              <td class="fig">49<span class="sub">de 67</span></td>
+              <td class="verdict">incerto<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Raphael Guzzo<span class="sub">MED · Marítimo</span></td>
+              <td class="fig">—</td>
+              <td class="fig">—</td>
+              <td class="fig">—</td>
+              <td class="fig">27%</td>
+              <td class="fig">0<span class="sub">de 0</span></td>
+              <td class="verdict">aposta</td>
+            </tr>
+            <tr>
+              <td class="name">Issa Doumbia<span class="sub">MED · Sporting</span></td>
+              <td class="fig">—</td>
+              <td class="fig">—</td>
+              <td class="fig">—</td>
+              <td class="fig">27%</td>
+              <td class="fig">0<span class="sub">de 0</span></td>
+              <td class="verdict">aposta</td>
+            </tr>
+            <tr>
+              <td class="name">Danilovic<span class="sub">MED · Marítimo</span></td>
+              <td class="fig">—</td>
+              <td class="fig">—</td>
+              <td class="fig">—</td>
+              <td class="fig">5%</td>
+              <td class="fig">0<span class="sub">de 0</span></td>
+              <td class="verdict">aposta</td>
+            </tr>
+            <tr>
+              <td class="name">Pavlidis<span class="sub">AVA · Benfica</span></td>
+              <td class="fig">4.9</td>
+              <td class="fig">99%</td>
+              <td class="fig">3.5</td>
+              <td class="fig">50%</td>
+              <td class="fig">67<span class="sub">de 68</span></td>
+              <td class="verdict">volátil<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Begraoui<span class="sub">AVA · Estoril</span></td>
+              <td class="fig">4.0</td>
+              <td class="fig">100%</td>
+              <td class="fig">3.6</td>
+              <td class="fig">18%</td>
+              <td class="fig">68<span class="sub">de 68</span></td>
+              <td class="verdict">volátil<span class="sub">toda a gente tem</span></td>
+            </tr>
+            <tr>
+              <td class="name">Fran Navarro<span class="sub">AVA · Sp. Braga</span></td>
+              <td class="fig">3.2</td>
+              <td class="fig">64%</td>
+              <td class="fig">1.6</td>
+              <td class="fig">3%</td>
+              <td class="fig">43<span class="sub">de 67</span></td>
+              <td class="verdict">arriscado</td>
+            </tr>
+            <tr>
+              <td class="name">Héctor Hernández<span class="sub">AVA · Gil Vicente</span></td>
+              <td class="fig">3.0</td>
+              <td class="fig">60%</td>
+              <td class="fig">—</td>
+              <td class="fig">23%</td>
+              <td class="fig">9<span class="sub">de 15</span></td>
+              <td class="verdict">aposta</td>
+            </tr>
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>Os melhores até agora</h2><div class="rule"></div>
+      <p class="lede">Pontos por jogo. Quem tem um jogo só — o Sp. Braga e o
+      Gil Vicente, por causa do adiamento — vai marcado, mas não é excluído:
+      deixá-los de fora esconderia justamente os clubes que o adiamento
+      prejudicou. Tens <strong>8 dos
+      12</strong> lugares do pódio — o plantel não é o
+      problema. Vale a pena lembrar o pano de fundo: <strong>210
+      dos 498</strong> jogadores do mercado (42%) ainda não
+      pisaram o relvado esta época.</p>
+      <div class="quad">
+        <div>
+          <h3>GR</h3>
+          <table class="data">
+            <tbody>
+            <tr>
+              <td class="name">Diogo Costa<span class="cap">teu</span><span class="sub">FC Porto · 27% posse</span></td>
+              <td class="fig strong">7.0</td>
+            </tr>
+            <tr>
+              <td class="name">Arruabarrena<span class="sub">Arouca · 13% posse</span></td>
+              <td class="fig strong">6.5</td>
+            </tr>
+            <tr>
+              <td class="name">Lucão<span class="cap">teu</span><span class="sub">Gil Vicente · 36% posse · 1 jogo só</span></td>
+              <td class="fig strong">6.0</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>DEF</h3>
+          <table class="data">
+            <tbody>
+            <tr>
+              <td class="name">Jose Fontán<span class="cap">teu</span><span class="sub">Arouca · 15% posse</span></td>
+              <td class="fig strong">8.0</td>
+            </tr>
+            <tr>
+              <td class="name">Nehuén Pérez<span class="cap">teu</span><span class="sub">FC Porto · 6% posse</span></td>
+              <td class="fig strong">6.5</td>
+            </tr>
+            <tr>
+              <td class="name">Javi Sánchez<span class="cap">teu</span><span class="sub">Arouca · 24% posse</span></td>
+              <td class="fig strong">6.0</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>MED</h3>
+          <table class="data">
+            <tbody>
+            <tr>
+              <td class="name">Raphael Guzzo<span class="cap">teu</span><span class="sub">Marítimo · 27% posse</span></td>
+              <td class="fig strong">8.5</td>
+            </tr>
+            <tr>
+              <td class="name">Samu<span class="cap">teu</span><span class="sub">V. Guimarães · 33% posse</span></td>
+              <td class="fig strong">5.5</td>
+            </tr>
+            <tr>
+              <td class="name">Altimira<span class="sub">Sporting · 12% posse</span></td>
+              <td class="fig strong">5.0</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h3>AVA</h3>
+          <table class="data">
+            <tbody>
+            <tr>
+              <td class="name">Pavlidis<span class="cap">teu</span><span class="sub">Benfica · 50% posse</span></td>
+              <td class="fig strong">15.0</td>
+            </tr>
+            <tr>
+              <td class="name">Gonçalo Paciência<span class="sub">Santa Clara · 21% posse</span></td>
+              <td class="fig strong">7.0</td>
+            </tr>
+            <tr>
+              <td class="name">Barbero<span class="sub">Arouca · 12% posse</span></td>
+              <td class="fig strong">7.0</td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section>
+      <h2>Quem rende mais do que a posse dele</h2><div class="rule"></div>
+      <p class="lede">Os <strong>5 jogadores mais escolhidos do país</strong> são meus — Pavlidis, Zalazar, Finn van Breemen, Lucão, Santi García. O plantel é o consenso nacional, e é por isso que empata com quem está à frente em vez de recuperar: não se ganha terreno a jogar as mesmas cartas. A posse prevê a pontuação melhor do que qualquer
+      outra coisa no mercado — de <strong>−0,15</strong> pontos por jogo abaixo de
+      1% de posse até <strong>5,33</strong> acima de 30%. Por isso comprar quem
+      ninguém tem é mau negócio. O que interessa é o resíduo: quem rende acima da
+      linha que a sua posse e a sua posição preveem. Declive por posição: DEF 1.52 · FWD 2.09 · GK 1.17 · MID 1.55.</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr>
+            <th>Jogador</th><th>Pos</th><th class="fig">Posse</th>
+            <th class="fig">Rende</th><th class="fig">Esperado</th>
+            <th class="fig">Resíduo</th><th class="fig">Preço</th><th>Jogos</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td class="name">Arruabarrena<span class="sub">Arouca</span></td>
+              <td class="sub">GR</td>
+              <td class="fig">12.8%</td>
+              <td class="fig">6.5</td>
+              <td class="fig muted">1.4</td>
+              <td class="fig up strong">+5.06</td>
+              <td class="fig">1 000 000</td>
+              <td class="sub">2</td>
+            </tr>
+            <tr>
+              <td class="name">José Silva<span class="sub">Gil Vicente</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig">3.5%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">1.1</td>
+              <td class="fig up strong">+3.89</td>
+              <td class="fig">500 000</td>
+              <td class="sub">1 jogo</td>
+            </tr>
+            <tr>
+              <td class="name">Zé Vitor<span class="sub">Nacional</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig">3.9%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">1.2</td>
+              <td class="fig up strong">+3.78</td>
+              <td class="fig">750 000</td>
+              <td class="sub">2</td>
+            </tr>
+            <tr>
+              <td class="name">Dylan Nandín<span class="sub">Arouca</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig">0.4%</td>
+              <td class="fig">4.5</td>
+              <td class="fig muted">0.8</td>
+              <td class="fig up strong">+3.72</td>
+              <td class="fig">500 000</td>
+              <td class="sub">2</td>
+            </tr>
+            <tr>
+              <td class="name">Simo Bouzaidi<span class="sub">Marítimo</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig">0.8%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">1.4</td>
+              <td class="fig up strong">+3.60</td>
+              <td class="fig">500 000</td>
+              <td class="sub">2</td>
+            </tr>
+            <tr>
+              <td class="name">Borja Sainz<span class="sub">FC Porto</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig">1.5%</td>
+              <td class="fig">5.5</td>
+              <td class="fig muted">2.0</td>
+              <td class="fig up strong">+3.49</td>
+              <td class="fig">3 500 000</td>
+              <td class="sub">2</td>
+            </tr>
+            <tr>
+              <td class="name">Lebedenko<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig">6.1%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">1.8</td>
+              <td class="fig up strong">+3.21</td>
+              <td class="fig">500 000</td>
+              <td class="sub">2</td>
+            </tr>
+            <tr>
+              <td class="name">Romain Correia<span class="sub">Marítimo</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig">2.7%</td>
+              <td class="fig">4.0</td>
+              <td class="fig muted">0.8</td>
+              <td class="fig up strong">+3.20</td>
+              <td class="fig">500 000</td>
+              <td class="sub">2</td>
+            </tr>
+            <tr>
+              <td class="name">Tidjany Touré<span class="sub">Gil Vicente</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig">0.4%</td>
+              <td class="fig">4.0</td>
+              <td class="fig muted">0.8</td>
+              <td class="fig up strong">+3.20</td>
+              <td class="fig">750 000</td>
+              <td class="sub">1 jogo</td>
+            </tr>
+            <tr>
+              <td class="name">Wesley Gasolina<span class="sub">Nacional</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig">0.9%</td>
+              <td class="fig">3.0</td>
+              <td class="fig muted">-0.2</td>
+              <td class="fig up strong">+3.19</td>
+              <td class="fig">500 000</td>
+              <td class="sub">2</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="footnote">two rounds of football is a thin basis — check matches_played, and treat a large residual on a single match as unproven</p>
+    </section>
+    <section>
+      <h2>A nota do Record</h2><div class="rule"></div>
+      <p class="lede">A Record avalia cada jogador de <strong>0 a 5</strong>,
+      publica só o total, e o 5 vale 7 pontos (§10.1). Subtraindo o que o
+      calendário deve — vitória, baliza a zero, golos sofridos, Jogador da
+      Semana — o que sobra é a nota. Golos e cartões escondem-se lá dentro,
+      portanto só se afirma uma nota quando mais nada a explica. Jogador da
+      Semana desta jornada: <strong>Pavlidis</strong>.</p>
+      <div class="scroll">
+        <table class="data">
+          <thead><tr>
+            <th>Jogador</th><th>Pos</th><th class="fig">Pontos</th>
+            <th class="fig">Calendário</th><th class="fig">Nota</th><th>Leitura</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td class="name">Pavlidis<span class="sub">Benfica</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig strong">24</td>
+              <td class="fig muted">+6</td>
+              <td class="fig"><span class="muted">—</span></td>
+              <td class="sub">nota 7 e 3 golo(s)</td>
+            </tr>
+            <tr>
+              <td class="name">Jose Fontán<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig strong">10</td>
+              <td class="fig muted">+2</td>
+              <td class="fig"><span class="muted">—</span></td>
+              <td class="sub">nota 4 e 1 golo(s)</td>
+            </tr>
+            <tr>
+              <td class="name">Léo Santos<span class="sub">Nacional</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig strong">10</td>
+              <td class="fig muted">+2</td>
+              <td class="fig"><span class="muted">—</span></td>
+              <td class="sub">nota 4 e 1 golo(s)</td>
+            </tr>
+            <tr>
+              <td class="name">Nehuén Pérez<span class="sub">FC Porto</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig strong">9</td>
+              <td class="fig muted">+2</td>
+              <td class="fig"><span class="strong">7</span></td>
+              <td class="sub">nota lida</td>
+            </tr>
+            <tr>
+              <td class="name">Diogo Costa<span class="sub">FC Porto</span></td>
+              <td class="sub">GR</td>
+              <td class="fig strong">7</td>
+              <td class="fig muted">+3</td>
+              <td class="fig"><span class="strong">4</span></td>
+              <td class="sub">nota lida</td>
+            </tr>
+            <tr>
+              <td class="name">Samu<span class="sub">V. Guimarães</span></td>
+              <td class="sub">MED</td>
+              <td class="fig strong">7</td>
+              <td class="fig muted">+0</td>
+              <td class="fig"><span class="strong">7</span></td>
+              <td class="sub">nota lida</td>
+            </tr>
+            <tr>
+              <td class="name">Javi Sánchez<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig strong">6</td>
+              <td class="fig muted">+2</td>
+              <td class="fig"><span class="strong">4</span></td>
+              <td class="sub">nota lida</td>
+            </tr>
+            <tr>
+              <td class="name">Tiago Esgaio<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig strong">6</td>
+              <td class="fig muted">+2</td>
+              <td class="fig"><span class="strong">4</span></td>
+              <td class="sub">nota lida</td>
+            </tr>
+            <tr>
+              <td class="name">Finn van Breemen<span class="sub">Famalicão</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig strong">6</td>
+              <td class="fig muted">-2</td>
+              <td class="fig"><span class="muted">—</span></td>
+              <td class="sub">nota 4 e 1 golo(s)</td>
+            </tr>
+            <tr>
+              <td class="name">Zaidu<span class="sub">FC Porto</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig strong">5</td>
+              <td class="fig muted">+2</td>
+              <td class="fig"><span class="strong">3</span></td>
+              <td class="sub">nota lida</td>
+            </tr>
+            <tr>
+              <td class="name">Raphael Guzzo<span class="sub">Marítimo</span></td>
+              <td class="sub">MED</td>
+              <td class="fig strong">4</td>
+              <td class="fig muted">+1</td>
+              <td class="fig"><span class="strong">3</span></td>
+              <td class="sub">nota lida</td>
+            </tr>
+            <tr>
+              <td class="name">Danilovic<span class="sub">Marítimo</span></td>
+              <td class="sub">MED</td>
+              <td class="fig strong">4</td>
+              <td class="fig muted">+1</td>
+              <td class="fig"><span class="strong">3</span></td>
+              <td class="sub">nota lida</td>
+            </tr>
+            <tr>
+              <td class="name">Issa Doumbia<span class="sub">Sporting</span></td>
+              <td class="sub">MED</td>
+              <td class="fig strong">4</td>
+              <td class="fig muted">+1</td>
+              <td class="fig"><span class="strong">3</span></td>
+              <td class="sub">nota lida</td>
+            </tr>
+            <tr>
+              <td class="name">Alfonso Pastor<span class="sub">Marítimo</span></td>
+              <td class="sub">GR</td>
+              <td class="fig strong">2</td>
+              <td class="fig muted">-1</td>
+              <td class="fig"><span class="strong">3</span></td>
+              <td class="sub">nota lida</td>
+            </tr>
+            <tr>
+              <td class="name">Zalazar<span class="sub">Sporting</span></td>
+              <td class="sub">MED</td>
+              <td class="fig strong">2</td>
+              <td class="fig muted">+1</td>
+              <td class="fig"><span class="strong">1</span></td>
+              <td class="sub">nota lida</td>
+            </tr>
+            <tr>
+              <td class="name">Begraoui<span class="sub">Estoril</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig strong">1</td>
+              <td class="fig muted">+0</td>
+              <td class="fig"><span class="muted">—</span></td>
+              <td class="sub">nota 1</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="spread">
+        <p class="spread-label">As 143 notas lidas em todo o mercado, média 2.57</p>
+        <div class="ticks"><span class="tick"><span class="tick-bar" style="height:2%"></span><span class="tick-n">1</span><span class="tick-v">0</span></span><span class="tick"><span class="tick-bar" style="height:25%"></span><span class="tick-n">16</span><span class="tick-v">1</span></span><span class="tick"><span class="tick-bar" style="height:76%"></span><span class="tick-n">48</span><span class="tick-v">2</span></span><span class="tick"><span class="tick-bar" style="height:100%"></span><span class="tick-n">63</span><span class="tick-v">3</span></span><span class="tick"><span class="tick-bar" style="height:21%"></span><span class="tick-n">13</span><span class="tick-v">4</span></span><span class="tick"><span class="tick-bar" style="height:3%"></span><span class="tick-n">2</span><span class="tick-v">7</span></span></div>
+      </div>
+    </section>
+
+    <footer>
+      <span>Lido 2026-08-21 09:00 UTC. Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
+      <span><code>scripts/build_dashboard.py</code></span>
+    </footer>
+  </div>
+</div>

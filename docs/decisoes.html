@@ -1,0 +1,473 @@
+<title>Melro · As decisões</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Instrument+Serif&display=swap">
+<style>
+/* Paper, below the hinge. The reader's theme moves these and nothing else. */
+/* Declared so the browser knows this page handles its own themes. Without it
+   Chrome's automatic dark mode forces a scheme on top of ours, and it reaches
+   inside tables: on a light ground the paper stayed light while every table
+   inherited dark ink, which renders the player names invisible. */
+:root {
+  color-scheme: light;
+  --paper: #eceae5;
+  --ink:   #16150f;
+  --dim:   #6a6860;
+  --rule:  #c9c6bd;
+  --hair:  #dcd9d1;
+  --wash:  #e3e0d9;
+  --red:   #a8112a;
+  --green: #1f6b4a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #14140f;
+    --ink:   #efece4;
+    --dim:   #918e85;
+    --rule:  #3a3931;
+    --hair:  #2a2923;
+    --wash:  #1e1e17;
+    --red:   #e0374f;
+    --green: #4fa87c;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #14140f;
+  --ink:   #efece4;
+  --dim:   #918e85;
+  --rule:  #3a3931;
+  --hair:  #2a2923;
+  --wash:  #1e1e17;
+  --red:   #e0374f;
+  --green: #4fa87c;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  font-size: 16.5px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.page { max-width: 1020px; margin: 0 auto; }
+.body { padding: 0 32px 64px; }
+
+/* ------------------------------------------------------------------ *
+ * The broadcast panel. A fixed graphic: it does not follow the        *
+ * reader's theme, the way a front page's photograph is the photograph *
+ * whatever paper it is printed on.                                    *
+ * ------------------------------------------------------------------ */
+.bcast {
+  --bg:   #0a0d14;
+  --sunk: #141a27;
+  --bink: #ffffff;
+  --bdim: #8b95a8;
+  --hot:  #ff2d46;
+  --mint: #00d9a3;
+  background: var(--bg); color: var(--bink); padding-bottom: 32px;
+}
+.mast { display: flex; align-items: stretch; height: 82px; }
+.mast-name {
+  background: var(--hot); display: flex; align-items: center;
+  padding: 0 40px 0 32px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 22px) 100%, 0 100%);
+}
+.mast-name span { font-family: Anton, Impact, "Arial Narrow", sans-serif; font-size: 44px; line-height: 1; }
+.mast-meta { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 20px; padding: 0 32px; }
+.mast-tag { font-size: 12.5px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: var(--bdim); }
+.mast-round { font-family: Anton, Impact, sans-serif; font-size: 25px; letter-spacing: .04em; }
+
+.hero { display: flex; align-items: flex-end; gap: 26px; padding: 30px 32px 0; }
+.hero-figure { font-family: Anton, Impact, sans-serif; font-size: 178px; line-height: .78; letter-spacing: -.03em; color: var(--hot); }
+.hero-side { display: flex; flex-direction: column; gap: 3px; padding-bottom: 15px; }
+.hero-of { font-family: Anton, Impact, sans-serif; font-size: 38px; line-height: 1; }
+.hero-label { font-size: 16px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }
+
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 3px; padding: 28px 32px 0; }
+.fig-block { background: var(--sunk); padding: 15px 19px 13px; }
+.fig-label { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }
+.fig-value { display: block; font-family: Anton, Impact, sans-serif; font-size: 40px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.fig-value.hot { color: var(--hot); }
+.fig-note { display: block; font-size: 14.5px; color: var(--bdim); }
+
+.form { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px; padding: 28px 32px 0; }
+.form-bars { display: grid; grid-auto-flow: column; grid-auto-columns: 126px; grid-template-rows: 140px auto auto; gap: 0 3px; }
+.bar-slot { display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }
+.bar { width: 100%; background: var(--sunk); display: flex; align-items: flex-start; justify-content: center; padding-top: 9px; align-self: end; }
+.bar.lead { background: var(--hot); }
+.bar-value { font-family: Anton, Impact, sans-serif; font-size: 44px; line-height: 1; }
+.bar-round { font-size: 12.5px; font-weight: 600; letter-spacing: .08em; color: var(--bdim); padding-top: 7px; }
+.move { display: block; font-size: 12px; font-weight: 600; line-height: 1.4; min-height: 1.4em; }
+.move.down { color: var(--hot); }
+.move.up { color: var(--mint); }
+.form-story {
+  background: var(--sunk); display: flex; flex-direction: column;
+  justify-content: center; gap: 1px; padding: 0 28px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 26px 100%);
+}
+.form-figure { font-family: Anton, Impact, sans-serif; font-size: 46px; line-height: 1; color: var(--hot); }
+.form-note { font-size: 15.5px; color: var(--bdim); }
+
+/* The hinge: graphics above, type below. */
+.hinge { height: 5px; background: var(--ink); }
+
+/* ------------------------------------------------------------------ *
+ * The results page. No boxes, no shadows: rules and weight only.      *
+ * ------------------------------------------------------------------ */
+section { padding-top: 34px; }
+h2 {
+  font-family: "Instrument Serif", Georgia, serif; font-weight: 400;
+  font-size: 31px; line-height: 1.1; margin: 0 0 3px; letter-spacing: -.01em;
+  text-wrap: balance;
+}
+.rule { height: 2px; background: var(--ink); margin-bottom: 14px; }
+.lede { margin: 0 0 16px; max-width: 68ch; color: var(--dim); }
+.lede strong { color: var(--ink); font-weight: 600; }
+.footnote { margin: 12px 0 0; font-size: 14.5px; color: var(--dim); max-width: 68ch; }
+code { font-family: ui-monospace, monospace; font-size: 14px; }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0 34px; }
+@media (max-width: 780px) { .cols { grid-template-columns: 1fr; gap: 28px; } .rail { border-left: none; padding-left: 0; } }
+.rail { border-left: 1px solid var(--rule); padding-left: 26px; }
+.rail h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 23px; margin: 0; }
+.rail-note { margin: 0 0 4px; font-size: 14px; color: var(--dim); }
+
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th {
+  text-align: left; font-size: 11.5px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--dim); padding: 0 12px 6px 0;
+  border-bottom: 1px solid var(--rule); white-space: nowrap;
+}
+td { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--hair); vertical-align: baseline; }
+tbody tr:last-child td { border-bottom: none; }
+.fig { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th.fig { text-align: right; }
+.name { font-weight: 600; }
+.sub { font-size: 14px; color: var(--dim); font-weight: 400; }
+td.name .sub { display: block; }
+.muted { color: var(--dim); font-weight: 400; }
+.strong { font-weight: 600; }
+.up { color: var(--green); }
+.down { color: var(--red); }
+.pending { font-size: 14px; color: var(--dim); font-style: italic; }
+
+.pos-row {
+  font-family: "Instrument Serif", Georgia, serif; font-size: 17px;
+  font-weight: 400; letter-spacing: .03em; text-transform: none;
+  color: var(--ink); border-bottom: 1px solid var(--rule); padding-top: 18px;
+}
+.ord { color: var(--dim); font-size: 13px; width: 16px; padding-right: 8px; }
+.cap, .late { font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 1px 5px; white-space: nowrap; }
+.cap { background: var(--red); color: #fff; }
+.late { color: var(--red); border: 1px solid currentColor; }
+.role.is-xi { font-weight: 600; }
+.role.is-xi::before { content: ""; display: inline-block; width: 3px; height: 11px; background: var(--red); margin-right: 7px; vertical-align: -1px; }
+
+.lead-fig { font-family: "Instrument Serif", Georgia, serif; font-size: 30px; width: 46px; text-align: right; padding-right: 16px; }
+
+.facts { margin: 20px 0 0; padding-top: 12px; border-top: 2px solid var(--ink); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 14px; font-size: 15px; }
+.facts dt { font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.facts dd { margin: 0; font-weight: 600; min-width: 0; }
+.facts .big { font-family: "Instrument Serif", Georgia, serif; font-size: 29px; font-weight: 400; }
+
+.grid td.cell { text-align: center; min-width: 92px; padding: 6px 8px; }
+.cell-opp { display: block; font-size: 12px; color: var(--dim); white-space: nowrap; }
+.cell-fig { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cell.easy { background: color-mix(in srgb, var(--green) 13%, transparent); }
+.cell.easy .cell-fig { color: var(--green); }
+.cell.hard { background: color-mix(in srgb, var(--red) 13%, transparent); }
+.cell.hard .cell-fig { color: var(--red); }
+
+tr.is-me td { background: var(--wash); }
+tr.is-me .name { font-weight: 700; }
+tr.is-me td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+tr.is-dead td, tr.is-dead .name { color: var(--dim); font-weight: 400; }
+.rank { width: 38px; color: var(--dim); }
+
+.dist { padding: 6px 0 0; }
+.dist-track { position: relative; height: 34px; border-bottom: 1px solid var(--rule); }
+.mark { position: absolute; bottom: 0; width: 2px; height: 20px; background: var(--rule); transform: translateX(-1px); }
+.mark.is-me { background: var(--red); height: 34px; width: 3px; }
+.dist-axis { position: relative; height: 22px; margin-top: 6px; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.dist-end { position: absolute; left: 0; }
+.dist-end.right { left: auto; right: 0; }
+.dist-me { position: absolute; transform: translateX(-50%); color: var(--red); font-weight: 600; white-space: nowrap; }
+
+.quad { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0 30px; }
+.quad h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0 0 2px; border-bottom: 1px solid var(--rule); padding-bottom: 4px; }
+.quad .cap { margin-left: 6px; }
+.spread { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rule); }
+.spread-label { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.ticks { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); grid-template-rows: 76px auto auto; gap: 0 14px; max-width: 460px; }
+.tick { display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }
+.tick-bar { width: 100%; background: var(--red); align-self: end; min-height: 2px; }
+.tick-n { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--dim); padding-top: 4px; }
+.tick-v { font-family: "Instrument Serif", Georgia, serif; font-size: 19px; padding-top: 2px; }
+.questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }
+.q h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }
+.q-state { margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }
+.q p { margin: 0; font-size: 14.5px; color: var(--dim); }
+
+footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 13.5px; color: var(--dim); display: flex; flex-wrap: wrap; gap: 4px 20px; }
+a { color: var(--red); }
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* The page nav. Five links, current one marked, and nothing clever: it has to
+   work from a file:// URL with no server behind it. */
+.nav {
+  display: flex; flex-wrap: wrap; gap: 0;
+  border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+  margin: 0 0 2.4rem 0; background: var(--wash);
+}
+.nav a {
+  padding: 0.7rem 1.15rem; text-decoration: none; color: var(--dim);
+  font: 600 0.78rem/1 "IBM Plex Sans Condensed", system-ui, sans-serif;
+  letter-spacing: 0.09em; text-transform: uppercase;
+  border-right: 1px solid var(--hair);
+}
+.nav a:hover { color: var(--ink); background: var(--paper); }
+.nav a[aria-current] { color: var(--paper); background: var(--ink); }
+.slim {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; padding: 1.6rem 0 1.1rem 0;
+}
+.slim .mark {
+  font: 400 2.1rem/1 Anton, Impact, sans-serif; letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+.slim .where { color: var(--dim); font-size: 0.82rem; }
+</style>
+
+<div class="page">
+  <div class="slim">
+    <span class="mark">Melro</span>
+    <span class="where">As decisões · jornada 3</span>
+  </div>
+  <div class="hinge"></div>
+  <div class="body">
+    <nav class="nav">
+      <a href="index.html">A equipa</a>
+      <a href="jogadores.html">Os jogadores</a>
+      <a href="decisoes.html" aria-current="page">As decisões</a>
+      <a href="modelo.html">O modelo</a>
+    </nav>
+
+    <section>
+      <h2>O treinador</h2><div class="rule"></div>
+      <p class="lede">Escolhe-se um todas as jornadas, não custa orçamento (§6.4), e sem ele a equipa faz <strong>zero</strong> (§6.17). Os pontos dele somam-se aos da equipa (§14.4). Na época passada, escolher sempre o melhor em vez do pior valia <strong>63 pontos</strong>. A cláusula que decide é o §14.3(b): empatar depois de estar dois abaixo vale +2, <em>ganhar</em> vale +4, porque duplica. E o §14.5 é o aviso — um treinador castigado ou despedido <strong>não pontua de todo</strong>: a equipa dele pode ganhar 5-0 e tu não levas nada.</p>
+      <table class="data">
+        <thead><tr><th>treinador</th><th>época passada</th><th>total</th><th>jornada</th></tr></thead>
+        <tbody>
+            <tr>
+              <td class="name">Rui Borges<span class="sub">Sporting</span></td>
+              <td class="fig">+4.62</td>
+              <td class="fig strong">5</td>
+              <td class="fig">+3</td>
+            </tr>
+            <tr>
+              <td class="name">Farioli<span class="sub">FC Porto</span></td>
+              <td class="fig">+4.56</td>
+              <td class="fig strong">13</td>
+              <td class="fig">+7</td>
+            </tr>
+            <tr>
+              <td class="name">Marco Silva<span class="sub">Benfica</span></td>
+              <td class="fig">+4.44</td>
+              <td class="fig strong">11</td>
+              <td class="fig">+8</td>
+            </tr>
+            <tr>
+              <td class="name">Carlos Vicens<span class="sub">Sp. Braga</span></td>
+              <td class="fig">+3.85</td>
+              <td class="fig strong">4</td>
+              <td class="fig">+0</td>
+            </tr>
+            <tr>
+              <td class="name">Carlos Carvalhal<span class="sub">Famalicão</span></td>
+              <td class="fig">+3.62</td>
+              <td class="fig strong">5</td>
+              <td class="fig">+2</td>
+            </tr>
+            <tr>
+              <td class="name">Luís Pinto<span class="sub">Gil Vicente</span></td>
+              <td class="fig">+3.32</td>
+              <td class="fig strong">6</td>
+              <td class="fig">+0</td>
+            </tr>
+            <tr>
+              <td class="name">Vasco Matos<span class="sub">Estoril</span></td>
+              <td class="fig">+2.88</td>
+              <td class="fig strong">0</td>
+              <td class="fig">+0</td>
+            </tr>
+            <tr>
+              <td class="name">Tiago Margarido<span class="sub">V. Guimarães</span></td>
+              <td class="fig">+2.85</td>
+              <td class="fig strong">4</td>
+              <td class="fig">+3</td>
+            </tr>
+            <tr>
+              <td class="name">Vasco Seabra<span class="sub">Arouca</span></td>
+              <td class="fig">+2.82</td>
+              <td class="fig strong">14</td>
+              <td class="fig">+9</td>
+            </tr>
+            <tr>
+              <td class="name">Petit<span class="sub">Santa Clara</span></td>
+              <td class="fig">+2.76</td>
+              <td class="fig strong">8</td>
+              <td class="fig">+5</td>
+            </tr>
+            <tr>
+              <td class="name">Vasco Botelho da Costa<span class="sub">Moreirense</span></td>
+              <td class="fig">+2.76</td>
+              <td class="fig strong">4</td>
+              <td class="fig">-1</td>
+            </tr>
+            <tr>
+              <td class="name">João Gião<span class="sub">Nacional</span></td>
+              <td class="fig">+2.74</td>
+              <td class="fig strong">11</td>
+              <td class="fig">+6</td>
+            </tr>
+            <tr>
+              <td class="name">Sérgio Ferreira<span class="sub">Alverca</span></td>
+              <td class="fig">+2.68</td>
+              <td class="fig strong">5</td>
+              <td class="fig">+4</td>
+            </tr>
+            <tr>
+              <td class="name">Pepa<span class="sub">E. Amadora</span></td>
+              <td class="fig">+2.59</td>
+              <td class="fig strong">11</td>
+              <td class="fig">+4</td>
+            </tr>
+            <tr>
+              <td class="name">Sotiris<span class="sub">Rio Ave</span></td>
+              <td class="fig">+2.56</td>
+              <td class="fig strong">1</td>
+              <td class="fig">+0</td>
+            </tr>
+            <tr>
+              <td class="name">Filipe Coelho<span class="sub">Casa Pia</span></td>
+              <td class="fig">+2.44</td>
+              <td class="fig strong">-2</td>
+              <td class="fig">-2</td>
+            </tr>
+            <tr>
+              <td class="name">Van der Gaag<span class="sub">Marítimo</span></td>
+              <td class="fig">—</td>
+              <td class="fig strong">14</td>
+              <td class="fig">+8</td>
+            </tr>
+            <tr>
+              <td class="name">Bruno Pinheiro<span class="sub">Académico</span></td>
+              <td class="fig">—</td>
+              <td class="fig strong">5</td>
+              <td class="fig">+0</td>
+            </tr>
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>As Férias</h2><div class="rule"></div>
+      <p class="lede">O §6.17 dá <strong>três rondas por época</strong> — seguidas ou não, nunca nas três últimas — em que recebes metade da pontuação do vencedor da ronda, arredondada para cima, faças o que fizeres. E o vencedor é <strong>nacional</strong>: o §16.1 define-o como uma das trinta equipas que mais pontuam no país. Isto não é um bónus, é um chão — o pagamento é metade de um máximo sobre 127 mil equipas, alto e estável, enquanto a tua pontuação é um sorteio só. Gasta-as nas rondas em que o <em>teu</em> plantel está desfalcado e a liga não está: seleções, castigos, semanas de três jogos. O pagamento não depende de nada teu.</p>
+      <table class="data">
+        <thead><tr><th></th><th>vencedor</th><th>Férias pagam</th><th>fizeste</th><th>diferença</th></tr></thead>
+        <tbody>
+            <tr>
+              <td class="name">Jornada 1</td>
+              <td class="fig">77</td>
+              <td class="fig strong">39</td>
+              <td class="fig">49</td>
+              <td class="fig down">-10</td>
+            </tr>
+            <tr>
+              <td class="name">Jornada 2</td>
+              <td class="fig">117</td>
+              <td class="fig strong">59</td>
+              <td class="fig">38</td>
+              <td class="fig up">+21</td>
+            </tr>
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>A corrida ao melhor marcador</h2><div class="rule"></div>
+      <p class="lede">O §10.3(m) paga <strong>+20</strong> por acertares no bota-de-ouro, +10 no prata, +5 no bronze. É gratuito, é opcional, e faz-se <strong>uma única vez</strong>, ao constituir a equipa — que é precisamente porque fica por fazer: o que não custa nada não parece uma decisão. A tabela ordena por golos por jogo nas duas épocas reconstruídas, e não por golos: quatro jornadas de eficácia são sorte. Mas confirma sempre os minutos desta época antes de decidir — um avançado a golo por jogo que anda a jogar vinte e sete minutos não está a liderar coisa nenhuma.</p>
+      <table class="data">
+        <thead><tr><th>avançado</th><th>golos/jogo</th><th>golos</th><th>jogos</th><th>posse</th></tr></thead>
+        <tbody>
+            <tr>
+              <td class="name">Luis Suárez<span class="sub">Sporting</span></td>
+              <td class="fig strong">0.88</td>
+              <td class="fig">28</td>
+              <td class="fig">32</td>
+              <td class="fig">18%</td>
+            </tr>
+            <tr>
+              <td class="name">Pavlidis<span class="sub">Benfica</span></td>
+              <td class="fig strong">0.61</td>
+              <td class="fig">41</td>
+              <td class="fig">67</td>
+              <td class="fig">50%</td>
+            </tr>
+            <tr>
+              <td class="name">Begraoui<span class="sub">Estoril</span></td>
+              <td class="fig strong">0.46</td>
+              <td class="fig">31</td>
+              <td class="fig">68</td>
+              <td class="fig">18%</td>
+            </tr>
+            <tr>
+              <td class="name">Ricardo Horta<span class="sub">Sp. Braga</span></td>
+              <td class="fig strong">0.40</td>
+              <td class="fig">25</td>
+              <td class="fig">62</td>
+              <td class="fig">5%</td>
+            </tr>
+            <tr>
+              <td class="name">Rafa<span class="sub">Benfica</span></td>
+              <td class="fig strong">0.31</td>
+              <td class="fig">5</td>
+              <td class="fig">16</td>
+              <td class="fig">3%</td>
+            </tr>
+            <tr>
+              <td class="name">Pau Victor<span class="sub">Sp. Braga</span></td>
+              <td class="fig strong">0.31</td>
+              <td class="fig">10</td>
+              <td class="fig">32</td>
+              <td class="fig">6%</td>
+            </tr>
+            <tr>
+              <td class="name">Gustavo Silva<span class="sub">V. Guimarães</span></td>
+              <td class="fig strong">0.27</td>
+              <td class="fig">12</td>
+              <td class="fig">44</td>
+              <td class="fig">3%</td>
+            </tr>
+            <tr>
+              <td class="name">Óscar Aranda<span class="sub">Famalicão</span></td>
+              <td class="fig strong">0.26</td>
+              <td class="fig">9</td>
+              <td class="fig">34</td>
+              <td class="fig">7%</td>
+            </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer>
+      <span>Lido 2026-08-21 09:00 UTC. Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
+      <span><code>scripts/build_dashboard.py</code></span>
+    </footer>
+  </div>
+</div>

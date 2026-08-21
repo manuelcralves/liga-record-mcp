@@ -29,6 +29,13 @@ FORBIDDEN_PATHS = (
     "docs/dashboard.html",
 )
 
+#: The private build writes a directory of pages rather than one file, and
+#: every one of them carries the league. Ignoring the DIRECTORY is what makes a
+#: page added next month covered the moment it exists — a list of filenames
+#: only protects the files somebody remembered to add to it, and forgetting
+#: once already put twenty-nine other people's names on a public remote.
+FORBIDDEN_DIRS = ("docs/private",)
+
 #: Manuel's own team. His name and results are his to publish; the other
 #: twenty-nine members' are not.
 MY_TEAM_ID = "156412"
@@ -99,6 +106,22 @@ def test_the_sensitive_files_are_not_tracked(tracked: list[Path]):
             f"{forbidden} is tracked — it carries other people's data and this "
             "repository is public"
         )
+
+
+def test_the_private_pages_are_ignored_as_a_directory(tracked: list[Path]):
+    """Not as a list of names. The private build writes five pages today and
+    may write six next month, and the sixth has to be covered without anyone
+    remembering to cover it."""
+    for folder in FORBIDDEN_DIRS:
+        assert git("check-ignore", folder).strip() == folder, (
+            f"{folder} is not gitignored, and every page in it carries the league"
+        )
+        inside = [
+            p.relative_to(ROOT).as_posix()
+            for p in tracked
+            if p.relative_to(ROOT).as_posix().startswith(folder + "/")
+        ]
+        assert not inside, f"tracked files inside {folder}: {inside}"
 
 
 def test_the_sensitive_files_are_ignored():

@@ -35,3 +35,8 @@ data/rating-bridge.json
 # it says. Theirs, not ours to redistribute.
 data/regulation/
 data/season-*.json
+
+# The private build writes a whole directory of pages, every one of them
+# carrying twenty-nine other people. Ignoring the directory means a new page
+# is covered the moment it exists, which a list of filenames is not.
+docs/private/
