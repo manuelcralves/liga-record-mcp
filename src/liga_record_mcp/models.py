@@ -85,61 +85,53 @@ COMPETITION_CHANGE_TRANSFERS = 1
 #: "jornada" — the regulation uses both words in one sentence without ever
 #: saying they differ.
 #:
-#: WHERE IT STARTS IS DISPUTED BY THE REGULATION ITSELF. Four clauses say the
-#: competition is 29 rounds over matchdays 6 to 34:
+#: WHEN IT STARTS IS SETTLED, AND NOT BY THE REGULATION. The rules contradict
+#: themselves. §16.4 counts "entre a 6.ª e a 34.ª jornadas", §16.5 says "cada
+#: uma das 29 rondas", §12.1 puts the first price list at matchday 6, and
+#: §16.3 relates the two numberings twice in a way that only holds if round 1
+#: is matchday 6. Against all that, §19 calls matchday 5 the one "que marca o
+#: início efetivo" and describes the trial as "estas 4 primeiras jornadas".
 #:
-#:   §16.4  the standings count "entre a 6.ª e a 34.ª jornadas (inclusive)"
-#:   §16.5  "cada uma das 29 rondas da Liga Record"
-#:   §16.3  round 13 is matchday 18, and round 29 is matchday 34
-#:   §12.1  the first price list is "para a 6.ª jornada"
+#: It is settled by the participant, who plays in the league and can see what
+#: it does: matchday 5 counts. The squad locks then, §10.3(m)'s bet locks then,
+#: and §6.8's one-a-round begins then. Everything before it is free.
 #:
-#: One clause says otherwise. §19 calls "a 5ª jornada do campeonato" the one
-#: "que marca o início efetivo do passatempo", and says the trial covers "estas
-#: 4 primeiras jornadas" and "dura até dia 1 de setembro" — which fits the
-#: calendar exactly, since matchday 4 ends on 31 August. That reading gives 30
-#: rounds over matchdays 5 to 34.
-#:
-#: Six is used here because four numbered statements agree on it and one piece
-#: of prose does not, and because §16.4 is the clause that actually defines the
-#: classification. It is an assumption, not a reading, and it is worth one
-#: round either way.
-#:
-#: SETTLED BY WATCHING, not by re-reading. Two things are already observed and
-#: they agree with §19 rather than §16:
-#:
-#:   * the squad locks at matchday 5 — transfers are unlimited until then, one
-#:     a round after, which is the participant's own account of the site
-#:   * the trial is described everywhere as the first FOUR matchdays
-#:
-#: So matchday 5 is probably the first that counts, which would make the
-#: competition 30 rounds and not 29. What settles it is whether matchday 5's
-#: score appears in the season total; until it is scored, nobody can look.
-#:
-#: The one thing that does NOT depend on the answer, and the only one with a
-#: deadline attached: the squad has to be finished before matchday 5.
-FIRST_SCORING_MATCHDAY = 6
+#: Both readings can be true at once, which is the likeliest explanation:
+#: §16.4 governs the national prize classification, and a private league tallies
+#: from where it tallies. So the model scores from 5 and §16.3's arithmetic is
+#: kept on its own constant below rather than bent to fit.
+FIRST_SCORING_MATCHDAY = 5
 LAST_MATCHDAY = 34
-RECORD_ROUNDS = LAST_MATCHDAY - FIRST_SCORING_MATCHDAY + 1  # 29, if §16 is right
+RECORD_ROUNDS = LAST_MATCHDAY - FIRST_SCORING_MATCHDAY + 1  # 30
 
-#: §19's reading, kept so the difference can be reasoned about rather than
-#: forgotten the moment the constant above stops being questioned.
-DISPUTED_FIRST_MATCHDAY = 5
+#: §16.4's reading, for the national table. Kept because it is not merely an
+#: alternative opinion: §16.3 states that round 13 is matchday 18 and round 29
+#: is matchday 34, and those are checkable numbers that only work from here.
+NATIONAL_FIRST_MATCHDAY = 6
+NATIONAL_ROUNDS = LAST_MATCHDAY - NATIONAL_FIRST_MATCHDAY + 1  # 29
 
 
 def matchday_of_round(round_number: int) -> int:
-    """Which Primeira Liga matchday a Liga Record round scores (§16.3)."""
-    return round_number + FIRST_SCORING_MATCHDAY - 1
+    """Which matchday a NATIONAL round scores (§16.3).
+
+    This is the numbering §16.3 anchors twice and §16.4 classifies on. It is
+    not the same as the matchdays that count for a private league, which start
+    a week earlier — see FIRST_SCORING_MATCHDAY.
+    """
+    return round_number + NATIONAL_FIRST_MATCHDAY - 1
 
 
 def round_of_matchday(matchday: int) -> int | None:
     """Which Liga Record round a matchday belongs to, or None before the start.
 
-    Matchdays 1 to 5 are the trial period of §19: points are awarded exactly as
-    in the real thing, and §16.4 does not count them.
+    The inverse of `matchday_of_round`, and on the same national numbering.
+    Matchdays before it are §19's trial as far as §16.4 is concerned — the
+    points are awarded exactly as in the real thing, and that clause does not
+    count them.
     """
-    if matchday < FIRST_SCORING_MATCHDAY:
+    if matchday < NATIONAL_FIRST_MATCHDAY:
         return None
-    return matchday - FIRST_SCORING_MATCHDAY + 1
+    return matchday - NATIONAL_FIRST_MATCHDAY + 1
 
 
 # --- The holiday mechanism (§6.17) ---

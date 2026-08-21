@@ -24,7 +24,8 @@ import pytest
 
 from liga_record_mcp.models import (
     BRONZE_BOOT_BONUS,
-    DISPUTED_FIRST_MATCHDAY,
+    NATIONAL_FIRST_MATCHDAY,
+    NATIONAL_ROUNDS,
     FIRST_SCORING_MATCHDAY,
     GOLDEN_BOOT_BONUS,
     HOLIDAY_BLOCKED_LAST_ROUNDS,
@@ -58,22 +59,22 @@ def test_the_competition_is_shorter_than_the_league_it_scores():
     """§16.4: "a pontuação acumulada entre a 6.ª e a 34.ª jornadas". Twenty-nine
     rounds, not thirty-four — and §16.5 says "cada uma das 29 rondas" outright,
     which is the same claim from the prize schedule."""
-    assert RECORD_ROUNDS == 29
-    assert matchday_of_round(1) == FIRST_SCORING_MATCHDAY == 6
-    assert matchday_of_round(RECORD_ROUNDS) == LAST_MATCHDAY == 34
+    assert NATIONAL_ROUNDS == 29
+    assert matchday_of_round(1) == NATIONAL_FIRST_MATCHDAY == 6
+    assert matchday_of_round(NATIONAL_ROUNDS) == LAST_MATCHDAY == 34
 
 
-def test_the_first_five_matchdays_belong_to_no_round():
-    """§19's trial period. Points are awarded exactly as in the real thing, so
-    they look identical and are not counted by §16.4. Returning round 0, or a
-    negative round, would let them be summed with the ones that count."""
-    for matchday in range(1, FIRST_SCORING_MATCHDAY):
+def test_the_matchdays_before_the_national_start_belong_to_no_round():
+    """§19's trial period, as §16.4 sees it. Points are awarded exactly as in
+    the real thing, so they look identical and are not counted. Returning round
+    0, or a negative round, would let them be summed with the ones that are."""
+    for matchday in range(1, NATIONAL_FIRST_MATCHDAY):
         assert round_of_matchday(matchday) is None
-    assert round_of_matchday(FIRST_SCORING_MATCHDAY) == 1
+    assert round_of_matchday(NATIONAL_FIRST_MATCHDAY) == 1
 
 
 def test_the_two_directions_agree():
-    for round_number in range(1, RECORD_ROUNDS + 1):
+    for round_number in range(1, NATIONAL_ROUNDS + 1):
         assert round_of_matchday(matchday_of_round(round_number)) == round_number
 
 
@@ -90,9 +91,9 @@ def test_a_transfer_belongs_to_its_round():
 
 
 def test_the_february_window_is_six_swaps_for_the_whole_window():
-    """§6.9. Six in total across rounds 16 to 19, not six a round — and §6.8
-    switches the ordinary transfer off while it runs, so the window is the
-    whole allowance for that month."""
+    """§6.9. Six in total, not six a round — and §6.8 switches the ordinary
+    transfer off while it runs, so the window is the whole allowance for that
+    month. Stated in the national numbering, which is how §6.9 states it."""
     assert REOPENED_MAX_SWAPS == 6
     assert matchday_of_round(REOPENED_FIRST_ROUND) == 21
     assert REOPENED_LAST_MATCHDAY == 24
@@ -117,10 +118,11 @@ def test_the_last_three_rounds_cannot_be_taken_off():
     """§6.17 excludes them, which is the difference between a rest mechanism
     and a way to lock in a lead."""
     playable = [
-        r for r in range(1, RECORD_ROUNDS + 1) if r <= RECORD_ROUNDS - HOLIDAY_BLOCKED_LAST_ROUNDS
+        r
+        for r in range(1, RECORD_ROUNDS + 1)
+        if r <= RECORD_ROUNDS - HOLIDAY_BLOCKED_LAST_ROUNDS
     ]
-    assert playable[-1] == 26
-    assert RECORD_ROUNDS - HOLIDAY_BLOCKED_LAST_ROUNDS == 26
+    assert playable[-1] == RECORD_ROUNDS - HOLIDAY_BLOCKED_LAST_ROUNDS == 27
 
 
 def test_the_top_scorer_bet_is_free_and_settled_once():
@@ -135,16 +137,22 @@ def test_a_matchday_before_the_league_started_is_refused(matchday):
     assert round_of_matchday(matchday) is None
 
 
-def test_the_disputed_start_is_kept_where_it_can_be_seen():
-    """§19 puts the first counting matchday at 5, not 6, and the calendar backs
-    it: the trial "dura até dia 1 de setembro" and matchday 4 ends 31 August.
-    Four numbered clauses say 6 and this one says 5.
+def test_the_two_readings_are_both_kept_and_do_not_collide():
+    """The regulation contradicts itself, so both readings live in the code.
 
-    Choosing 6 is defensible. Deleting the other reading is not — it is worth a
-    whole round, and it will be settled by watching whether the site counts
-    matchday 5, which nobody will think to do if the disagreement is gone.
+    Matchday 5 counts — settled by the participant, who plays in the league and
+    can see what it does, and who also confirmed that the squad, the top-scorer
+    bet and the transfer limit all lock there. That is what the model scores.
+
+    §16.4's reading is not merely a losing opinion and is not deleted: §16.3
+    states that round 13 is matchday 18 and round 29 is matchday 34, which are
+    checkable numbers that only work from matchday 6. The likeliest reading is
+    that both are true — §16.4 governs the national prize table, and a private
+    league tallies from where it tallies.
     """
-    assert DISPUTED_FIRST_MATCHDAY == FIRST_SCORING_MATCHDAY - 1
-    under_19 = LAST_MATCHDAY - DISPUTED_FIRST_MATCHDAY + 1
-    assert under_19 == 30
-    assert RECORD_ROUNDS == 29
+    assert (FIRST_SCORING_MATCHDAY, RECORD_ROUNDS) == (5, 30)
+    assert (NATIONAL_FIRST_MATCHDAY, NATIONAL_ROUNDS) == (6, 29)
+    assert FIRST_SCORING_MATCHDAY == NATIONAL_FIRST_MATCHDAY - 1
+    # The national mapping keeps satisfying both anchors §16.3 gives.
+    assert matchday_of_round(13) == 18
+    assert matchday_of_round(29) == 34

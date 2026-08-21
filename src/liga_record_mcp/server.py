@@ -32,6 +32,8 @@ from .models import (
     HOLIDAY_BLOCKED_LAST_ROUNDS,
     HOLIDAY_ROUNDS,
     LAST_MATCHDAY,
+    NATIONAL_FIRST_MATCHDAY,
+    NATIONAL_ROUNDS,
     POSITION_CHANGE_TRANSFERS,
     RECORD_ROUNDS,
     REOPENED_FIRST_ROUND,
@@ -1968,16 +1970,28 @@ pontuação acumulada entre a 6.ª e a 34.ª jornadas (inclusive)". Whatever a
 squad scores before matchday {FIRST_SCORING_MATCHDAY} is a rehearsal — real
 enough to learn from, and worth nothing in the table.
 
-## A round is not a matchday (§16.3, §16.4)
+## A round is not a matchday, and there are two answers (§16.3, §16.4, §19)
 
-Liga Record is **{RECORD_ROUNDS} rounds** laid over the last {RECORD_ROUNDS} of
-a {LAST_MATCHDAY}-matchday league. Round 1 is matchday
-{FIRST_SCORING_MATCHDAY}; round {RECORD_ROUNDS} is matchday {LAST_MATCHDAY}.
+The regulation uses "ronda" and "jornada" in one sentence and never says they
+differ, and on where the competition starts it contradicts itself. Both
+readings are carried here because both appear to be true of different things.
 
-The regulation uses "ronda" and "jornada" in the same sentence and never says
-they differ. §16.3 is where it becomes checkable: round 13 is matchday 18 and
-round 29 is matchday 34. Confuse the two and every deadline lands five weeks
-out.
+**What counts for us: matchdays {FIRST_SCORING_MATCHDAY} to {LAST_MATCHDAY},
+{RECORD_ROUNDS} rounds.** Settled by watching the site rather than by reading:
+the squad locks at matchday {FIRST_SCORING_MATCHDAY}, and so do §10.3(m)'s bet
+and §6.8's one-transfer-a-round. Everything before it is free and uncounted.
+This is the number to plan with.
+
+**What §16.4 classifies on: matchdays {NATIONAL_FIRST_MATCHDAY} to
+{LAST_MATCHDAY}, {NATIONAL_ROUNDS} rounds.** It counts "a pontuação acumulada
+entre a 6.ª e a 34.ª jornadas", §16.5 says "cada uma das 29 rondas", §12.1 puts
+the first price list at matchday 6, and §16.3 anchors the mapping twice — round
+13 is matchday 18, round 29 is matchday 34 — which only holds from there.
+§6.9's February window is stated in this numbering too.
+
+The likeliest reading is that the national prize table starts a week after a
+private league's tally does. Confuse the two and every deadline lands a week
+out; treat either as the only one and something is wrong by a whole round.
 
 ## Transfers (§6.8 to §6.11)
 - **One per round**, like for like: the positional contingent must hold.

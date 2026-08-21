@@ -86,10 +86,12 @@ SEASON_PATH = ROOT / "data" / "last-season.json"
 ARCHIVE_TAG = "2025-26"
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
 
-#: The matchdays Liga Record actually scores. §16.4 counts "a pontuação
-#: acumulada entre a 6.ª e a 34.ª jornadas (inclusive)" — twenty-nine rounds,
-#: not thirty-four. Playing the whole league season would inflate every total
-#: here by about a sixth and quietly answer a different question.
+#: The matchdays that count. Settled by watching the site rather than by
+#: reading the rules, which contradict themselves: the squad locks at matchday
+#: 5 and so does everything else, so 5 is where scoring starts and 30 is the
+#: season. §16.4's own range is a week shorter and is what the national prize
+#: table uses — see models.py. Playing all thirty-four would inflate every
+#: total here and quietly answer a third question.
 ROUNDS = range(FIRST_SCORING_MATCHDAY, LAST_MATCHDAY + 1)
 
 #: Everything that happened, scoring or not. A manager standing at round one
@@ -226,8 +228,7 @@ def main() -> None:
     print(f"{len(pool)} players reconstructed and still on the market")
     print(
         f"budget {BASE_BUDGET:,} at today's prices; no transfers; "
-        f"{RECORD_ROUNDS} rounds, matchdays {FIRST_SCORING_MATCHDAY}-{LAST_MATCHDAY} "
-        "(§16.4)"
+        f"{RECORD_ROUNDS} rounds, matchdays {FIRST_SCORING_MATCHDAY}-{LAST_MATCHDAY}"
     )
 
     forecast = projections(scores, clubs, positions)
