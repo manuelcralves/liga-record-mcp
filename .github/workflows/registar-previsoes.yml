@@ -47,7 +47,11 @@ jobs:
   ledger:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Kept current on purpose. Both of these were on v4/v5, targeting a Node
+      # that GitHub had already deprecated and was force-running on a newer one
+      # — which works right up until it does not. A scheduled job nobody watches
+      # is the worst place to discover an action has stopped being supported.
+      - uses: actions/checkout@v7
         with:
           # The whole history, not the single commit checkout takes by default.
           # The last step rebases before pushing, and a rebase on a shallow
@@ -55,7 +59,7 @@ jobs:
           # ninety-nine files; the full clone costs nothing worth saving.
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
