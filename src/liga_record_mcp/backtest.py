@@ -58,6 +58,8 @@ from .stats import (
     ROTATION_PRIOR,
     ROTATION_WINDOW,
     UNUSED_PENALTY,
+    adjust_for_fixture,
+    fixture_multipliers,
 )
 
 #: A round a player has no entry for. §10.3(i): he did not take the field, and
@@ -235,6 +237,164 @@ def two_part_projection(
             {i: r for i, (_, r) in halves.items()},
         )
     return estimates
+
+
+def fixture_table(
+    seasons: Sequence[tuple[Mapping[str, Any], int]],
+) -> dict[tuple[int, str], tuple[str, bool, int, int]]:
+    """Who played whom, where, and how it finished — from the reconstruction.
+
+    The calendar is already on file. Every player-match row carries `club`,
+    `opponent`, `at_home`, `scored` and `conceded`, and both loaders read the
+    row and throw all five away. Recovering them costs nothing and needs no
+    second source, which matters more than it sounds: the obvious alternative,
+    `history.club_records()`, SUMS the seasons it is given. It reports 68
+    matches for a club, so a decision taken at matchday 6 would be reading all
+    thirty-four rounds of the season being replayed. That is not a subtle leak,
+    it is the whole answer — and it silently drops two of the eighteen clubs,
+    whose names are absent from its lookup. The rows here are in the same
+    namespace as `cells`, so nothing has to be translated at all.
+
+    `seasons` is (players, offset) pairs, so the caller keeps the archive
+    convention to itself exactly as it does for points and minutes.
+
+    A round is settled by MAJORITY across the players who reported it. A cup
+    tie can share a league round number — 2024/25 has four of them — and
+    last-writer-wins would put Sporting away at a third-tier side in round 4.
+    Eleven team-mates outvote the two who played the cup.
+
+    Then the fixture is MIRRORED: if the file says A were home to B, B were
+    away to A, with the goals the other way about. Clubs whose players are
+    barely in the market appear on a handful of rounds otherwise, and their
+    opponents can see them even when they cannot see themselves.
+    """
+    votes: dict[tuple[int, str], dict[tuple[str, bool, int, int], int]] = {}
+    for players, offset in seasons:
+        for entry in players.values():
+            for match in entry.get("matches") or []:
+                club, opponent = match.get("club"), match.get("opponent")
+                if not club or not opponent:
+                    continue
+                key = (int(match["round"]) + offset, club)
+                fixture = (
+                    opponent,
+                    bool(match.get("at_home")),
+                    int(match.get("scored") or 0),
+                    int(match.get("conceded") or 0),
+                )
+                votes.setdefault(key, {})[fixture] = (
+                    votes.setdefault(key, {}).get(fixture, 0) + 1
+                )
+
+    # Ties in the vote fall to the fixture that sorts first, for the same
+    # reason every other tie-break here does: an arbitrary rule written down
+    # beats an arbitrary rule left to whichever player was read first.
+    table = {
+        key: max(sorted(counted), key=lambda f: counted[f])
+        for key, counted in votes.items()
+    }
+
+    for (matchday, club), (opponent, at_home, scored, conceded) in sorted(
+        table.items()
+    ):
+        table.setdefault(
+            (matchday, opponent), (club, not at_home, conceded, scored)
+        )
+    return table
+
+
+def club_form_upto(
+    table: Mapping[tuple[int, str], tuple[str, bool, int, int]],
+    upto: int,
+) -> tuple[dict[str, tuple[float, float]], float, float]:
+    """Goals against and for, per match, from rounds STRICTLY before `upto`.
+
+    The invariant that matters, and the only one worth stating twice: a
+    fixture's `opponent` and `at_home` may be read for round `upto` itself,
+    because the calendar is published weeks ahead and knowing who you play on
+    Saturday is not foresight. Its `scored` and `conceded` may not, and this
+    function never looks at them — the caller reads the venue from `table`
+    directly and gets the form from here.
+
+    Returns per-club rates and the two league means. The means are the mean of
+    the per-club rates rather than of all matches, matching how the live path
+    computes them, and they stand in for a club with no record at all — a
+    promoted side has none, and inventing one would be worse than admitting it.
+    """
+    against: dict[str, list[int]] = {}
+    scored_by: dict[str, list[int]] = {}
+    for (matchday, club), (_, _, scored, conceded) in table.items():
+        if matchday >= upto:
+            continue
+        against.setdefault(club, []).append(conceded)
+        scored_by.setdefault(club, []).append(scored)
+
+    rates = {
+        club: (mean(against[club]), mean(scored_by[club]))
+        for club in sorted(against)
+        if against[club]
+    }
+    if not rates:
+        return {}, 1.0, 1.0
+    league_against = mean([ga for ga, _ in rates.values()])
+    league_for = mean([gf for _, gf in rates.values()])
+    # A league that has conceded nothing has not kicked off. Guarding here
+    # rather than at every division site keeps the arithmetic below readable.
+    return rates, max(league_against, 1e-9), max(league_for, 1e-9)
+
+
+def fixture_adjusted_projection(
+    points: Mapping[str, Mapping[int, float]],
+    minutes: Mapping[str, Mapping[int, int]],
+    cells: Mapping[str, tuple[str, str]],
+    table: Mapping[tuple[int, str], tuple[str, bool, int, int]],
+    *,
+    upto: int,
+    **kwargs: Any,
+) -> dict[str, float]:
+    """`two_part_projection`, with one round's opponent priced in.
+
+    ONLY THE RETURNS HALF MOVES. §10.3(i) pays the same -1 whoever the
+    opponent is, so scaling the blended estimate would quietly make an easy
+    fixture a reason to own a man who is not in the side. The two halves come
+    back separately and are recombined here, which is what the live path does
+    and why it asks for `parts=True`.
+
+    A club with no fixture on the round comes back UNADJUSTED, never zero. The
+    live path scores zero there because §15.3 means the round genuinely does
+    not exist for that club; here a missing row means only that the
+    reconstruction could not tell us, and the real -1 is already in `points`.
+    Those are different facts and only one of them is worth acting on.
+    """
+    playing, returns = two_part_projection(
+        points, minutes, cells, upto=upto, parts=True, **kwargs
+    )
+    rates, league_against, league_for = club_form_upto(table, upto)
+
+    adjusted: dict[str, float] = {}
+    for player, rate in returns.items():
+        cell = cells.get(player)
+        fixture = table.get((upto, cell[0])) if cell else None
+        if fixture is None or cell is None:
+            adjusted[player] = playing[player] * rate + (1 - playing[player]) * ABSENT
+            continue
+        opponent, at_home, _, _ = fixture
+        club_against, club_for = rates.get(cell[0], (league_against, league_for))
+        opponent_against, opponent_for = rates.get(
+            opponent, (league_against, league_for)
+        )
+        defensive, attacking = fixture_multipliers(
+            max(club_against, 1e-9),
+            max(club_for, 1e-9),
+            opponent_against,
+            opponent_for,
+            league_against,
+            league_for,
+            at_home=at_home,
+        )
+        moved = adjust_for_fixture(rate, Position(cell[1]), defensive, attacking)
+        adjusted[player] = playing[player] * moved + (1 - playing[player]) * ABSENT
+    return adjusted
 
 
 def _rows(squad_ids: Sequence[str], market: Mapping[str, Player]) -> list[dict[str, Any]]:
