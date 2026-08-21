@@ -437,7 +437,16 @@ def best_transfer(
     standing = eleven_worth(squad_ids)
 
     best: tuple[str, str, float] | None = None
-    for position, out_id in ((market[i].position, i) for i in squad_ids):
+    # In id order, NOT in the order the squad was handed over. Exact ties are
+    # not the rare curiosity they look like: two substitutes of the same
+    # position, replaced by the same incoming player, leave the SAME eleven, so
+    # the gain agrees to the last bit and the winner is decided by whoever came
+    # first in the list. It happened on matchdays 6, 7 and 20 of 2025/26 — sell
+    # Dedic or sell Lagerbielke, both worth 57.38924458 — and the two are not
+    # interchangeable afterwards, because the one sold can never be bought back.
+    # Once the squad optimiser was made order-free, this was the whole of what
+    # was left: identical twenty-threes, seasons 38 points apart.
+    for position, out_id in ((market[i].position, i) for i in sorted(squad_ids)):
         headroom = budget - value + market[out_id].value
         for incoming in by_position.get(position, ()):
             if incoming.value > headroom:

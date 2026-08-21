@@ -604,7 +604,15 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         # Per round, and over the rounds that are left. The search reports what
         # the swap is worth in a single round; a reader deciding whether to
         # spend a transfer wants the season.
-        gain = improved["swaps"][0]["gain"] * max(
+        #
+        # EVERY step, not the first one. `swaps` is the trail the search left,
+        # not a list of transfers to make: one net change can be reached in
+        # several steps — buy a man, then find a better one for his place once
+        # the first has left the shortlist — and the ladder telescopes, so only
+        # the sum is the move actually being offered. Reading `swaps[0]`
+        # understated a constructed case by 52%, and that number is what the
+        # page prints as what the transfer is worth.
+        gain = sum(swap["gain"] for swap in improved["swaps"]) * max(
             1, LAST_MATCHDAY - round_number + 1
         )
         move = {

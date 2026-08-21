@@ -15,6 +15,8 @@ form that moved the season by +5.
 
 from __future__ import annotations
 
+import random
+
 from liga_record_mcp.backtest import (
     ABSENT,
     best_transfer,
@@ -540,3 +542,45 @@ def test_the_minutes_weighting_stays_off_unless_asked_for():
         points, mins, cells, upto=MATCHDAYS[-1] + 1, minutes_weighted=True
     )
     assert default["FWD0"] != asked["FWD0"]
+
+
+def test_the_one_transfer_is_the_same_one_however_the_squad_is_ordered():
+    """Ties here are not the rare curiosity they sound like.
+
+    The gain is measured ON THE ELEVEN, so two players who were never going to
+    start are worth exactly the same to it — swap either for the same incoming
+    man and the same eleven comes out, to the last bit of the float. Nothing
+    then separates them but the order the squad was handed over in, and the
+    squad arrives from a dynamic program that returns the same twenty-three in
+    a different order every run.
+
+    It is not a cosmetic difference. The man sold is barred from being bought
+    back, so the two branches hold different squads for the rest of the season.
+    On 2025/26 it was the whole of what remained once the squad search had been
+    made order-free: identical opening twenty-threes, seasons 38 points apart,
+    and the fork was Dedic or Lagerbielke — both worth 57.38924458.
+    """
+    market = market_of(extra=2)
+    squad = squad_of(market)
+    # Every defender in the squad projects alike, and a better one is unsold.
+    # Whichever of the eight goes, the eleven that comes back is the same.
+    projection = {i: 3.0 for i in market}
+    projection["DEF8"] = 9.0
+
+    answers = set()
+    for trial in range(12):
+        shuffled = list(squad)
+        random.Random(trial).shuffle(shuffled)
+        swap = best_transfer(
+            shuffled, market, projection, budget=40_000_000, rounds_left=10
+        )
+        assert swap is not None, "nothing to guard if it never moves"
+        answers.add(swap)
+
+    assert len(answers) == 1, f"{len(answers)} answers from one squad: {answers}"
+    out_id, in_id, _ = answers.pop()
+    assert in_id == "DEF8"
+    # The tie falls to whichever id sorts first as text, which is arbitrary
+    # but FIXED — and arbitrary is the whole point of a tie-break. An
+    # arbitrary rule written down beats an arbitrary rule left to a dict.
+    assert out_id == "DEF0"

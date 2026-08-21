@@ -372,7 +372,27 @@ def test_the_optimiser_escapes_a_squad_that_has_spent_everything():
     )
     budget = sum(market[i].value for i in squad)
 
-    returns = {i: 1.0 for i in market}
+    # Outfielders are worth what they cost, so freeing money by downgrading one
+    # is a real loss. The surplus keeper is the only dead money on the books —
+    # one of them starts, two do not both vanish in the same week, and the man
+    # at four and a half million returns exactly what the man at half a million
+    # does.
+    #
+    # That distinction has to be IN THE FIXTURE. With every outfielder flat on
+    # 1.0 there were a dozen equally good ways to free the same money, worth the
+    # same to a hundredth of a point, and which one got taken was decided by
+    # whichever the search happened to read first. The assertion below then
+    # looked like a claim about surplus keepers and was really a claim about
+    # reading order — it passed for years on a search that sold the GOOD keeper
+    # and bought him back twice, which is churn, not escape.
+    returns = {
+        i: (
+            market[i].value / 1_000_000
+            if market[i].position in (Position.DEF, Position.MID)
+            else 1.0
+        )
+        for i in market
+    }
     returns["GK0"] = 4.0
     # The good forwards are the dear ones, and none of them is in the squad.
     for n in range(4):
@@ -394,6 +414,61 @@ def test_the_optimiser_escapes_a_squad_that_has_spent_everything():
     )
     # And the money went where it was worth something.
     assert any(f"FWD{n}" in better["players"] for n in range(4))
+
+
+def test_the_february_allowance_is_spent_to_the_last_transfer():
+    """§6.9 gives six for the month, and six is what should be spent.
+
+    The cap used to be PREDICTED rather than counted: a pair move was priced at
+    two transfers whatever it did, so once four had gone the pair search
+    refused to look at all — even for a move whose downgrade leg sold a man
+    bought earlier in the same window, which costs the allowance nothing. The
+    window closed with transfers unspent and a squad that six moves would have
+    improved.
+
+    Counting the squad the move would leave behind gets it right in both
+    directions, and there is no reason to predict what is right there to be
+    counted. `season_report` already agrees — it reports the window as
+    `len(set(held) - set(rebuilt))`, the same net difference.
+
+    This is the diff's largest behaviour change and it sits behind
+    `--window all`, which no other test and no default run reaches.
+    """
+    market = squad_market()
+    squad = (
+        ["GK0", "GK1", "GK2"]
+        + [f"DEF{n}" for n in range(8)]
+        + [f"MID{n}" for n in range(8)]
+        + [f"FWD{n}" for n in range(8, 12)]
+    )
+    budget = sum(market[i].value for i in squad)
+    returns = {
+        i: (
+            market[i].value / 1_000_000
+            if market[i].position in (Position.DEF, Position.MID)
+            else 1.0
+        )
+        for i in market
+    }
+    returns["GK0"] = 4.0
+    for n in range(4):
+        returns[f"FWD{n}"] = 20.0 - n
+    playing = {i: 0.95 for i in market}
+
+    allowance = 6
+    capped = improve_squad(
+        squad, market, returns, playing, budget=budget, draws=128,
+        max_swaps=allowance,
+    )
+    spent = len(set(squad) - set(capped["players"]))
+    # Not merely "within the cap" — a search that made one move would pass
+    # that. The uncapped climb takes far more than six here, so every one of
+    # the six is a move worth making.
+    assert spent == allowance, f"spent {spent} of {allowance}"
+    assert capped["cost"] <= budget
+    assert capped["expected_round"] > squad_value(
+        squad, market, returns, playing, draws=128
+    )
 
 
 def test_the_optimiser_never_breaks_the_quota_or_the_budget():
@@ -436,3 +511,75 @@ def test_a_squad_nothing_improves_comes_back_untouched():
     )
     assert set(better["players"]) == set(squad)
     assert better["swaps"] == []
+
+
+def test_the_climb_lands_in_the_same_place_whatever_order_it_reads_the_market_in():
+    """The measurement this whole search exists to make possible.
+
+    Candidates arrive in whatever order a dict happens to hold them, and every
+    order is equally defensible, so a search that takes the first move that
+    helps is settling the squad on a coin toss. It is not a small toss. Six
+    shuffles of one market returned 2025/26 seasons of 1360, 1398, 1418, 1421,
+    1433 and 1496 — a spread of 136 points — while the six squads they produced
+    differed by 0.26 a round on the objective actually being maximised. The
+    search could barely tell them apart; the season gap was luck downstream of
+    a tie-break. An effect worth 11.7 points was being measured against that
+    and could not be seen at all.
+
+    So the answer has to be a function of the SET of candidates and of nothing
+    else. The list comes back in the order its slots were filled, which
+    legitimately follows the order they went in; WHO is in it, which moves were
+    taken and what they were worth must not move at all.
+    """
+    market = squad_market()
+    squad = (
+        ["GK0", "GK1", "GK2"]
+        + [f"DEF{n}" for n in range(8)]
+        + [f"MID{n}" for n in range(8)]
+        + [f"FWD{n}" for n in range(8, 12)]
+    )
+    budget = sum(market[i].value for i in squad)
+    # Deliberately thick with ties: every spare keeper on 1.0, every cheap
+    # defender on 0.5, every surplus forward on 1.0. A tie is the crack the
+    # ordering used to get in through, so a fixture without any would pass
+    # whether or not this had been fixed.
+    returns = {
+        i: (
+            market[i].value / 1_000_000
+            if market[i].position in (Position.DEF, Position.MID)
+            else 1.0
+        )
+        for i in market
+    }
+    returns["GK0"] = 4.0
+    for n in range(4):
+        returns[f"FWD{n}"] = 20.0 - n
+    playing = {i: 0.95 for i in market}
+
+    def climbed(order_seed):
+        """The same problem, read in a different order. Both ends are shuffled:
+        the market the candidates come out of, and the squad handed in — the
+        real caller gets its squad from a dynamic program that returns the same
+        twenty-three in a different order every run."""
+        shuffled = list(market)
+        random.Random(order_seed).shuffle(shuffled)
+        held = list(squad)
+        random.Random(f"squad:{order_seed}").shuffle(held)
+        return improve_squad(
+            held,
+            {i: market[i] for i in shuffled},
+            returns,
+            playing,
+            budget=budget,
+            draws=64,
+            passes=2,
+        )
+
+    first = climbed(0)
+    # A search that never moves would pass everything below without meaning it.
+    assert first["swaps"]
+    for order_seed in range(1, 5):
+        again = climbed(order_seed)
+        assert set(again["players"]) == set(first["players"])
+        assert again["swaps"] == first["swaps"]
+        assert again["expected_round"] == first["expected_round"]
