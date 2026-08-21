@@ -21,6 +21,10 @@ from typing import Any
 
 from .base import SquadSourceError
 
+#: The reconstructions, newest first. Each is optional: the project works
+#: with one season, or none, and simply knows less.
+ARCHIVES = ("last-season.json", "season-2024-25.json")
+
 
 class LastSeasonError(SquadSourceError):
     """The reconstruction is missing, unreadable, or from another schema."""
@@ -86,3 +90,37 @@ class LastSeasonSource:
             for player in self.players().values()
             if needle in _fold(player.get("name", ""))
         ]
+
+
+def archive_records(folder: str | Path) -> dict[str, dict[str, Any]]:
+    """Appearances, points-when-playing and the round-by-round scores.
+
+    The shape `advice.valuation` wants, gathered across every reconstruction on
+    disk. A season that has not been swept is simply absent; nothing here
+    insists on having two.
+
+    `points` is what he scored on the days he PLAYED, not his total: §10.3(i)'s
+    -1 for the weeks he sat belongs to the other half of the estimate, and
+    counting it twice would punish a rotation player for rotating.
+    """
+    folder = Path(folder)
+    out: dict[str, dict[str, Any]] = {}
+    for name in ARCHIVES:
+        path = folder / name
+        if not path.exists():
+            continue
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))["players"]
+        except (OSError, ValueError, KeyError) as exc:
+            raise LastSeasonError(f"could not read {path}: {exc}") from exc
+        for player_id, player in loaded.items():
+            entry = out.setdefault(
+                player_id, {"played": 0, "points": 0.0, "available": 0, "each": []}
+            )
+            for match in player["matches"]:
+                entry["available"] += 1
+                if match.get("used"):
+                    entry["played"] += 1
+                    entry["points"] += float(match["points"])
+                    entry["each"].append(float(match["points"]))
+    return out

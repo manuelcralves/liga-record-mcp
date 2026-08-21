@@ -35,7 +35,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp import server as mcp  # noqa: E402
-from liga_record_mcp.models import Position  # noqa: E402
+from liga_record_mcp.advice import MIN_OWN_HISTORY, valuation  # noqa: E402
+from liga_record_mcp.backtest import best_transfer  # noqa: E402
+from liga_record_mcp.optimise import best_eleven  # noqa: E402
+from liga_record_mcp.source import ManualSquadSource  # noqa: E402
+from liga_record_mcp.source.last_season import archive_records  # noqa: E402
+from liga_record_mcp.models import LAST_MATCHDAY, Position  # noqa: E402
 from liga_record_mcp.source import OpenFootballClient  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
     MEAN_MARK_POINTS,
@@ -49,6 +54,7 @@ from liga_record_mcp.stats import (  # noqa: E402
 )
 
 LOG_PATH = ROOT / "data" / "projections.json"
+SQUAD_PATH = ROOT / "data" / "squad.yaml"
 HISTORY_PATH = ROOT / "data" / "history.json"
 MY_TEAM_ID = 156412
 ORDER = {"GK": 0, "DEF": 1, "MID": 2, "FWD": 3}
@@ -135,6 +141,7 @@ def gather(round_number: int) -> dict:
         "table": mcp.primeira_liga(),
         "market": market_leaders(stored),
         "ratings": mcp.editorial_ratings(),
+        "model": model_sheet(stored, round_number),
         "seasons": two_seasons(stored),
         "coaches": coach_data(),
         "race": scorer_race(),
@@ -394,6 +401,224 @@ def holiday_section(data: dict) -> str:
         + "        <tbody>" + chr(10) + body + chr(10)
         + "        </tbody>" + chr(10) + "      </table>"
     )
+
+
+def model_sheet(stored: dict, round_number: int) -> dict:
+    """What the model would field next round, beside what was actually filed.
+
+    Everything else on this page reports. This one recommends, and the two are
+    kept visibly apart: `sheet_section` shows the eleven that was submitted and
+    this shows the eleven the model would submit, so the difference between
+    them is the advice rather than something the reader has to reconstruct.
+
+    The valuation comes from `advice.valuation`, which is also what the squad
+    proposal uses. A page and a script disagreeing about a player would be
+    worse than either being wrong, because neither would be the model's
+    opinion.
+    """
+    quoted = {
+        p["id"]: p
+        for position in ("GK", "DEF", "MID", "FWD")
+        for p in mcp.search_market(position=position, limit=500).get("players", [])
+    }
+    squad = ManualSquadSource(SQUAD_PATH).load().squad
+    market = {p.id: p for p in squad.players}
+
+    archive = archive_records(ROOT / "data")
+    view = valuation(
+        market,
+        archive,
+        {},
+        owned={i: q.get("owned_percent") for i, q in quoted.items()},
+    )
+    if not any(v["appearances"] for v in view.values()):
+        return {}
+
+    rows = [
+        {"id": p.id, "position": p.position, "value": p.value} for p in squad.players
+    ]
+    expected = {i: v["expected"] for i, v in view.items()}
+    sheet = best_eleven(rows, expected)
+    if sheet is None:
+        return {}
+
+    filed = set(XI)
+    picked = set(sheet["starters"])
+
+    def described(player_id: str) -> dict:
+        entry = view[player_id]
+        person = market[player_id]
+        return {
+            "name": person.name,
+            "position": person.position.value,
+            "club": person.club,
+            "expected": entry["expected"],
+            "playing": entry["playing"],
+            "returns": entry["returns"],
+            "label": LABEL_PT.get(entry["label"], entry["label"]),
+            "appearances": entry["appearances"],
+        }
+
+    # The transfer §6.8 allows, judged on what it does to the ELEVEN rather
+    # than to the player: only eleven score, so a better substitute is worth
+    # nothing, and comparing the two men's own rates cannot see that.
+    whole = {p.id: p.as_player() for p in mcp_players()}
+    wide = valuation(
+        whole,
+        archive,
+        {},
+        owned={i: q.get("owned_percent") for i, q in quoted.items()},
+    )
+    # Only players with a real record are candidates. A man with no top-flight
+    # matches is valued at his club's pool, which is a fair estimate and a poor
+    # recommendation: the first version of this proposed a Sporting midfielder
+    # with ZERO matches behind him and priced the move at thirty points, which
+    # is a confident claim about somebody nobody has measured.
+    #
+    # He may well be excellent. A transfer is one a round and does not
+    # accumulate, so it is the wrong place to find out.
+    known = [
+        i
+        for i, entry in wide.items()
+        if entry["appearances"] >= MIN_OWN_HISTORY or i in market
+    ]
+    swap = best_transfer(
+        [p.id for p in squad.players],
+        whole,
+        {i: v["expected"] for i, v in wide.items()},
+        budget=squad.budget,
+        rounds_left=max(1, LAST_MATCHDAY - round_number + 1),
+        candidates=known,
+    )
+    move = None
+    if swap is not None:
+        out_id, in_id, gain = swap
+        move = {
+            "out": described(out_id) if out_id in market else None,
+            "in": {
+                "name": whole[in_id].name,
+                "club": whole[in_id].club,
+                "position": whole[in_id].position.value,
+                "value": whole[in_id].value,
+                "expected": wide[in_id]["expected"],
+                "playing": wide[in_id]["playing"],
+                "appearances": wide[in_id]["appearances"],
+                "label": LABEL_PT.get(wide[in_id]["label"], wide[in_id]["label"]),
+                "field": FIELD_PT.get(wide[in_id]["field_label"], ""),
+            },
+            "gain": gain,
+        }
+
+    return {
+        "starters": [described(i) for i in sheet["starters"]],
+        "bench": [described(i) for i in sheet["bench"]],
+        "captain": described(sheet["captain"]),
+        "formation": sheet["formation"],
+        "expected": sheet["points"],
+        "in_not_filed": [described(i) for i in sorted(picked - filed)],
+        "out_of_filed": [described(i) for i in sorted(filed - picked)],
+        "transfer": move,
+    }
+
+
+def mcp_players():
+    """Every player on the market, as squad-shaped objects."""
+    return [
+        p
+        for position in Position
+        for p in mcp._market.search(position)
+    ]
+
+
+def model_section(data: dict) -> str:
+    found = data.get("model") or {}
+    if not found:
+        return """      <p class="lede">Sem épocas reconstruídas, o modelo não tem
+      opinião. Corre <code>scripts/build_last_season.py</code>.</p>"""
+
+    def line(entry: dict, mark: str = "") -> str:
+        return (
+            '            <tr>' + chr(10)
+            + '              <td class="name">' + esc(entry["name"])
+            + '<span class="sub">' + esc(POS_PT[entry["position"]]) + " · "
+            + esc(entry["club"]) + "</span></td>" + chr(10)
+            + '              <td class="fig strong">' + f"{entry['expected']:.2f}"
+            + "</td>" + chr(10)
+            + '              <td class="fig">' + f"{entry['playing']:.0%}" + "</td>" + chr(10)
+            + '              <td class="verdict">' + esc(entry["label"])
+            + (f'<span class="sub">{esc(mark)}</span>' if mark else "")
+            + "</td>" + chr(10)
+            + "            </tr>"
+        )
+
+    eleven = chr(10).join(
+        line(entry, "capitão" if entry["name"] == found["captain"]["name"] else "")
+        for entry in found["starters"]
+    )
+    bench = chr(10).join(line(entry) for entry in found["bench"])
+
+    changes = ""
+    if found["in_not_filed"] or found["out_of_filed"]:
+        into = ", ".join(esc(e["name"]) for e in found["in_not_filed"]) or "ninguém"
+        outof = ", ".join(esc(e["name"]) for e in found["out_of_filed"]) or "ninguém"
+        changes = (
+            f'      <p class="lede">Contra o onze que entregaste: entrariam '
+            f"<strong>{into}</strong>, sairiam <strong>{outof}</strong>.</p>"
+        )
+    else:
+        changes = (
+            '      <p class="lede">O onze que entregaste é o mesmo que o modelo '
+            "escolheria.</p>"
+        )
+
+    move = found.get("transfer")
+    if move and move["out"]:
+        arrival = move["in"]
+        transfer = (
+            '      <p class="lede"><strong>A transferência (§6.8).</strong> '
+            f"Sai <strong>{esc(move['out']['name'])}</strong> "
+            f"({move['out']['expected']:.2f} esperados), entra "
+            f"<strong>{esc(arrival['name'])}</strong> do {esc(arrival['club'])} "
+            f"a {arrival['value'] / 1e6:.2f}M ({arrival['expected']:.2f}, joga "
+            f"{arrival['playing']:.0%} das jornadas, {arrival['appearances']} jogos "
+            f"de evidência) — <strong>{esc(arrival['label'])}</strong>"
+            + (f", {esc(arrival['field'])}" if arrival["field"] else "")
+            + f". Vale cerca de <strong>{move['gain']:.0f} pontos</strong> até ao "
+            "fim da época. Só entram na busca jogadores com registo a sério — "
+            "quem não tem jogos é valorizado pelo clube dele, o que dá uma "
+            "estimativa justa e uma recomendação má. E é uma por ronda: não "
+            "acumula, e saltar uma não guarda nada.</p>"
+        )
+    else:
+        transfer = (
+            '      <p class="lede"><strong>A transferência (§6.8).</strong> '
+            "Nenhuma — o modelo não encontra troca que melhore o onze o "
+            "suficiente para valer a pena. Não transferir é uma decisão, e "
+            "aqui é a recomendada.</p>"
+        )
+
+    return f"""      <p class="lede">Isto <strong>não</strong> é a tua folha — é a
+      que o modelo entregaria, com o que sabe de {found['starters'][0]['appearances']}+
+      jornadas por jogador. <strong>Esperado</strong> é quanto rende a jornada
+      contando com a hipótese de não jogar; <strong>joga</strong> é essa
+      hipótese. Formação <strong>{esc(found['formation'])}</strong>, capitão
+      <strong>{esc(found['captain']['name'])}</strong>, e o onze todo vale
+      <strong>{found['expected']:.0f}</strong> pontos esperados (§10.3(l) conta
+      o capitão duas vezes).</p>
+{changes}
+{transfer}
+      <table class="data">
+        <thead><tr><th>o onze</th><th>esperado</th><th>joga</th><th>o que é</th></tr></thead>
+        <tbody>
+{eleven}
+        </tbody>
+      </table>
+      <table class="data">
+        <thead><tr><th>o banco</th><th>esperado</th><th>joga</th><th>o que é</th></tr></thead>
+        <tbody>
+{bench}
+        </tbody>
+      </table>"""
 
 
 def two_seasons(stored: dict) -> dict:
@@ -1331,6 +1556,11 @@ PAGES = [
         ],
     ),
     (
+        "proxima",
+        "A próxima jornada",
+        [("O que o modelo faria", "model"), ("As próximas jornadas", "grid")],
+    ),
+    (
         "jogadores",
         "Os jogadores",
         [
@@ -1367,6 +1597,7 @@ SECTIONS = {
     "sheet": lambda data, public: sheet_section(data),
     "exposure": lambda data, public: exposure_section(data),
     "grid": lambda data, public: grid_section(data),
+    "model": lambda data, public: model_section(data),
     "seasons": lambda data, public: seasons_section(data),
     "best": lambda data, public: best_section(data),
     "differentials": lambda data, public: differentials_section(data),
