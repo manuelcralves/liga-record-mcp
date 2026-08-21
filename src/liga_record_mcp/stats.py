@@ -207,8 +207,8 @@ ROTATION_WINDOW = 2
 #:      plays x returns             1.530     1.518
 #:      plays x returns, minutes    1.601     1.592
 #:
-#: The split is worth about a seventh of the remaining error over form alone,
-#: and it lands on all but the same number in a season nothing was tuned on.
+#: The split is worth about a tenth of the remaining error over form alone, and
+#: it lands on the same number in a season nothing was tuned on.
 #:
 #: THE MINUTES WEIGHTING IS WORSE, in both. An earlier reading had it winning,
 #: from six squad-and-threshold comparisons in a transfer backtest; this is ten
