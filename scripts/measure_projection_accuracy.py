@@ -51,10 +51,15 @@ ALL_MATCHDAYS = list(range(1, LAST_MATCHDAY + 1))
 #: estimates are all the same number and comparing them measures nothing.
 FIRST_PREDICTED = FIRST_SCORING_MATCHDAY
 
-#: How far either side of a round the oracle may look. Four rounds is a
-#: month and a half of form, which is more than anyone could know and is
-#: the point: it bounds what is knowable rather than what is achievable.
-ORACLE_WINDOW = 4
+#: How far either side of a round the oracle may look.
+#:
+#: Three, because three is the width that makes the oracle HARDEST to beat —
+#: swept over both seasons, it scores 1.548 and 1.493 where four scores 1.563
+#: and 1.509. A ceiling is only worth quoting if it is the tightest one
+#: available, and the temptation runs the other way: a loose oracle flatters
+#: the model, and at four the model had started beating it, which says nothing
+#: about the model and everything about a handicapped comparison.
+ORACLE_WINDOW = 3
 
 
 def load(path: Path):

@@ -158,14 +158,24 @@ def appearance_rate(history: dict[str, str]) -> float | None:
 #: 0.974, K=10 0.947, K=12 0.944, the club alone 0.957. Same ordering, same
 #: optimum, same finding — a player's own season is the weaker evidence.
 #:
-#: 10 sits inside the flat region of both, and stays on the conservative side
-#: of the exact-half answer. See scripts/measure_prior_strength.py.
-PRIOR_STRENGTH = 10.0
+#: 12 is where a second, independent method lands. `scripts/tune.py` searches
+#: this and the two rotation constants together, tuning on one season and
+#: reporting on the other exactly once — and picks 12 tuning on 2024/25 and 16
+#: tuning on 2025/26, either of which beats 10 on the season it was not shown.
+#: 12 is the conservative half of that, and inside the flat region above.
+PRIOR_STRENGTH = 12.0
 
 #: Rounds in the window that decides whether a man is currently in the team.
-#: Five is a month of football: long enough not to be one afternoon, short
-#: enough to notice a player who has just lost his place.
-ROTATION_WINDOW = 5
+#:
+#: Five was the guess — a month of football, long enough not to be one
+#: afternoon. Three is the measurement. `scripts/tune.py` searches the grid on
+#: one season and reports on the other, and BOTH directions choose 3
+#: independently, which is the strongest form the evidence takes here: a value
+#: found twice, each time without seeing the season it was judged on.
+#:
+#: It says react faster to who is playing, and it agrees with everything else
+#: measured about this signal — being dropped is news, and news goes stale.
+ROTATION_WINDOW = 3
 
 #: How many rounds the season-long appearance rate is worth against that
 #: window. Far lower than PRIOR_STRENGTH, and deliberately: whether a player is
@@ -189,7 +199,10 @@ ROTATION_WINDOW = 5
 #: from six squad-and-threshold comparisons in a transfer backtest; this is ten
 #: thousand predictions and it says the opposite. Six noisy comparisons should
 #: not have been believed over that, and the option stays off by default.
-ROTATION_PRIOR = 4.0
+#: Four was the guess and two is the measurement, chosen by both directions of
+#: the search independently, like the window above. Same conclusion: whether a
+#: man is in the side changes fast, and the estimate should not fight it.
+ROTATION_PRIOR = 2.0
 
 #: How many rounds the league's own appearance rate is worth against a
 #: player's. Small, because a player's record is the better evidence as soon as
