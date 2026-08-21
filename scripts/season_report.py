@@ -374,12 +374,20 @@ def main() -> None:
                 max_swaps=REOPENED_MAX_SWAPS,
                 candidates=[i for i in market if i not in sold],
             )["players"]
+            # Each departure paired with a DIFFERENT arrival. The generator
+            # used to be rebuilt inside the loop, so it restarted at the top
+            # every time and six defenders leaving were all recorded as
+            # replaced by the same man. Only the count is read today, which is
+            # why it went unnoticed; the rows were wrong all the same, and §6.9
+            # can move six at once.
+            arriving = [i for i in rebuilt if i not in held]
             for out_id in [i for i in held if i not in rebuilt]:
                 in_id = next(
                     i
-                    for i in rebuilt
-                    if i not in held and market[i].position is market[out_id].position
+                    for i in arriving
+                    if market[i].position is market[out_id].position
                 )
+                arriving.remove(in_id)
                 sold.add(out_id)
                 transfers.append((matchday, out_id, in_id))
             note = f"WINDOW: {len(set(held) - set(rebuilt))} swaps"

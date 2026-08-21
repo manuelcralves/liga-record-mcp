@@ -278,13 +278,34 @@ def improve_squad(
     played out — cannot be split into independent positions the way a sum of
     season totals can.
 
+    IT TAKES THE BEST MOVE AND NOT THE FIRST ONE IT FINDS, which is not a
+    refinement. Walking the candidates and accepting whatever helps makes the
+    answer a function of the order they arrive in, and every order is equally
+    defensible, so choosing between them is a coin toss the model has no
+    business making. On 2025/26 that coin was worth 136 points: six shuffles of
+    the same candidates returned seasons from 1360 to 1496, while the six
+    squads they produced differed by 0.26 points a round on the objective this
+    is actually maximising. The search could barely tell them apart. The spread
+    was luck downstream of an arbitrary tie-break, and it was wide enough to
+    bury any real improvement measured against it — which is what it did.
+
+    So every legal move is scored against the same squad, the best is taken,
+    and the sweep starts again. Ties fall to whichever id sorts first — as
+    text, since that is what an id is here, so "1000" comes before "999". That
+    is arbitrary, and deliberately so: the point is not which one wins but that
+    the same one always does. The answer is now a
+    function of the SET of candidates rather than of their order, which is why
+    the loops walk `sorted(...)` and why `affordable` ranks on a total key.
+
     IT MOVES TWO AT A TIME, and has to. A squad that has spent the budget can
     only swap a player for a cheaper one, so every single move that would free
     money to spend elsewhere looks like a loss on its own and is refused. The
     squad it was asked to repair was stuck exactly there: two goalkeepers worth
     ten million between them, and no single swap could pay for undoing it.
     Downgrading one man and upgrading another in the same move is what gets
-    past that.
+    past that. Pairs are searched the same way as singles and for the same
+    reason — taking the first pair that helped was the larger half of the 136,
+    and it is how one shuffle happened to buy the season's third top scorer.
 
     It does not find the global optimum and does not claim to. It finds a squad
     that no legal move of one or two players improves.
@@ -293,7 +314,12 @@ def improve_squad(
     February window needs: six for the whole month, not six a round, and the
     ordinary transfer of §6.8 switched off while it runs. Capped, the climb
     takes its best moves first and stops, so the six spent are the six worth
-    most rather than the first six it happened to find.
+    most rather than the first six it happened to find — which is what this
+    docstring already promised, and only became true when the search stopped
+    taking the first thing that helped.
+
+    `passes` is how many times the two searches alternate, not how many players
+    change hands: each runs itself out before handing over.
     """
     squad = list(squad_ids)
     pool = list(candidates if candidates is not None else market)
@@ -308,29 +334,57 @@ def improve_squad(
         not after. Cutting first hands back an empty list whenever the best
         players at a position are dearer than the man being replaced, which is
         most of the time and was why an earlier version made no moves at all.
+
+        Both keys are total. Ranked on the projection alone, players sharing a
+        number kept whatever order the pool arrived in, and that order decided
+        which of them survived the cut at `shortlist` — an arbitrary choice
+        made quietly, on the way in, before any football had been evaluated.
         """
         options = [
             i
             for i in by_position.get(position, ())
             if i not in held and market[i].value <= headroom
         ]
-        options.sort(key=lambda i: -returns.get(i, 0.0))
-        cheapest = min(options, key=lambda i: market[i].value, default=None)
+        options.sort(key=lambda i: (-returns.get(i, 0.0), i))
+        cheapest = min(options, key=lambda i: (market[i].value, i), default=None)
         best = options[:shortlist]
         if cheapest is not None and cheapest not in best:
             best = best + [cheapest]
         return best
 
+    #: Squads already priced in this climb. Scoring every move against a fixed
+    #: baseline means the sweeps overlap heavily — 28% of the calls here were
+    #: exact repeats on the uncapped climb, and 45% on the one transfer the
+    #: dashboard asks for every morning.
+    #:
+    #: Keyed on the SET, which is sound for the same reason the search is: a
+    #: squad is worth what it is worth whatever order its names arrive in.
+    #: `stream()` seeds each absence on the player's own id, `best_eleven`
+    #: sorts on a total key, and §11 indexes the bench by id — so the same
+    #: twenty-three price bit-for-bit identically however they are shuffled.
+    #: Nothing else the price depends on — the market, the two projections,
+    #: `draws`, `seed` — can move inside one call.
+    priced: dict[frozenset[str], float] = {}
+
     def value_of(ids: Sequence[str]) -> float:
-        return squad_value(ids, market, returns, playing, draws=draws, seed=seed)
+        key = frozenset(ids)
+        if key not in priced:
+            priced[key] = squad_value(
+                ids, market, returns, playing, draws=draws, seed=seed
+            )
+        return priced[key]
 
     started = set(squad)
 
-    def changed_so_far() -> int:
-        return len(started - set(squad))
+    def within_cap(trial: Sequence[str]) -> bool:
+        """§6.9's allowance, counted on the squad the move would leave behind.
 
-    def room(needed: int) -> bool:
-        return max_swaps is None or changed_so_far() + needed <= max_swaps
+        Counted rather than predicted. A move that sells a man bought earlier
+        in this same climb spends nothing new, and one that buys an original
+        back hands an allowance in; reasoning about that before the move got it
+        wrong in both directions, and the squad is right there to be counted.
+        """
+        return max_swaps is None or len(started.difference(trial)) <= max_swaps
 
     value, variation = squad_value(
         squad, market, returns, playing, draws=draws, seed=seed, spread=True
@@ -340,79 +394,101 @@ def improve_squad(
     # a margin the climb churns forever on those, spending real transfers to
     # chase a difference that is not there. One standard error of the mean is
     # the smallest gap worth believing.
+    #
+    # Held against the squad the sweep STARTED from, never against the best
+    # candidate seen so far. Chained, the margin smuggles the ordering back in:
+    # of two candidates a tenth apart, whichever is read first is kept, and the
+    # second never clears the bar its own rival just raised.
     tolerance = max(1e-9, variation / (draws ** 0.5))
     swaps: list[dict[str, Any]] = []
 
-    for _ in range(passes):
-        improved = False
-
-        # One at a time first: cheaper, and it catches the easy gains.
-        for out_id in list(squad):
-            if not room(1 if out_id in started else 0):
-                continue
-            held = set(squad)
-            headroom = budget - sum(market[i].value for i in squad) + market[out_id].value
-            best_move, best_value = None, value
+    def best_single() -> tuple[float, str, str, list[str]] | None:
+        """The best legal one-for-one, every one scored against the same squad."""
+        spent = sum(market[i].value for i in squad)
+        held = set(squad)
+        best: tuple[float, str, str, list[str]] | None = None
+        for out_id in sorted(squad):
+            headroom = budget - spent + market[out_id].value
             for in_id in affordable(market[out_id].position, held, headroom):
                 trial = [in_id if i == out_id else i for i in squad]
+                if not within_cap(trial):
+                    continue
                 score = value_of(trial)
-                if score > best_value + tolerance:
-                    best_move, best_value = in_id, score
-            if best_move is not None:
-                swaps.append(
-                    {
-                        "out": market[out_id].name,
-                        "in": market[best_move].name,
-                        "gain": round(best_value - value, 3),
-                    }
-                )
-                squad[squad.index(out_id)] = best_move
-                value, improved = best_value, True
+                if best is None or score > best[0]:
+                    best = (score, out_id, in_id, trial)
+        return best
 
-        # Then in pairs: sell one down to free money, spend it on another.
-        for down_id in list(squad):
-            if not room(2):
-                break
-            held = set(squad)
-            spent = sum(market[i].value for i in squad)
+    def best_pair() -> tuple[float, str, str, str, str, list[str]] | None:
+        """The best legal sell-one-down-to-buy-another, on the same terms."""
+        spent = sum(market[i].value for i in squad)
+        held = set(squad)
+        best: tuple[float, str, str, str, str, list[str]] | None = None
+        for down_id in sorted(squad):
             cheap = affordable(
                 market[down_id].position, held, budget - spent + market[down_id].value
             )
-            cheap = sorted(cheap, key=lambda i: market[i].value)[:2]
+            cheap = sorted(cheap, key=lambda i: (market[i].value, i))[:2]
             for filler in cheap:
                 if market[filler].value >= market[down_id].value:
                     continue
                 freed = market[down_id].value - market[filler].value
                 halfway = [filler if i == down_id else i for i in squad]
-                for up_id in halfway:
+                for up_id in sorted(halfway):
                     if up_id == filler:
                         continue
-                    headroom = (
-                        budget
-                        - (spent - freed)
-                        + market[up_id].value
-                    )
+                    headroom = budget - (spent - freed) + market[up_id].value
                     for in_id in affordable(
                         market[up_id].position, set(halfway), headroom
                     ):
                         if market[in_id].value <= market[up_id].value:
                             continue
                         trial = [in_id if i == up_id else i for i in halfway]
+                        if not within_cap(trial):
+                            continue
                         score = value_of(trial)
-                        if score > value + tolerance:
-                            swaps.append(
-                                {
-                                    "out": f"{market[down_id].name} + {market[up_id].name}",
-                                    "in": f"{market[filler].name} + {market[in_id].name}",
-                                    "gain": round(score - value, 3),
-                                }
-                            )
-                            squad, value, improved = trial, score, True
-                            break
-                    if improved:
-                        break
-                if improved:
-                    break
+                        if best is None or score > best[0]:
+                            best = (score, down_id, filler, up_id, in_id, trial)
+        return best
+
+    # Each search runs itself out before the other takes over. Taking the best
+    # move means a sweep commits once, so bounding the climb at `passes` sweeps
+    # would cap it at three transfers; the bound belongs on the alternation.
+    # The count here is only a backstop — every step has to clear the tolerance
+    # against a squad that just got better, so the climb ends on its own.
+    ceiling = 2 * len(squad) + 1
+
+    for _ in range(passes):
+        improved = False
+
+        # One at a time first: cheaper, and it catches the easy gains.
+        for _ in range(ceiling):
+            move = best_single()
+            if move is None or move[0] <= value + tolerance:
+                break
+            score, out_id, in_id, trial = move
+            swaps.append(
+                {
+                    "out": market[out_id].name,
+                    "in": market[in_id].name,
+                    "gain": round(score - value, 3),
+                }
+            )
+            squad, value, improved = trial, score, True
+
+        # Then in pairs: sell one down to free money, spend it on another.
+        for _ in range(ceiling):
+            move = best_pair()
+            if move is None or move[0] <= value + tolerance:
+                break
+            score, down_id, filler, up_id, in_id, trial = move
+            swaps.append(
+                {
+                    "out": f"{market[down_id].name} + {market[up_id].name}",
+                    "in": f"{market[filler].name} + {market[in_id].name}",
+                    "gain": round(score - value, 3),
+                }
+            )
+            squad, value, improved = trial, score, True
 
         if not improved:
             break
