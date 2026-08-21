@@ -202,13 +202,13 @@ ROTATION_WINDOW = 2
 #: player-round, over two seasons and roughly ten thousand predictions:
 #:
 #:                                2025/26   2024/25
-#:      the league average          2.152     2.208
-#:      form alone                  1.764     1.788
-#:      plays x returns             1.591     1.591
-#:      plays x returns, minutes    1.632     1.636
+#:      the league average          2.151     2.204
+#:      form alone                  1.776     1.799
+#:      plays x returns             1.530     1.518
+#:      plays x returns, minutes    1.601     1.592
 #:
-#: The split is worth about a tenth of the remaining error over form alone, and
-#: it lands on the same number in a season nothing was tuned on.
+#: The split is worth about a seventh of the remaining error over form alone,
+#: and it lands on all but the same number in a season nothing was tuned on.
 #:
 #: THE MINUTES WEIGHTING IS WORSE, in both. An earlier reading had it winning,
 #: from six squad-and-threshold comparisons in a transfer backtest; this is ten

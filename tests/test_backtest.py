@@ -520,8 +520,8 @@ def test_two_players_on_the_same_average_are_told_apart_by_how_they_got_there():
 
 
 def test_the_minutes_weighting_stays_off_unless_asked_for():
-    """It measured worse on both reconstructed seasons — 1.632 against 1.591,
-    and 1.636 against 1.591 — over about ten thousand predictions. An earlier
+    """It measured worse on both reconstructed seasons — 1.601 against 1.530,
+    and 1.592 against 1.518 — over about ten thousand predictions. An earlier
     reading had it winning, on six noisy comparisons from a transfer backtest,
     and it was turned on because of them.
 

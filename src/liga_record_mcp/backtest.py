@@ -156,8 +156,8 @@ def two_part_projection(
 
     It is off by default because it measures WORSE. Predicting each round from
     what came before, over two seasons and about ten thousand player-rounds, it
-    loses to the plain split in both (1.632 against 1.591, and 1.636 against
-    1.591). The idea is sound and the estimate is too noisy to pay for itself.
+    loses to the plain split in both (1.601 against 1.530, and 1.592 against
+    1.518). The idea is sound and the estimate is too noisy to pay for itself.
     """
     played_pool: dict[tuple[str, str], list[float]] = {}
     for player, by_matchday in points.items():
