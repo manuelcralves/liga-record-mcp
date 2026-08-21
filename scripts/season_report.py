@@ -40,7 +40,8 @@ sys.path[:0] = [str(ROOT / "src")]
 from liga_record_mcp.backtest import (  # noqa: E402
     ABSENT,
     best_transfer,
-    fixture_adjusted_projection,
+    adjusted_projection,
+    card_table,
     fixture_table,
     pick_coach,
     play_round,
@@ -118,12 +119,17 @@ def load(market, *, use_archive: bool = True, order_seed: int | None = None):
     # the hill climb walks when it looks for a swap. Two runs of identical code
     # returned seasons 35 points apart before this line was written down.
     ordered = list(loaded) + [i for i in archive if i not in loaded]
-    # A DELIBERATE reordering, for measuring what an arbitrary one is worth.
-    # The hill climb walks the candidates in whatever order they arrive and
-    # stops at the first swap that helps, so the order decides which local
-    # optimum it lands in. That is not a knob on the model — every order is
-    # equally defensible — which makes the spread across orders the floor
-    # below which no improvement here can be called demonstrated.
+    # A DELIBERATE reordering, and it no longer does anything — which is the
+    # point of keeping it.
+    #
+    # The climb used to walk the candidates in whatever order they arrived and
+    # stop at the first swap that helped, so the order chose the local optimum:
+    # six shuffles returned 1360, 1398, 1418, 1421, 1433 and 1496. It now
+    # scores every legal move against the same baseline and takes the best, and
+    # the same six return 1440 six times.
+    #
+    # This flag stays as the regression test for that. If a spread ever comes
+    # back across orderings, an ordering has got back into the search.
     if order_seed is not None:
         random.Random(order_seed).shuffle(ordered)
     for player_id in ordered:
@@ -177,7 +183,8 @@ def load(market, *, use_archive: bool = True, order_seed: int | None = None):
     # The opponent and the venue, kept rather than dropped. Every row already
     # carries them; the loop above reads each row and keeps three of its fields.
     table = fixture_table([(loaded, 0), (archive, ARCHIVE_OFFSET)])
-    return points, minutes, goals, cells, table
+    cards = card_table([(loaded, 0), (archive, ARCHIVE_OFFSET)])
+    return points, minutes, goals, cells, table, cards
 
 
 def pick_top_scorer(market, goals, minutes, upto):
@@ -229,7 +236,17 @@ def main() -> None:
             "the Monte Carlo stream the squad search draws from. Changing it "
             "changes nothing about the model and only breaks near-ties a "
             "different way, so the spread across seeds is the noise floor: an "
-            "improvement smaller than it has not been demonstrated"
+            "improvement smaller than it has not been demonstrated. THAT "
+            "SPREAD IS 74 POINTS — seeds 0 to 3 return 1453, 1411, 1485 and "
+            "1471 on identical code. It was long thought to be almost nothing, "
+            "which was true only while the 136-point ordering spread was "
+            "drowning it; that one is gone and this one was underneath. A "
+            "season total is therefore a report on ONE configuration and not a "
+            "way to compare two: a transfer taken differently in matchday 5 is "
+            "a different season by May, and any model change reroutes it. Use "
+            "scripts/measure_projection_accuracy.py to choose between "
+            "variants — ten thousand predictions, no budget and no transfer "
+            "rule in the way"
         ),
     )
     parser.add_argument(
@@ -250,9 +267,32 @@ def main() -> None:
             "adjustment the live pages have always used was wired in. It is a "
             "control rather than a knob: the gain is NOT demonstrated (r moved "
             "+0.0037 and +0.0091 on the two seasons, against tune.py's own bar "
-            "of +0.003, and by +0.0029 with the archive taken away). What is "
-            "demonstrated is that the backtest now scores the same estimator "
-            "that advises you, which it never did before"
+            "of +0.003, and by +0.0029 with the archive taken away). The +14 "
+            "it reads on the season is NOT evidence either — the seed spread "
+            "on identical code is 74, and this was quoted before that had been "
+            "measured. What is demonstrated is that the backtest now scores "
+            "the same estimator that advises you, which it never did before"
+        ),
+    )
+    parser.add_argument(
+        "--bans",
+        choices=("off", "sheet", "all"),
+        default="sheet",
+        help=(
+            "who is told that a player is suspended. A red card, or the "
+            "booking that crosses a fifth yellow, is the one absence KNOWN "
+            "before §6.13's deadline — which closes fifteen minutes before the "
+            "first match of the round, so a confirmed line-up arrives too late "
+            "for eight games in nine while a red card was shown a week ago. "
+            "Worth +0.017 to +0.021 of correlation over ten thousand "
+            "predictions, on all three configurations: five to seven times "
+            "tune.py's bar, and the largest single effect measured on this "
+            "projection. `sheet` names the eleven knowing it and lets the "
+            "transfer search carry on in ignorance; `all` tells both. `sheet` "
+            "is the default on the argument rather than the number — a ban "
+            "lasts ONE round and a transfer lasts to May — because the season "
+            "total CANNOT settle it: `all` reads +23, and the seed spread on "
+            "identical code is 74"
         ),
     )
     parser.add_argument(
@@ -273,7 +313,7 @@ def main() -> None:
     market = {
         p.id: p.as_player() for position in Position for p in client.search(position)
     }
-    points, minutes, goals, cells, table = load(
+    points, minutes, goals, cells, table, cards = load(
         market,
         use_archive=not args.no_archive,
         order_seed=args.order_seed,
@@ -343,7 +383,11 @@ def main() -> None:
     window_used = 0
     per_round, coach_total, transfers = [], 0.0, []
     for index, matchday in enumerate(matchdays):
-        view = two_part_projection(points, minutes, cells, upto=matchday)
+        view = (
+            adjusted_projection(points, minutes, cells, upto=matchday, cards=cards)
+            if args.bans == "all"
+            else two_part_projection(points, minutes, cells, upto=matchday)
+        )
         coach_view = shrunk_projection(coaches, coach_cells, upto=matchday)
         # TWO VIEWS, and the difference between them is the whole care of this
         # change. `sheet_view` prices in Saturday's opponent and names the
@@ -352,8 +396,13 @@ def main() -> None:
         # multiplies its edge by `rounds_left` — so choosing one on this week's
         # fixture sells a good player for a bad Saturday. Adjusting `view` in
         # place is a one-word change and would quietly corrupt the season.
-        sheet_view = view if args.no_fixture else fixture_adjusted_projection(
-            points, minutes, cells, table, upto=matchday
+        sheet_view = adjusted_projection(
+            points,
+            minutes,
+            cells,
+            upto=matchday,
+            fixtures=None if args.no_fixture else table,
+            cards=None if args.bans == "off" else cards,
         )
 
         note = ""

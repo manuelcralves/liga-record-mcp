@@ -12,12 +12,16 @@ import pytest
 
 from liga_record_mcp.backtest import (
     ABSENT,
+    SUSPENDED_PLAYS,
+    adjusted_projection,
+    card_table,
     club_form_upto,
     fixture_adjusted_projection,
     fixture_table,
+    suspensions,
     two_part_projection,
 )
-from liga_record_mcp.models import Position
+from liga_record_mcp.models import LAST_MATCHDAY, Position
 from liga_record_mcp.stats import (
     APPEARANCE_FLOOR,
     FIXTURE_BOUNDS,
@@ -314,3 +318,108 @@ def test_only_the_returns_half_is_rescaled():
     assert adjusted["plays"] != pytest.approx(
         two_part_projection(points, minutes, cells, upto=2)["plays"]
     )
+
+
+# --------------------------------------------------------------------------
+# The one absence that is known before the deadline
+# --------------------------------------------------------------------------
+
+
+def booked(round_number, yellows=0, red=False, club="Porto", opponent="Braga"):
+    return {
+        "round": round_number,
+        "club": club,
+        "opponent": opponent,
+        "at_home": True,
+        "scored": 1,
+        "conceded": 0,
+        "yellow_cards": yellows,
+        "red_card": red,
+        "points": 3.0,
+        "minutes": 90,
+    }
+
+
+def test_a_red_card_bans_the_next_round_and_only_the_next():
+    """Measured, not assumed. Of the players sent off, 12% and 0% played the
+    round after; by the round after that 82% and 91% were back — at or above
+    the 86% baseline for anyone who played at all. One round."""
+    cards = card_table([({"p": {"matches": [booked(4, red=True)]}}, 0)])
+    assert suspensions(cards, 5) == {"p"}
+    assert suspensions(cards, 6) == set()
+    assert suspensions(cards, 4) == set()
+
+
+def test_the_fifth_yellow_bans_and_the_fourth_does_not():
+    """Five is not looked up, it is measured. Crossing a multiple of five takes
+    a player from 86% to 22% and 10%; three, four and six do nothing at all —
+    82/83, 82/90, 80/79 against that same 86%. One threshold has a cliff and
+    its neighbours are flat, which is what a real rule looks like from outside.
+    """
+    def upto_round(*per_round):
+        return card_table(
+            [({"p": {"matches": [booked(m + 1, y) for m, y in enumerate(per_round)]}}, 0)]
+        )
+
+    assert suspensions(upto_round(1, 1, 1, 1), 5) == set()
+    assert suspensions(upto_round(1, 1, 1, 1, 1), 6) == {"p"}
+    # And again at ten, not only the first time.
+    assert suspensions(upto_round(*([1] * 10)), 11) == {"p"}
+    assert suspensions(upto_round(*([1] * 9)), 10) == set()
+
+
+def test_bookings_do_not_carry_across_the_turn_of_the_season():
+    """The bug the archive caught.
+
+    The season before sits on matchdays at or below zero. A total swept through
+    the boundary put a man on four yellows from last year one card from a ban
+    in August, which is not a rule in any competition — and it was invisible
+    until the archive was run as its own configuration: the signal measured
+    +0.0172 and +0.0211 on the two seasons alone and MINUS 0.0015 with the
+    archive attached. A weak effect does not change sign. A bug does.
+    """
+    last_year = {"p": {"matches": [booked(m, 1) for m in range(31, 35)]}}
+    this_year = {"p": {"matches": [booked(1, 1)]}}
+    cards = card_table([(this_year, 0), (last_year, -LAST_MATCHDAY)])
+
+    # Four from last season plus one from this is not five.
+    assert suspensions(cards, 2) == set()
+    # And a red in the archive's last round does not reach the opening day.
+    crossing = card_table(
+        [({"p": {"matches": [booked(1)]}}, 0),
+         ({"p": {"matches": [booked(LAST_MATCHDAY, red=True)]}}, -LAST_MATCHDAY)]
+    )
+    assert suspensions(crossing, 1) == set()
+
+
+def test_a_ban_is_settled_before_the_round_it_applies_to():
+    """The rule the whole backtest rests on. Nothing about round N may be read
+    to decide round N — and a suspension does not need it, which is exactly
+    what makes it usable: §6.13 closes fifteen minutes before the first match
+    of the round, so a confirmed line-up is too late for eight games in nine
+    while a red card was shown a week earlier."""
+    cards = card_table([({"p": {"matches": [booked(4, red=True), booked(5, red=True)]}}, 0)])
+    before = suspensions(cards, 5)
+
+    rewritten = {
+        key: value for key, value in cards.items() if key[0] < 5
+    }
+    assert suspensions(rewritten, 5) == before == {"p"}
+
+
+def test_a_ban_moves_the_appearance_half_and_leaves_the_returns_half_alone():
+    """What a man is worth on the days he plays has nothing to do with his not
+    playing this one. Fold them together and an easy fixture starts arguing for
+    a player who is banned."""
+    points = {"p": {m: 9.0 for m in range(1, 6)}}
+    minutes = {"p": {m: 90 for m in range(1, 6)}}
+    cells = {"p": ("Porto", Position.FWD.value)}
+    cards = card_table([({"p": {"matches": [booked(4, red=True)]}}, 0)])
+
+    playing, returns = two_part_projection(points, minutes, cells, upto=5, parts=True)
+    banned = adjusted_projection(points, minutes, cells, upto=5, cards=cards)
+
+    # The returns half is untouched, so the whole move is in `playing`.
+    expected = SUSPENDED_PLAYS * returns["p"] + (1 - SUSPENDED_PLAYS) * ABSENT
+    assert banned["p"] == pytest.approx(expected)
+    assert banned["p"] < playing["p"] * returns["p"] + (1 - playing["p"]) * ABSENT
