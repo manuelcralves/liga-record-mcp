@@ -209,6 +209,15 @@ tr.is-dead td, tr.is-dead .name { color: var(--dim); font-weight: 400; }
 .tick-bar { width: 100%; background: var(--red); align-self: end; min-height: 2px; }
 .tick-n { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--dim); padding-top: 4px; }
 .tick-v { font-family: "Instrument Serif", Georgia, serif; font-size: 19px; padding-top: 2px; }
+/* Two sheets, side by side. Equal columns on purpose: widening the model column
+   wider would argue for it by layout rather than by number. */
+.versus { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 0 34px; }
+.side h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 23px; margin: 0; }
+.side.theirs { border-left: 1px solid var(--rule); padding-left: 26px; }
+@media (max-width: 640px) { .side.theirs { border-left: none; padding-left: 0; padding-top: 18px; border-top: 1px solid var(--rule); } }
+.shape { margin: 0 0 6px; font-size: 14.5px; color: var(--dim); }
+.shape strong { font-family: "Instrument Serif", Georgia, serif; font-size: 25px; font-weight: 400; color: var(--ink); }
+.foot { margin: 16px 0 0; font-size: 14px; }
 .questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }
 .q h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }
 .q-state { margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }
@@ -411,6 +420,196 @@ a { color: var(--red); }
       </div>
     </section>
     <section>
+      <h2>O teu onze contra o do modelo</h2><div class="rule"></div>
+      <p class="lede">A folha que entregaste e a folha que o modelo
+      entregaria, avaliadas com <strong>os mesmos números</strong> — as estimativas
+      já ajustadas ao adversário desta jornada. Duas colunas medidas com réguas
+      diferentes fariam qualquer diferença parecer uma descoberta.</p>
+      <p class="lede">O onze do modelo vale <strong>+2.4</strong> pontos esperados a mais nesta jornada. O melhor onze é exato sobre os mesmos 23, portanto
+      esta diferença nunca é negativa: é o que o teu plantel ainda tinha para dar.</p>
+      <div class="versus">
+      <div class="side mine">
+        <h3>O teu</h3>
+        <p class="shape">3-4-3 <span class="muted">·
+          esperado</span> <strong>46.5</strong></p>
+        <div class="scroll">
+          <table>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">GR</th></tr>
+            <tr>
+              <td class="name">Diogo Costa<span class="sub">FC Porto · v Arouca</span></td>
+              <td class="fig strong">3.33</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">DEF</th></tr>
+            <tr>
+              <td class="name">Nehuén Pérez<span class="sub">FC Porto · v Arouca</span></td>
+              <td class="fig strong">2.83</td>
+            </tr>
+            <tr>
+              <td class="name">Zaidu<span class="sub">FC Porto · v Arouca</span></td>
+              <td class="fig strong">2.79</td>
+            </tr>
+            <tr>
+              <td class="name">Léo Santos<span class="sub">Nacional · v V. Guimarães</span></td>
+              <td class="fig strong">1.85</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">MED</th></tr>
+            <tr>
+              <td class="name">Issa Doumbia<span class="sub">Sporting · v Alverca</span></td>
+              <td class="fig strong">4.89</td>
+            </tr>
+            <tr>
+              <td class="name">Samu<span class="sub">V. Guimarães · v Nacional</span></td>
+              <td class="fig strong">4.65</td>
+            </tr>
+            <tr>
+              <td class="name">Zalazar<span class="sub">Sporting · v Alverca</span></td>
+              <td class="fig strong">4.50</td>
+            </tr>
+            <tr>
+              <td class="name">Raphael Guzzo<span class="sub">Marítimo · v Académico</span></td>
+              <td class="fig strong">3.84</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">AVA</th></tr>
+            <tr>
+              <td class="name">Begraoui<span class="sub">Estoril · v Rio Ave</span></td>
+              <td class="fig strong">5.21</td>
+            </tr>
+            <tr>
+              <td class="name">Pavlidis<span class="cap">C</span><span class="sub">Benfica · v Moreirense</span></td>
+              <td class="fig strong">4.97</td>
+            </tr>
+            <tr>
+              <td class="name">Fran Navarro<span class="sub">Sp. Braga · v E. Amadora</span></td>
+              <td class="fig strong">2.63</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">Banco</th></tr>
+            <tr>
+              <td class="name"><span class="ord">1</span> Héctor Hernández<span class="sub">AVA · Gil Vicente</span></td>
+              <td class="fig">3.15</td>
+            </tr>
+            <tr>
+              <td class="name"><span class="ord">2</span> Santi García<span class="sub">MED · Gil Vicente</span></td>
+              <td class="fig">4.18</td>
+            </tr>
+            <tr>
+              <td class="name"><span class="ord">3</span> Jose Fontán<span class="sub">DEF · Arouca</span></td>
+              <td class="fig">1.24</td>
+            </tr>
+            <tr>
+              <td class="name"><span class="ord">4</span> Lucão<span class="sub">GR · Gil Vicente</span></td>
+              <td class="fig">1.65</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">Treinador</th></tr>
+          <tr><td class="name">Farioli <span class="muted">FC Porto</span></td><td class="fig">—</td></tr>
+        </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="side theirs">
+        <h3>O do modelo</h3>
+        <p class="shape">3-5-2 <span class="muted">·
+          esperado</span> <strong>48.9</strong></p>
+        <div class="scroll">
+          <table>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">GR</th></tr>
+            <tr>
+              <td class="name">Diogo Costa<span class="sub">FC Porto · v Arouca</span></td>
+              <td class="fig strong">3.33</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">DEF</th></tr>
+            <tr>
+              <td class="name">Nehuén Pérez<span class="sub">FC Porto · v Arouca</span></td>
+              <td class="fig strong">2.83</td>
+            </tr>
+            <tr>
+              <td class="name">Zaidu<span class="sub">FC Porto · v Arouca</span></td>
+              <td class="fig strong">2.79</td>
+            </tr>
+            <tr>
+              <td class="name">Finn van Breemen<span class="sub">Famalicão · v Santa Clara</span></td>
+              <td class="fig strong">2.46</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">MED</th></tr>
+            <tr>
+              <td class="name">Issa Doumbia<span class="sub">Sporting · v Alverca</span></td>
+              <td class="fig strong">4.89</td>
+            </tr>
+            <tr>
+              <td class="name">Samu<span class="sub">V. Guimarães · v Nacional</span></td>
+              <td class="fig strong">4.65</td>
+            </tr>
+            <tr>
+              <td class="name">Zalazar<span class="sub">Sporting · v Alverca</span></td>
+              <td class="fig strong">4.50</td>
+            </tr>
+            <tr>
+              <td class="name">Santi García<span class="sub">Gil Vicente · v Casa Pia</span></td>
+              <td class="fig strong">4.18</td>
+            </tr>
+            <tr>
+              <td class="name">Raphael Guzzo<span class="sub">Marítimo · v Académico</span></td>
+              <td class="fig strong">3.84</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">AVA</th></tr>
+            <tr>
+              <td class="name">Begraoui<span class="cap">C</span><span class="sub">Estoril · v Rio Ave</span></td>
+              <td class="fig strong">5.21</td>
+            </tr>
+            <tr>
+              <td class="name">Pavlidis<span class="sub">Benfica · v Moreirense</span></td>
+              <td class="fig strong">4.97</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">Banco</th></tr>
+            <tr>
+              <td class="name"><span class="ord">1</span> Lucão<span class="sub">GR · Gil Vicente</span></td>
+              <td class="fig">1.65</td>
+            </tr>
+            <tr>
+              <td class="name"><span class="ord">2</span> Buatu<span class="sub">DEF · Gil Vicente</span></td>
+              <td class="fig">2.16</td>
+            </tr>
+            <tr>
+              <td class="name"><span class="ord">3</span> Danilovic<span class="sub">MED · Marítimo</span></td>
+              <td class="fig">3.28</td>
+            </tr>
+            <tr>
+              <td class="name"><span class="ord">4</span> Héctor Hernández<span class="sub">AVA · Gil Vicente</span></td>
+              <td class="fig">3.15</td>
+            </tr>
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">Treinador</th></tr>
+          <tr><td class="name">Farioli <span class="muted">FC Porto</span></td><td class="fig">—</td></tr>
+        </tbody>
+          </table>
+        </div>
+      </div>
+      </div>
+      <p class="foot muted">O treinador é o mesmo nos dois lados: o modelo
+      escolhe-o à época, não à jornada, e essa escolha está em
+      <a href="decisoes.html">As decisões</a>.</p>
+    </section>
+    <section>
       <h2>Onde está o risco</h2><div class="rule"></div>
       <p class="lede">O maior risco não é um jogador, é um jogo:
       <strong>6 dos 23</strong> jogam o FC Porto–Arouca.
@@ -471,117 +670,117 @@ a { color: var(--red); }
             <tr>
               <td class="name">Diogo Costa<span class="sub">FC Porto</span></td>
               <td class="sub">GR</td>
-              <td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">4.2</span></td><td class="cell "><span class="cell-opp">@ Académico</span><span class="cell-fig">3.7</span></td><td class="cell easy"><span class="cell-opp">vs Moreirense</span><span class="cell-fig">4.2</span></td><td class="cell "><span class="cell-opp">@ Casa Pia</span><span class="cell-fig">4.1</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">3.3</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">4.3</span></td><td class="cell "><span class="cell-opp">@ Académico</span><span class="cell-fig">3.7</span></td><td class="cell easy"><span class="cell-opp">vs Moreirense</span><span class="cell-fig">4.4</span></td><td class="cell easy"><span class="cell-opp">@ Casa Pia</span><span class="cell-fig">4.2</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">3.0</span></td>
             </tr>
             <tr>
               <td class="name">Alfonso Pastor<span class="sub">Marítimo</span></td>
               <td class="sub">GR</td>
-              <td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">@ Arouca</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">vs Benfica</span><span class="cell-fig">2.0</span></td><td class="cell "><span class="cell-opp">@ Moreirense</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">@ Gil Vicente</span><span class="cell-fig">2.1</span></td>
+              <td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.2</span></td><td class="cell "><span class="cell-opp">@ Arouca</span><span class="cell-fig">2.1</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">1.6</span></td><td class="cell "><span class="cell-opp">@ Moreirense</span><span class="cell-fig">2.2</span></td><td class="cell "><span class="cell-opp">@ Gil Vicente</span><span class="cell-fig">2.2</span></td>
             </tr>
             <tr>
               <td class="name">Lucão<span class="sub">Gil Vicente</span></td>
               <td class="sub">GR</td>
-              <td class="cell "><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.0</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.1</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">2.6</span></td><td class="cell "><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.2</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">1.6</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.2</span></td>
             </tr>
             <tr>
               <td class="name">Nehuén Pérez<span class="sub">FC Porto</span></td>
               <td class="sub">DEF</td>
-              <td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">4.0</span></td><td class="cell "><span class="cell-opp">@ Académico</span><span class="cell-fig">3.6</span></td><td class="cell easy"><span class="cell-opp">vs Moreirense</span><span class="cell-fig">4.0</span></td><td class="cell "><span class="cell-opp">@ Casa Pia</span><span class="cell-fig">3.9</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">3.2</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">4.2</span></td><td class="cell "><span class="cell-opp">@ Académico</span><span class="cell-fig">3.5</span></td><td class="cell easy"><span class="cell-opp">vs Moreirense</span><span class="cell-fig">4.2</span></td><td class="cell easy"><span class="cell-opp">@ Casa Pia</span><span class="cell-fig">4.0</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">2.9</span></td>
             </tr>
             <tr>
               <td class="name">Jose Fontán<span class="sub">Arouca</span></td>
               <td class="sub">DEF</td>
-              <td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">2.8</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">3.7</span></td><td class="cell hard"><span class="cell-opp">@ Estoril</span><span class="cell-fig">3.2</span></td><td class="cell easy"><span class="cell-opp">vs Santa Clara</span><span class="cell-fig">4.4</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.8</span></td>
+              <td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">2.4</span></td><td class="cell easy"><span class="cell-opp">vs Marítimo</span><span class="cell-fig">3.9</span></td><td class="cell hard"><span class="cell-opp">@ Estoril</span><span class="cell-fig">3.0</span></td><td class="cell easy"><span class="cell-opp">vs Santa Clara</span><span class="cell-fig">5.1</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.4</span></td>
             </tr>
             <tr>
               <td class="name">Zaidu<span class="sub">FC Porto</span></td>
               <td class="sub">DEF</td>
-              <td class="cell "><span class="cell-opp">vs Arouca</span><span class="cell-fig">3.3</span></td><td class="cell "><span class="cell-opp">@ Académico</span><span class="cell-fig">3.0</span></td><td class="cell "><span class="cell-opp">vs Moreirense</span><span class="cell-fig">3.3</span></td><td class="cell "><span class="cell-opp">@ Casa Pia</span><span class="cell-fig">3.2</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">2.8</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">3.5</span></td><td class="cell "><span class="cell-opp">@ Académico</span><span class="cell-fig">3.0</span></td><td class="cell easy"><span class="cell-opp">vs Moreirense</span><span class="cell-fig">3.5</span></td><td class="cell easy"><span class="cell-opp">@ Casa Pia</span><span class="cell-fig">3.4</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">2.5</span></td>
             </tr>
             <tr>
               <td class="name">Léo Santos<span class="sub">Nacional</span></td>
               <td class="sub">DEF</td>
-              <td class="cell "><span class="cell-opp">@ V. Guimarãe</span><span class="cell-fig">2.8</span></td><td class="cell easy"><span class="cell-opp">vs E. Amadora</span><span class="cell-fig">3.4</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.5</span></td><td class="cell easy"><span class="cell-opp">vs Alverca</span><span class="cell-fig">3.3</span></td><td class="cell "><span class="cell-opp">vs Famalicão</span><span class="cell-fig">3.0</span></td>
+              <td class="cell "><span class="cell-opp">@ V. Guimarãe</span><span class="cell-fig">2.8</span></td><td class="cell easy"><span class="cell-opp">vs E. Amadora</span><span class="cell-fig">4.1</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.0</span></td><td class="cell easy"><span class="cell-opp">vs Alverca</span><span class="cell-fig">3.8</span></td><td class="cell easy"><span class="cell-opp">vs Famalicão</span><span class="cell-fig">3.2</span></td>
             </tr>
             <tr>
               <td class="name">Javi Sánchez<span class="sub">Arouca</span></td>
               <td class="sub">DEF</td>
-              <td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">2.4</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.9</span></td><td class="cell "><span class="cell-opp">@ Estoril</span><span class="cell-fig">2.6</span></td><td class="cell easy"><span class="cell-opp">vs Santa Clara</span><span class="cell-fig">3.2</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.4</span></td>
+              <td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">2.0</span></td><td class="cell easy"><span class="cell-opp">vs Marítimo</span><span class="cell-fig">3.0</span></td><td class="cell hard"><span class="cell-opp">@ Estoril</span><span class="cell-fig">2.4</span></td><td class="cell easy"><span class="cell-opp">vs Santa Clara</span><span class="cell-fig">3.8</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.0</span></td>
             </tr>
             <tr>
               <td class="name">Tiago Esgaio<span class="sub">Arouca</span></td>
               <td class="sub">DEF</td>
-              <td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">2.4</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.9</span></td><td class="cell "><span class="cell-opp">@ Estoril</span><span class="cell-fig">2.6</span></td><td class="cell easy"><span class="cell-opp">vs Santa Clara</span><span class="cell-fig">3.2</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.4</span></td>
+              <td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">2.0</span></td><td class="cell easy"><span class="cell-opp">vs Marítimo</span><span class="cell-fig">3.0</span></td><td class="cell hard"><span class="cell-opp">@ Estoril</span><span class="cell-fig">2.4</span></td><td class="cell easy"><span class="cell-opp">vs Santa Clara</span><span class="cell-fig">3.8</span></td><td class="cell hard"><span class="cell-opp">@ Sporting</span><span class="cell-fig">2.0</span></td>
             </tr>
             <tr>
               <td class="name">Finn van Breemen<span class="sub">Famalicão</span></td>
               <td class="sub">DEF</td>
-              <td class="cell "><span class="cell-opp">@ Santa Clara</span><span class="cell-fig">2.6</span></td><td class="cell "><span class="cell-opp">vs Gil Vicente</span><span class="cell-fig">2.6</span></td><td class="cell "><span class="cell-opp">@ E. Amadora</span><span class="cell-fig">2.7</span></td><td class="cell "><span class="cell-opp">vs Sporting</span><span class="cell-fig">2.3</span></td><td class="cell "><span class="cell-opp">@ Nacional</span><span class="cell-fig">2.6</span></td>
+              <td class="cell "><span class="cell-opp">@ Santa Clara</span><span class="cell-fig">2.8</span></td><td class="cell easy"><span class="cell-opp">vs Gil Vicente</span><span class="cell-fig">2.9</span></td><td class="cell easy"><span class="cell-opp">@ E. Amadora</span><span class="cell-fig">3.0</span></td><td class="cell hard"><span class="cell-opp">vs Sporting</span><span class="cell-fig">1.9</span></td><td class="cell easy"><span class="cell-opp">@ Nacional</span><span class="cell-fig">2.8</span></td>
             </tr>
             <tr>
               <td class="name">Buatu<span class="sub">Gil Vicente</span></td>
               <td class="sub">DEF</td>
-              <td class="cell "><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">2.5</span></td><td class="cell "><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.3</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.4</span></td><td class="cell "><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.2</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.4</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">2.9</span></td><td class="cell "><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.3</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.5</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">1.7</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.5</span></td>
             </tr>
             <tr>
               <td class="name">Zalazar<span class="sub">Sporting</span></td>
               <td class="sub">MED</td>
-              <td class="cell easy"><span class="cell-opp">vs Alverca</span><span class="cell-fig">6.0</span></td><td class="cell easy"><span class="cell-opp">@ Rio Ave</span><span class="cell-fig">5.6</span></td><td class="cell easy"><span class="cell-opp">vs Nacional</span><span class="cell-fig">5.9</span></td><td class="cell hard"><span class="cell-opp">@ Famalicão</span><span class="cell-fig">4.7</span></td><td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">6.1</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Alverca</span><span class="cell-fig">6.4</span></td><td class="cell easy"><span class="cell-opp">@ Rio Ave</span><span class="cell-fig">5.7</span></td><td class="cell easy"><span class="cell-opp">vs Nacional</span><span class="cell-fig">6.1</span></td><td class="cell hard"><span class="cell-opp">@ Famalicão</span><span class="cell-fig">4.5</span></td><td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">6.4</span></td>
             </tr>
             <tr>
               <td class="name">Raphael Guzzo<span class="sub">Marítimo</span></td>
               <td class="sub">MED</td>
-              <td class="cell easy"><span class="cell-opp">vs Académico</span><span class="cell-fig">5.1</span></td><td class="cell easy"><span class="cell-opp">@ Arouca</span><span class="cell-fig">5.2</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">3.7</span></td><td class="cell "><span class="cell-opp">@ Moreirense</span><span class="cell-fig">5.0</span></td><td class="cell "><span class="cell-opp">@ Gil Vicente</span><span class="cell-fig">4.8</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Académico</span><span class="cell-fig">5.2</span></td><td class="cell easy"><span class="cell-opp">@ Arouca</span><span class="cell-fig">5.3</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">3.3</span></td><td class="cell easy"><span class="cell-opp">@ Moreirense</span><span class="cell-fig">5.1</span></td><td class="cell "><span class="cell-opp">@ Gil Vicente</span><span class="cell-fig">4.8</span></td>
             </tr>
             <tr>
               <td class="name">Issa Doumbia<span class="sub">Sporting</span></td>
               <td class="sub">MED</td>
-              <td class="cell easy"><span class="cell-opp">vs Alverca</span><span class="cell-fig">5.0</span></td><td class="cell easy"><span class="cell-opp">@ Rio Ave</span><span class="cell-fig">4.7</span></td><td class="cell easy"><span class="cell-opp">vs Nacional</span><span class="cell-fig">4.9</span></td><td class="cell hard"><span class="cell-opp">@ Famalicão</span><span class="cell-fig">4.0</span></td><td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">5.1</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Alverca</span><span class="cell-fig">5.3</span></td><td class="cell easy"><span class="cell-opp">@ Rio Ave</span><span class="cell-fig">4.8</span></td><td class="cell easy"><span class="cell-opp">vs Nacional</span><span class="cell-fig">5.2</span></td><td class="cell hard"><span class="cell-opp">@ Famalicão</span><span class="cell-fig">3.9</span></td><td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">5.4</span></td>
             </tr>
             <tr>
               <td class="name">Samu<span class="sub">V. Guimarães</span></td>
               <td class="sub">MED</td>
-              <td class="cell easy"><span class="cell-opp">vs Nacional</span><span class="cell-fig">4.4</span></td><td class="cell hard"><span class="cell-opp">@ Sp. Braga</span><span class="cell-fig">3.1</span></td><td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">4.5</span></td><td class="cell "><span class="cell-opp">@ Académico</span><span class="cell-fig">3.6</span></td><td class="cell easy"><span class="cell-opp">vs Moreirense</span><span class="cell-fig">4.3</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Nacional</span><span class="cell-fig">4.8</span></td><td class="cell hard"><span class="cell-opp">@ Sp. Braga</span><span class="cell-fig">2.8</span></td><td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">4.9</span></td><td class="cell hard"><span class="cell-opp">@ Académico</span><span class="cell-fig">3.5</span></td><td class="cell easy"><span class="cell-opp">vs Moreirense</span><span class="cell-fig">4.6</span></td>
             </tr>
             <tr>
               <td class="name">Danilovic<span class="sub">Marítimo</span></td>
               <td class="sub">MED</td>
-              <td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">3.2</span></td><td class="cell "><span class="cell-opp">@ Arouca</span><span class="cell-fig">3.2</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">2.7</span></td><td class="cell "><span class="cell-opp">@ Moreirense</span><span class="cell-fig">3.2</span></td><td class="cell "><span class="cell-opp">@ Gil Vicente</span><span class="cell-fig">3.1</span></td>
+              <td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">3.3</span></td><td class="cell easy"><span class="cell-opp">@ Arouca</span><span class="cell-fig">3.4</span></td><td class="cell hard"><span class="cell-opp">vs Benfica</span><span class="cell-fig">2.3</span></td><td class="cell "><span class="cell-opp">@ Moreirense</span><span class="cell-fig">3.3</span></td><td class="cell "><span class="cell-opp">@ Gil Vicente</span><span class="cell-fig">3.1</span></td>
             </tr>
             <tr>
               <td class="name">Santi García<span class="sub">Gil Vicente</span></td>
               <td class="sub">MED</td>
-              <td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">3.3</span></td><td class="cell "><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.8</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">3.0</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.5</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">3.0</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">3.7</span></td><td class="cell hard"><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.7</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">3.1</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.1</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">3.1</span></td>
             </tr>
             <tr>
               <td class="name">Gorby<span class="sub">Sp. Braga</span></td>
               <td class="sub">MED</td>
-              <td class="cell "><span class="cell-opp">@ E. Amadora</span><span class="cell-fig">3.1</span></td><td class="cell "><span class="cell-opp">vs V. Guimarãe</span><span class="cell-fig">3.0</span></td><td class="cell "><span class="cell-opp">@ Alverca</span><span class="cell-fig">3.0</span></td><td class="cell "><span class="cell-opp">vs Estoril</span><span class="cell-fig">3.1</span></td><td class="cell "><span class="cell-opp">@ Santa Clara</span><span class="cell-fig">2.9</span></td>
+              <td class="cell easy"><span class="cell-opp">@ E. Amadora</span><span class="cell-fig">3.3</span></td><td class="cell easy"><span class="cell-opp">vs V. Guimarãe</span><span class="cell-fig">3.2</span></td><td class="cell easy"><span class="cell-opp">@ Alverca</span><span class="cell-fig">3.2</span></td><td class="cell easy"><span class="cell-opp">vs Estoril</span><span class="cell-fig">3.3</span></td><td class="cell "><span class="cell-opp">@ Santa Clara</span><span class="cell-fig">2.9</span></td>
             </tr>
             <tr>
               <td class="name">Cáseres<span class="sub">Gil Vicente</span></td>
               <td class="sub">MED</td>
-              <td class="cell "><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">2.8</span></td><td class="cell "><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.5</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.6</span></td><td class="cell "><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.3</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.6</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">3.2</span></td><td class="cell "><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.3</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">2.7</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">1.9</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">2.7</span></td>
             </tr>
             <tr>
               <td class="name">Pavlidis<span class="sub">Benfica</span></td>
               <td class="sub">AVA</td>
-              <td class="cell easy"><span class="cell-opp">@ Moreirense</span><span class="cell-fig">9.2</span></td><td class="cell easy"><span class="cell-opp">vs Estoril</span><span class="cell-fig">11.3</span></td><td class="cell hard"><span class="cell-opp">@ Marítimo</span><span class="cell-fig">8.2</span></td><td class="cell easy"><span class="cell-opp">vs Gil Vicente</span><span class="cell-fig">9.4</span></td><td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">5.8</span></td>
+              <td class="cell easy"><span class="cell-opp">@ Moreirense</span><span class="cell-fig">9.2</span></td><td class="cell easy"><span class="cell-opp">vs Estoril</span><span class="cell-fig">11.7</span></td><td class="cell hard"><span class="cell-opp">@ Marítimo</span><span class="cell-fig">8.1</span></td><td class="cell easy"><span class="cell-opp">vs Gil Vicente</span><span class="cell-fig">9.5</span></td><td class="cell hard"><span class="cell-opp">@ FC Porto</span><span class="cell-fig">5.4</span></td>
             </tr>
             <tr>
               <td class="name">Fran Navarro<span class="sub">Sp. Braga</span></td>
               <td class="sub">AVA</td>
-              <td class="cell easy"><span class="cell-opp">@ E. Amadora</span><span class="cell-fig">4.8</span></td><td class="cell easy"><span class="cell-opp">vs V. Guimarãe</span><span class="cell-fig">4.8</span></td><td class="cell easy"><span class="cell-opp">@ Alverca</span><span class="cell-fig">4.7</span></td><td class="cell easy"><span class="cell-opp">vs Estoril</span><span class="cell-fig">5.4</span></td><td class="cell hard"><span class="cell-opp">@ Santa Clara</span><span class="cell-fig">4.0</span></td>
+              <td class="cell easy"><span class="cell-opp">@ E. Amadora</span><span class="cell-fig">5.0</span></td><td class="cell easy"><span class="cell-opp">vs V. Guimarãe</span><span class="cell-fig">4.9</span></td><td class="cell easy"><span class="cell-opp">@ Alverca</span><span class="cell-fig">4.8</span></td><td class="cell easy"><span class="cell-opp">vs Estoril</span><span class="cell-fig">5.7</span></td><td class="cell hard"><span class="cell-opp">@ Santa Clara</span><span class="cell-fig">3.8</span></td>
             </tr>
             <tr>
               <td class="name">Begraoui<span class="sub">Estoril</span></td>
               <td class="sub">AVA</td>
-              <td class="cell easy"><span class="cell-opp">vs Rio Ave</span><span class="cell-fig">5.4</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">3.3</span></td><td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">5.3</span></td><td class="cell hard"><span class="cell-opp">@ Sp. Braga</span><span class="cell-fig">3.6</span></td><td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">5.1</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Rio Ave</span><span class="cell-fig">5.9</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.9</span></td><td class="cell easy"><span class="cell-opp">vs Arouca</span><span class="cell-fig">5.8</span></td><td class="cell hard"><span class="cell-opp">@ Sp. Braga</span><span class="cell-fig">3.3</span></td><td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">5.4</span></td>
             </tr>
             <tr>
               <td class="name">Héctor Hernández<span class="sub">Gil Vicente</span></td>
               <td class="sub">AVA</td>
-              <td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">3.6</span></td><td class="cell hard"><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.9</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">3.4</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.7</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">3.4</span></td>
+              <td class="cell easy"><span class="cell-opp">vs Casa Pia</span><span class="cell-fig">3.9</span></td><td class="cell hard"><span class="cell-opp">@ Famalicão</span><span class="cell-fig">2.7</span></td><td class="cell "><span class="cell-opp">vs Académico</span><span class="cell-fig">3.5</span></td><td class="cell hard"><span class="cell-opp">@ Benfica</span><span class="cell-fig">2.2</span></td><td class="cell "><span class="cell-opp">vs Marítimo</span><span class="cell-fig">3.5</span></td>
             </tr>
           </tbody>
         </table>
@@ -589,7 +788,7 @@ a { color: var(--red); }
     </section>
 
     <footer>
-      <span>Lido 2026-08-21 10:53 UTC. Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
+      <span>Lido 2026-08-22 17:14 UTC. Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
       <span><code>scripts/build_dashboard.py</code></span>
     </footer>
   </div>

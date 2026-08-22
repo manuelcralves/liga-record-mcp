@@ -209,6 +209,15 @@ tr.is-dead td, tr.is-dead .name { color: var(--dim); font-weight: 400; }
 .tick-bar { width: 100%; background: var(--red); align-self: end; min-height: 2px; }
 .tick-n { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--dim); padding-top: 4px; }
 .tick-v { font-family: "Instrument Serif", Georgia, serif; font-size: 19px; padding-top: 2px; }
+/* Two sheets, side by side. Equal columns on purpose: widening the model column
+   wider would argue for it by layout rather than by number. */
+.versus { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 0 34px; }
+.side h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 23px; margin: 0; }
+.side.theirs { border-left: 1px solid var(--rule); padding-left: 26px; }
+@media (max-width: 640px) { .side.theirs { border-left: none; padding-left: 0; padding-top: 18px; border-top: 1px solid var(--rule); } }
+.shape { margin: 0 0 6px; font-size: 14.5px; color: var(--dim); }
+.shape strong { font-family: "Instrument Serif", Georgia, serif; font-size: 25px; font-weight: 400; color: var(--ink); }
+.foot { margin: 16px 0 0; font-size: 14px; }
 .questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }
 .q h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }
 .q-state { margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }
@@ -281,7 +290,7 @@ a { color: var(--red); }
               <td class="fig">3.5</td>
               <td class="fig">96%</td>
               <td class="fig">3.3</td>
-              <td class="fig">27%</td>
+              <td class="fig">28%</td>
               <td class="fig">65<span class="sub">de 68</span></td>
               <td class="verdict">volátil<span class="sub">toda a gente tem</span></td>
             </tr>
@@ -299,7 +308,7 @@ a { color: var(--red); }
               <td class="fig">—</td>
               <td class="fig">0%</td>
               <td class="fig">—</td>
-              <td class="fig">19%</td>
+              <td class="fig">21%</td>
               <td class="fig">0<span class="sub">de 10</span></td>
               <td class="verdict">aposta</td>
             </tr>
@@ -308,7 +317,7 @@ a { color: var(--red); }
               <td class="fig">4.0</td>
               <td class="fig">43%</td>
               <td class="fig">1.8</td>
-              <td class="fig">32%</td>
+              <td class="fig">33%</td>
               <td class="fig">20<span class="sub">de 47</span></td>
               <td class="verdict">arriscado<span class="sub">toda a gente tem</span></td>
             </tr>
@@ -317,7 +326,7 @@ a { color: var(--red); }
               <td class="fig">3.5</td>
               <td class="fig">49%</td>
               <td class="fig">2.5</td>
-              <td class="fig">6%</td>
+              <td class="fig">7%</td>
               <td class="fig">31<span class="sub">de 63</span></td>
               <td class="verdict">arriscado</td>
             </tr>
@@ -326,7 +335,7 @@ a { color: var(--red); }
               <td class="fig">2.5</td>
               <td class="fig">88%</td>
               <td class="fig">2.2</td>
-              <td class="fig">24%</td>
+              <td class="fig">25%</td>
               <td class="fig">15<span class="sub">de 17</span></td>
               <td class="verdict">volátil<span class="sub">toda a gente tem</span></td>
             </tr>
@@ -362,7 +371,7 @@ a { color: var(--red); }
               <td class="fig">1.5</td>
               <td class="fig">88%</td>
               <td class="fig">2.7</td>
-              <td class="fig">15%</td>
+              <td class="fig">16%</td>
               <td class="fig">59<span class="sub">de 67</span></td>
               <td class="verdict">volátil<span class="sub">toda a gente tem</span></td>
             </tr>
@@ -371,7 +380,7 @@ a { color: var(--red); }
               <td class="fig">—</td>
               <td class="fig">—</td>
               <td class="fig">—</td>
-              <td class="fig">36%</td>
+              <td class="fig">37%</td>
               <td class="fig">0<span class="sub">de 0</span></td>
               <td class="verdict">aposta</td>
             </tr>
@@ -389,7 +398,7 @@ a { color: var(--red); }
               <td class="fig">3.7</td>
               <td class="fig">92%</td>
               <td class="fig">1.6</td>
-              <td class="fig">34%</td>
+              <td class="fig">33%</td>
               <td class="fig">60<span class="sub">de 65</span></td>
               <td class="verdict">seguro<span class="sub">toda a gente tem</span></td>
             </tr>
@@ -398,7 +407,7 @@ a { color: var(--red); }
               <td class="fig">3.7</td>
               <td class="fig">100%</td>
               <td class="fig">1.6</td>
-              <td class="fig">33%</td>
+              <td class="fig">34%</td>
               <td class="fig">60<span class="sub">de 60</span></td>
               <td class="verdict">seguro<span class="sub">toda a gente tem</span></td>
             </tr>
@@ -407,7 +416,7 @@ a { color: var(--red); }
               <td class="fig">3.4</td>
               <td class="fig">78%</td>
               <td class="fig">1.0</td>
-              <td class="fig">12%</td>
+              <td class="fig">11%</td>
               <td class="fig">52<span class="sub">de 67</span></td>
               <td class="verdict">incerto<span class="sub">toda a gente tem</span></td>
             </tr>
@@ -425,7 +434,7 @@ a { color: var(--red); }
               <td class="fig">—</td>
               <td class="fig">—</td>
               <td class="fig">—</td>
-              <td class="fig">27%</td>
+              <td class="fig">29%</td>
               <td class="fig">0<span class="sub">de 0</span></td>
               <td class="verdict">aposta</td>
             </tr>
@@ -470,7 +479,7 @@ a { color: var(--red); }
               <td class="fig">3.2</td>
               <td class="fig">64%</td>
               <td class="fig">1.6</td>
-              <td class="fig">3%</td>
+              <td class="fig">2%</td>
               <td class="fig">43<span class="sub">de 67</span></td>
               <td class="verdict">arriscado</td>
             </tr>
@@ -493,8 +502,8 @@ a { color: var(--red); }
       deixá-los de fora esconderia justamente os clubes que o adiamento
       prejudicou. Tens <strong>8 dos
       12</strong> lugares do pódio — o plantel não é o
-      problema. Vale a pena lembrar o pano de fundo: <strong>210
-      dos 498</strong> jogadores do mercado (42%) ainda não
+      problema. Vale a pena lembrar o pano de fundo: <strong>190
+      dos 498</strong> jogadores do mercado (38%) ainda não
       pisaram o relvado esta época.</p>
       <div class="quad">
         <div>
@@ -502,11 +511,11 @@ a { color: var(--red); }
           <table class="data">
             <tbody>
             <tr>
-              <td class="name">Diogo Costa<span class="cap">teu</span><span class="sub">FC Porto · 27% posse</span></td>
+              <td class="name">Diogo Costa<span class="cap">teu</span><span class="sub">FC Porto · 28% posse</span></td>
               <td class="fig strong">7.0</td>
             </tr>
             <tr>
-              <td class="name">Arruabarrena<span class="sub">Arouca · 13% posse</span></td>
+              <td class="name">Arruabarrena<span class="sub">Arouca · 14% posse</span></td>
               <td class="fig strong">6.5</td>
             </tr>
             <tr>
@@ -521,15 +530,15 @@ a { color: var(--red); }
           <table class="data">
             <tbody>
             <tr>
-              <td class="name">Jose Fontán<span class="cap">teu</span><span class="sub">Arouca · 15% posse</span></td>
+              <td class="name">Jose Fontán<span class="cap">teu</span><span class="sub">Arouca · 16% posse</span></td>
               <td class="fig strong">8.0</td>
             </tr>
             <tr>
-              <td class="name">Nehuén Pérez<span class="cap">teu</span><span class="sub">FC Porto · 6% posse</span></td>
+              <td class="name">Nehuén Pérez<span class="cap">teu</span><span class="sub">FC Porto · 7% posse</span></td>
               <td class="fig strong">6.5</td>
             </tr>
             <tr>
-              <td class="name">Javi Sánchez<span class="cap">teu</span><span class="sub">Arouca · 24% posse</span></td>
+              <td class="name">Javi Sánchez<span class="cap">teu</span><span class="sub">Arouca · 25% posse</span></td>
               <td class="fig strong">6.0</td>
             </tr>
             </tbody>
@@ -540,15 +549,15 @@ a { color: var(--red); }
           <table class="data">
             <tbody>
             <tr>
-              <td class="name">Raphael Guzzo<span class="cap">teu</span><span class="sub">Marítimo · 27% posse</span></td>
-              <td class="fig strong">8.5</td>
+              <td class="name">Raphael Guzzo<span class="cap">teu</span><span class="sub">Marítimo · 29% posse</span></td>
+              <td class="fig strong">5.7</td>
             </tr>
             <tr>
-              <td class="name">Samu<span class="cap">teu</span><span class="sub">V. Guimarães · 33% posse</span></td>
+              <td class="name">Samu<span class="cap">teu</span><span class="sub">V. Guimarães · 34% posse</span></td>
               <td class="fig strong">5.5</td>
             </tr>
             <tr>
-              <td class="name">Altimira<span class="sub">Sporting · 12% posse</span></td>
+              <td class="name">Altimira<span class="sub">Sporting · 13% posse</span></td>
               <td class="fig strong">5.0</td>
             </tr>
             </tbody>
@@ -563,11 +572,11 @@ a { color: var(--red); }
               <td class="fig strong">15.0</td>
             </tr>
             <tr>
-              <td class="name">Gonçalo Paciência<span class="sub">Santa Clara · 21% posse</span></td>
+              <td class="name">Gonçalo Paciência<span class="sub">Santa Clara · 23% posse</span></td>
               <td class="fig strong">7.0</td>
             </tr>
             <tr>
-              <td class="name">Barbero<span class="sub">Arouca · 12% posse</span></td>
+              <td class="name">Barbero<span class="sub">Arouca · 13% posse</span></td>
               <td class="fig strong">7.0</td>
             </tr>
             </tbody>
@@ -577,11 +586,11 @@ a { color: var(--red); }
     </section>
     <section>
       <h2>Quem rende mais do que a posse dele</h2><div class="rule"></div>
-      <p class="lede">Os <strong>5 jogadores mais escolhidos do país</strong> são meus — Pavlidis, Zalazar, Finn van Breemen, Lucão, Santi García. O plantel é o consenso nacional, e é por isso que empata com quem está à frente em vez de recuperar: não se ganha terreno a jogar as mesmas cartas. A posse prevê a pontuação melhor do que qualquer
+      <p class="lede">Os <strong>5 jogadores mais escolhidos do país</strong> são meus — Pavlidis, Zalazar, Finn van Breemen, Lucão, Samu. O plantel é o consenso nacional, e é por isso que empata com quem está à frente em vez de recuperar: não se ganha terreno a jogar as mesmas cartas. A posse prevê a pontuação melhor do que qualquer
       outra coisa no mercado — de <strong>−0,15</strong> pontos por jogo abaixo de
       1% de posse até <strong>5,33</strong> acima de 30%. Por isso comprar quem
       ninguém tem é mau negócio. O que interessa é o resíduo: quem rende acima da
-      linha que a sua posse e a sua posição preveem. Declive por posição: DEF 1.52 · FWD 2.10 · GK 1.17 · MID 1.56.</p>
+      linha que a sua posse e a sua posição preveem. Declive por posição: DEF 1.53 · FWD 2.09 · GK 1.13 · MID 1.51.</p>
       <div class="scroll">
         <table class="data">
           <thead><tr>
@@ -593,7 +602,7 @@ a { color: var(--red); }
             <tr>
               <td class="name">Arruabarrena<span class="sub">Arouca</span></td>
               <td class="sub">GR</td>
-              <td class="fig">12.8%</td>
+              <td class="fig">13.6%</td>
               <td class="fig">6.5</td>
               <td class="fig muted">1.4</td>
               <td class="fig up strong">+5.05</td>
@@ -606,67 +615,27 @@ a { color: var(--red); }
               <td class="fig">3.5%</td>
               <td class="fig">5.0</td>
               <td class="fig muted">1.1</td>
-              <td class="fig up strong">+3.89</td>
+              <td class="fig up strong">+3.93</td>
               <td class="fig">500 000</td>
               <td class="sub">1 jogo</td>
             </tr>
             <tr>
               <td class="name">Zé Vitor<span class="sub">Nacional</span></td>
               <td class="sub">DEF</td>
-              <td class="fig">3.9%</td>
+              <td class="fig">4.2%</td>
               <td class="fig">5.0</td>
-              <td class="fig muted">1.2</td>
-              <td class="fig up strong">+3.76</td>
+              <td class="fig muted">1.3</td>
+              <td class="fig up strong">+3.70</td>
               <td class="fig">750 000</td>
               <td class="sub">2</td>
             </tr>
             <tr>
               <td class="name">Dylan Nandín<span class="sub">Arouca</span></td>
               <td class="sub">AVA</td>
-              <td class="fig">0.4%</td>
+              <td class="fig">0.5%</td>
               <td class="fig">4.5</td>
               <td class="fig muted">0.8</td>
-              <td class="fig up strong">+3.72</td>
-              <td class="fig">500 000</td>
-              <td class="sub">2</td>
-            </tr>
-            <tr>
-              <td class="name">Simo Bouzaidi<span class="sub">Marítimo</span></td>
-              <td class="sub">AVA</td>
-              <td class="fig">0.8%</td>
-              <td class="fig">5.0</td>
-              <td class="fig muted">1.4</td>
-              <td class="fig up strong">+3.60</td>
-              <td class="fig">500 000</td>
-              <td class="sub">2</td>
-            </tr>
-            <tr>
-              <td class="name">Borja Sainz<span class="sub">FC Porto</span></td>
-              <td class="sub">AVA</td>
-              <td class="fig">1.5%</td>
-              <td class="fig">5.5</td>
-              <td class="fig muted">2.1</td>
-              <td class="fig up strong">+3.44</td>
-              <td class="fig">3 500 000</td>
-              <td class="sub">2</td>
-            </tr>
-            <tr>
-              <td class="name">Romain Correia<span class="sub">Marítimo</span></td>
-              <td class="sub">DEF</td>
-              <td class="fig">2.7%</td>
-              <td class="fig">4.0</td>
-              <td class="fig muted">0.8</td>
-              <td class="fig up strong">+3.21</td>
-              <td class="fig">500 000</td>
-              <td class="sub">2</td>
-            </tr>
-            <tr>
-              <td class="name">Lebedenko<span class="sub">Arouca</span></td>
-              <td class="sub">DEF</td>
-              <td class="fig">6.1%</td>
-              <td class="fig">5.0</td>
-              <td class="fig muted">1.8</td>
-              <td class="fig up strong">+3.20</td>
+              <td class="fig up strong">+3.66</td>
               <td class="fig">500 000</td>
               <td class="sub">2</td>
             </tr>
@@ -675,19 +644,59 @@ a { color: var(--red); }
               <td class="sub">AVA</td>
               <td class="fig">0.4%</td>
               <td class="fig">4.0</td>
-              <td class="fig muted">0.8</td>
-              <td class="fig up strong">+3.20</td>
+              <td class="fig muted">0.7</td>
+              <td class="fig up strong">+3.29</td>
               <td class="fig">750 000</td>
               <td class="sub">1 jogo</td>
             </tr>
             <tr>
+              <td class="name">Borja Sainz<span class="sub">FC Porto</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig">1.9%</td>
+              <td class="fig">5.5</td>
+              <td class="fig muted">2.3</td>
+              <td class="fig up strong">+3.24</td>
+              <td class="fig">3 500 000</td>
+              <td class="sub">2</td>
+            </tr>
+            <tr>
               <td class="name">Wesley Gasolina<span class="sub">Nacional</span></td>
               <td class="sub">DEF</td>
-              <td class="fig">0.9%</td>
+              <td class="fig">1.0%</td>
               <td class="fig">3.0</td>
               <td class="fig muted">-0.2</td>
-              <td class="fig up strong">+3.19</td>
+              <td class="fig up strong">+3.18</td>
               <td class="fig">500 000</td>
+              <td class="sub">2</td>
+            </tr>
+            <tr>
+              <td class="name">Lebedenko<span class="sub">Arouca</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig">7.0%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">1.9</td>
+              <td class="fig up strong">+3.07</td>
+              <td class="fig">500 000</td>
+              <td class="sub">2</td>
+            </tr>
+            <tr>
+              <td class="name">Ricardo Esgaio<span class="sub">Gil Vicente</span></td>
+              <td class="sub">DEF</td>
+              <td class="fig">7.2%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">2.0</td>
+              <td class="fig up strong">+3.02</td>
+              <td class="fig">1 000 000</td>
+              <td class="sub">1 jogo</td>
+            </tr>
+            <tr>
+              <td class="name">Djouahra<span class="sub">Arouca</span></td>
+              <td class="sub">AVA</td>
+              <td class="fig">1.5%</td>
+              <td class="fig">5.0</td>
+              <td class="fig muted">2.0</td>
+              <td class="fig up strong">+3.02</td>
+              <td class="fig">1 000 000</td>
               <td class="sub">2</td>
             </tr>
           </tbody>
@@ -702,7 +711,7 @@ a { color: var(--red); }
       calendário deve — vitória, baliza a zero, golos sofridos, Jogador da
       Semana — o que sobra é a nota. Golos e cartões escondem-se lá dentro,
       portanto só se afirma uma nota quando mais nada a explica. Jogador da
-      Semana desta jornada: <strong>Pavlidis</strong>.</p>
+      Semana desta jornada: <strong>Maurice Boakye</strong>.</p>
       <div class="scroll">
         <table class="data">
           <thead><tr>
@@ -711,144 +720,40 @@ a { color: var(--red); }
           </tr></thead>
           <tbody>
             <tr>
-              <td class="name">Pavlidis<span class="sub">Benfica</span></td>
-              <td class="sub">AVA</td>
-              <td class="fig strong">24</td>
-              <td class="fig muted">+6</td>
-              <td class="fig"><span class="muted">—</span></td>
-              <td class="sub">nota 7 e 3 golo(s)</td>
-            </tr>
-            <tr>
-              <td class="name">Jose Fontán<span class="sub">Arouca</span></td>
-              <td class="sub">DEF</td>
-              <td class="fig strong">10</td>
-              <td class="fig muted">+2</td>
-              <td class="fig"><span class="muted">—</span></td>
-              <td class="sub">nota 4 e 1 golo(s)</td>
-            </tr>
-            <tr>
-              <td class="name">Léo Santos<span class="sub">Nacional</span></td>
-              <td class="sub">DEF</td>
-              <td class="fig strong">10</td>
-              <td class="fig muted">+2</td>
-              <td class="fig"><span class="muted">—</span></td>
-              <td class="sub">nota 4 e 1 golo(s)</td>
-            </tr>
-            <tr>
-              <td class="name">Nehuén Pérez<span class="sub">FC Porto</span></td>
-              <td class="sub">DEF</td>
-              <td class="fig strong">9</td>
-              <td class="fig muted">+2</td>
-              <td class="fig"><span class="strong">7</span></td>
-              <td class="sub">nota lida</td>
-            </tr>
-            <tr>
-              <td class="name">Diogo Costa<span class="sub">FC Porto</span></td>
-              <td class="sub">GR</td>
-              <td class="fig strong">7</td>
-              <td class="fig muted">+3</td>
-              <td class="fig"><span class="strong">4</span></td>
-              <td class="sub">nota lida</td>
-            </tr>
-            <tr>
-              <td class="name">Samu<span class="sub">V. Guimarães</span></td>
-              <td class="sub">MED</td>
-              <td class="fig strong">7</td>
-              <td class="fig muted">+0</td>
-              <td class="fig"><span class="strong">7</span></td>
-              <td class="sub">nota lida</td>
-            </tr>
-            <tr>
-              <td class="name">Javi Sánchez<span class="sub">Arouca</span></td>
-              <td class="sub">DEF</td>
-              <td class="fig strong">6</td>
-              <td class="fig muted">+2</td>
-              <td class="fig"><span class="strong">4</span></td>
-              <td class="sub">nota lida</td>
-            </tr>
-            <tr>
-              <td class="name">Tiago Esgaio<span class="sub">Arouca</span></td>
-              <td class="sub">DEF</td>
-              <td class="fig strong">6</td>
-              <td class="fig muted">+2</td>
-              <td class="fig"><span class="strong">4</span></td>
-              <td class="sub">nota lida</td>
-            </tr>
-            <tr>
-              <td class="name">Finn van Breemen<span class="sub">Famalicão</span></td>
-              <td class="sub">DEF</td>
-              <td class="fig strong">6</td>
-              <td class="fig muted">-2</td>
-              <td class="fig"><span class="muted">—</span></td>
-              <td class="sub">nota 4 e 1 golo(s)</td>
-            </tr>
-            <tr>
-              <td class="name">Zaidu<span class="sub">FC Porto</span></td>
-              <td class="sub">DEF</td>
-              <td class="fig strong">5</td>
-              <td class="fig muted">+2</td>
-              <td class="fig"><span class="strong">3</span></td>
-              <td class="sub">nota lida</td>
-            </tr>
-            <tr>
               <td class="name">Raphael Guzzo<span class="sub">Marítimo</span></td>
               <td class="sub">MED</td>
               <td class="fig strong">4</td>
-              <td class="fig muted">+1</td>
-              <td class="fig"><span class="strong">3</span></td>
+              <td class="fig muted">+0</td>
+              <td class="fig"><span class="strong">4</span></td>
               <td class="sub">nota lida</td>
             </tr>
             <tr>
               <td class="name">Danilovic<span class="sub">Marítimo</span></td>
               <td class="sub">MED</td>
               <td class="fig strong">4</td>
-              <td class="fig muted">+1</td>
-              <td class="fig"><span class="strong">3</span></td>
-              <td class="sub">nota lida</td>
-            </tr>
-            <tr>
-              <td class="name">Issa Doumbia<span class="sub">Sporting</span></td>
-              <td class="sub">MED</td>
-              <td class="fig strong">4</td>
-              <td class="fig muted">+1</td>
-              <td class="fig"><span class="strong">3</span></td>
+              <td class="fig muted">+0</td>
+              <td class="fig"><span class="strong">4</span></td>
               <td class="sub">nota lida</td>
             </tr>
             <tr>
               <td class="name">Alfonso Pastor<span class="sub">Marítimo</span></td>
               <td class="sub">GR</td>
               <td class="fig strong">2</td>
-              <td class="fig muted">-1</td>
-              <td class="fig"><span class="strong">3</span></td>
-              <td class="sub">nota lida</td>
-            </tr>
-            <tr>
-              <td class="name">Zalazar<span class="sub">Sporting</span></td>
-              <td class="sub">MED</td>
-              <td class="fig strong">2</td>
-              <td class="fig muted">+1</td>
-              <td class="fig"><span class="strong">1</span></td>
-              <td class="sub">nota lida</td>
-            </tr>
-            <tr>
-              <td class="name">Begraoui<span class="sub">Estoril</span></td>
-              <td class="sub">AVA</td>
-              <td class="fig strong">1</td>
-              <td class="fig muted">+0</td>
+              <td class="fig muted">-4</td>
               <td class="fig"><span class="muted">—</span></td>
-              <td class="sub">nota 1</td>
+              <td class="sub">nota 7 e segundo amarelo</td>
             </tr>
           </tbody>
         </table>
       </div>
       <div class="spread">
-        <p class="spread-label">As 143 notas lidas em todo o mercado, média 2.57</p>
-        <div class="ticks"><span class="tick"><span class="tick-bar" style="height:2%"></span><span class="tick-n">1</span><span class="tick-v">0</span></span><span class="tick"><span class="tick-bar" style="height:25%"></span><span class="tick-n">16</span><span class="tick-v">1</span></span><span class="tick"><span class="tick-bar" style="height:76%"></span><span class="tick-n">48</span><span class="tick-v">2</span></span><span class="tick"><span class="tick-bar" style="height:100%"></span><span class="tick-n">63</span><span class="tick-v">3</span></span><span class="tick"><span class="tick-bar" style="height:21%"></span><span class="tick-n">13</span><span class="tick-v">4</span></span><span class="tick"><span class="tick-bar" style="height:3%"></span><span class="tick-n">2</span><span class="tick-v">7</span></span></div>
+        <p class="spread-label">As 15 notas lidas em todo o mercado, média 3.13</p>
+        <div class="ticks"><span class="tick"><span class="tick-bar" style="height:0%"></span><span class="tick-n">0</span><span class="tick-v">0</span></span><span class="tick"><span class="tick-bar" style="height:14%"></span><span class="tick-n">1</span><span class="tick-v">1</span></span><span class="tick"><span class="tick-bar" style="height:43%"></span><span class="tick-n">3</span><span class="tick-v">2</span></span><span class="tick"><span class="tick-bar" style="height:57%"></span><span class="tick-n">4</span><span class="tick-v">3</span></span><span class="tick"><span class="tick-bar" style="height:100%"></span><span class="tick-n">7</span><span class="tick-v">4</span></span><span class="tick"><span class="tick-bar" style="height:0%"></span><span class="tick-n">0</span><span class="tick-v">7</span></span></div>
       </div>
     </section>
 
     <footer>
-      <span>Lido 2026-08-21 10:53 UTC. Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
+      <span>Lido 2026-08-22 17:14 UTC. Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
       <span><code>scripts/build_dashboard.py</code></span>
     </footer>
   </div>

@@ -209,6 +209,15 @@ tr.is-dead td, tr.is-dead .name { color: var(--dim); font-weight: 400; }
 .tick-bar { width: 100%; background: var(--red); align-self: end; min-height: 2px; }
 .tick-n { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--dim); padding-top: 4px; }
 .tick-v { font-family: "Instrument Serif", Georgia, serif; font-size: 19px; padding-top: 2px; }
+/* Two sheets, side by side. Equal columns on purpose: widening the model column
+   wider would argue for it by layout rather than by number. */
+.versus { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 0 34px; }
+.side h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 23px; margin: 0; }
+.side.theirs { border-left: 1px solid var(--rule); padding-left: 26px; }
+@media (max-width: 640px) { .side.theirs { border-left: none; padding-left: 0; padding-top: 18px; border-top: 1px solid var(--rule); } }
+.shape { margin: 0 0 6px; font-size: 14.5px; color: var(--dim); }
+.shape strong { font-family: "Instrument Serif", Georgia, serif; font-size: 25px; font-weight: 400; color: var(--ink); }
+.foot { margin: 16px 0 0; font-size: 14px; }
 .questions { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }
 .q h3 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }
 .q-state { margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }
@@ -534,7 +543,7 @@ a { color: var(--red); }
     </section>
 
     <footer>
-      <span>Lido 2026-08-21 10:53 UTC. Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
+      <span>Lido 2026-08-22 17:14 UTC. Projeções registadas a 2026-08-19 15:28 UTC, antes do primeiro pontapé.</span>
       <span><code>scripts/build_dashboard.py</code></span>
     </footer>
   </div>
