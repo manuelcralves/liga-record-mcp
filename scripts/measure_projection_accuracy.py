@@ -40,6 +40,7 @@ from liga_record_mcp.backtest import (  # noqa: E402
     ABSENT,
     adjusted_projection,
     card_table,
+    position_bias,
     fixture_table,
     shrunk_projection,
     two_part_projection,
@@ -122,6 +123,39 @@ def load(path: Path, archive_path: Path | None = None):
     return points, minutes, cells, loaded.get("season"), table, cards
 
 
+class Calibrated:
+    """The estimator, plus a running correction for each position.
+
+    Stateful, and it has to be. The correction is the mean of how wrong the
+    estimates ALREADY MADE turned out to be, so it needs the estimates that
+    were actually made rather than the ones that could be rebuilt now — those
+    would have been fitted on the very rounds they were being scored against.
+    Keeping them is the invariant, not an optimisation.
+
+    Only rounds strictly before `upto` are ever consulted, so calling this
+    twice for the same matchday is harmless.
+    """
+
+    def __init__(self, points, minutes, cells, table, cards):
+        self.args = (points, minutes, cells)
+        self.common = {"fixtures": table, "cards": cards}
+        self.points, self.cells = points, cells
+        self.made: dict[int, dict[str, float]] = {}
+
+    def __call__(self, upto: int) -> dict[str, float]:
+        plain = adjusted_projection(*self.args, upto=upto, **self.common)
+        earlier = {m: view for m, view in self.made.items() if m < upto}
+        self.made[upto] = plain
+        if not earlier:
+            return plain
+        return adjusted_projection(
+            *self.args,
+            upto=upto,
+            bias=position_bias(self.points, self.cells, earlier),
+            **self.common,
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--season", type=Path, default=SEASON_PATH)
@@ -192,6 +226,12 @@ def main() -> None:
         ),
         "plays x returns, fixture + bans": lambda upto: adjusted_projection(
             points, minutes, cells, upto=upto, fixtures=table, cards=cards
+        ),
+        # And a correction for the position as a whole, from how far out the
+        # estimates ALREADY MADE turned out to be. It has to remember them, so
+        # unlike its neighbours it is not a pure function of the matchday.
+        "plays x returns, fixture + bans + position": Calibrated(
+            points, minutes, cells, table, cards
         ),
     }
 

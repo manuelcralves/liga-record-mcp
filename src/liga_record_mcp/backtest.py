@@ -455,6 +455,46 @@ def club_form_upto(
     return rates, max(league_against, 1e-9), max(league_for, 1e-9)
 
 
+def position_bias(
+    points: Mapping[str, Mapping[int, float]],
+    cells: Mapping[str, tuple[str, str]],
+    seen: Mapping[int, Mapping[str, float]],
+) -> dict[Position, float]:
+    """How far each position has been out, over the rounds already played.
+
+    The shrinkage pools a player with his club and position, so a keeper is
+    compared against keepers at his club — but nothing ever corrects keepers as
+    a whole against forwards as a whole. A ridge given position as a plain
+    one-hot found +0.0077, +0.0030 and +0.0033 of correlation in that gap,
+    which is the second largest thing it found and the cheapest to close.
+
+    This is the closed form of exactly that: the mean residual per position,
+    and nothing else. It has NO CONSTANT TO SET, which is most of the argument
+    for preferring it — five hand-tuned numbers on two seasons is thin, and a
+    quantity read off the past is not tuned at all.
+
+    `seen` is what was ALREADY PREDICTED, round by round, before the round being
+    asked about: {matchday: {player: what we said he would score}}. Passing it
+    in rather than recomputing it is not an optimisation, it is the invariant.
+    An estimate for round 7 has to be the estimate that was made at round 7,
+    from data before it; rebuilding it later with what is known now would score
+    the model against rounds it had already been fitted on, and the bias would
+    come back flattering and useless.
+    """
+    residuals: dict[Position, list[float]] = {position: [] for position in Position}
+    for matchday, view in seen.items():
+        for player, estimate in view.items():
+            actual = points.get(player, {}).get(matchday)
+            cell = cells.get(player)
+            if actual is None or cell is None:
+                continue
+            residuals[Position(cell[1])].append(actual - estimate)
+    return {
+        position: (mean(values) if values else 0.0)
+        for position, values in residuals.items()
+    }
+
+
 def adjusted_projection(
     points: Mapping[str, Mapping[int, float]],
     minutes: Mapping[str, Mapping[int, int]],
@@ -464,6 +504,9 @@ def adjusted_projection(
     fixtures: Mapping[tuple[int, str], tuple[str, bool, int, int]] | None = None,
     cards: Mapping[tuple[int, str], tuple[int, bool]] | None = None,
     suspended: float = SUSPENDED_PLAYS,
+    shares: Mapping[Position, float] | None = None,
+    floor: float | None = None,
+    bias: Mapping[Position, float] | None = None,
     **kwargs: Any,
 ) -> dict[str, float]:
     """`two_part_projection`, with what is already known about the round in it.
@@ -515,14 +558,26 @@ def adjusted_projection(
                 league_for,
                 at_home=at_home,
             )
+            position = Position(cell[1])
             returns[player] = adjust_for_fixture(
-                rate, Position(cell[1]), defensive, attacking
+                rate,
+                position,
+                defensive,
+                attacking,
+                share=None if shares is None else shares[position],
+                **({} if floor is None else {"floor": floor}),
             )
 
-    return {
+    blended = {
         player: playing[player] * rate + (1 - playing[player]) * ABSENT
         for player, rate in returns.items()
     }
+    if bias is not None:
+        for player, value in blended.items():
+            cell = cells.get(player)
+            if cell is not None:
+                blended[player] = value + bias.get(Position(cell[1]), 0.0)
+    return blended
 
 
 def fixture_adjusted_projection(

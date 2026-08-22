@@ -524,9 +524,31 @@ def project(
 # --------------------------------------------------------------------------
 
 #: Points a player collects for appearing at all, largely the editorial rating.
-#: Measured at 2-3 per match played; the low end is used so the adjustment is
+#: Measured at 2-3 per match played; the low end was taken so the adjustment is
 #: applied to more of the projection rather than less.
-APPEARANCE_FLOOR = 2.0
+#:
+#: AND THE LOW END WAS STILL TOO HIGH. Swept against the round a player actually
+#: had, on within-round correlation over both seasons:
+#:
+#:                    2025/26   2024/25
+#:          0.0        0.5386    0.5536
+#:          0.5        0.5403    0.5569
+#:          1.0        0.5399    0.5585
+#:          1.5        0.5391    0.5574
+#:          2.0        0.5349    0.5554     <- what this used to be
+#:          2.5        0.5257    0.5505
+#:          3.0        0.5129    0.5415
+#:
+#: An interior optimum, found on each season without seeing the other, and
+#: worth +0.0050 and +0.0031 — above the +0.003 tune.py calls the least that
+#: survives. What it says is that more of a player's round moves with the
+#: opponent than the two-to-three reading suggested: the floor is what NO
+#: fixture can touch, and it is smaller than that.
+#:
+#: The measured number is what is here rather than the argument for it. The
+#: original reasoning — collect the rating by turning out — is sound and simply
+#: does not settle the size.
+APPEARANCE_FLOOR = 1.0
 
 #: Goals scored at home and away, relative to a neutral venue.
 HOME_GOAL_FACTOR = 1.10
@@ -540,6 +562,23 @@ FIXTURE_BOUNDS = (0.55, 1.75)
 #: than the attack. Knowing only the club explains r-squared 0.76 of a
 #: defender's rate but only 0.31 of a midfielder's, so the split is heavily
 #: weighted at the back and barely applied up front.
+#:
+#: LEFT ALONE ON PURPOSE, and the search that says to change them is the reason.
+#: A coordinate search over all four plus the floor clears tune.py's bar on the
+#: held-out season in BOTH directions (+0.0063 and +0.0070) — and picks values
+#: that do not agree with each other: GK 0.15 tuning on 2025/26 against 0.00 on
+#: 2024/25, FWD 0.45 against 0.75. Two answers that far apart, both scoring
+#: well, is a plateau and not a discovery.
+#:
+#: Separated out, the floor carries most of that gain on its own and is
+#: interior on both seasons. These four are what is left over, and changing a
+#: constant across a flat is churn dressed as evidence.
+#:
+#: The plateau has a cause worth knowing before anyone tries again: `defensive`
+#: and `attacking` both fall out of the same club-and-opponent strengths, so
+#: they move together and the weight between them is barely identified. A
+#: search that separates them needs a signal that pulls them apart, not a finer
+#: grid over the same two.
 DEFENSIVE_SHARE = {
     Position.GK: 1.0,
     Position.DEF: 0.85,
@@ -595,6 +634,7 @@ def adjust_for_fixture(
     attacking: float,
     *,
     floor: float = APPEARANCE_FLOOR,
+    share: float | None = None,
 ) -> float:
     """Rescale a season rate for one round's opponent.
 
@@ -602,7 +642,11 @@ def adjust_for_fixture(
     opponent is. Only what is left over — the clean sheets, the goals, the
     margin — moves with the fixture.
     """
-    share = DEFENSIVE_SHARE[position]
+    # Overridable so the split can be SEARCHED rather than asserted. The four
+    # values below were set by eye, and a ridge handed the same three inputs
+    # got more than twice as much out of them.
+    if share is None:
+        share = DEFENSIVE_SHARE[position]
     multiplier = share * defensive + (1 - share) * attacking
     return floor + max(0.0, projected_rate - floor) * multiplier
 
