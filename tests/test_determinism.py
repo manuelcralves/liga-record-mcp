@@ -38,6 +38,9 @@ ROOT = Path(__file__).resolve().parents[1]
 MEASURING = [
     "season_report.py",
     "measure_projection_accuracy.py",
+    "measure_ridge.py",
+    "measure_prior_strength.py",
+    "measure_rating_bridge.py",
     "tune.py",
     "backtest_transfers.py",
     "simulate_last_season.py",
