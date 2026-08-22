@@ -14,6 +14,15 @@ is to keep set iteration out of the path that builds these dicts.
 
 Sets are fine for membership (`i in seen`, `x not in held`). It is iterating one
 in a way that reaches the output that has to stay out.
+
+Ambient environment is the same class of failure with a different cause, and
+this file does not check for it. A standings test in test_server.py passed or
+failed on whether LIGA_RECORD_LEAGUE happened to be set in the shell: the
+server reads it into DEFAULT_LEAGUE at import time, and the field-size estimate
+is withheld for a private league. Nothing in the test said so, which made the
+result a property of the machine rather than of the code. A precondition a test
+depends on gets pinned in the test — monkeypatch the module attribute — instead
+of being inherited from whatever the shell is carrying.
 """
 
 from __future__ import annotations

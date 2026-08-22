@@ -606,6 +606,11 @@ def test_standings_sizes_the_field_only_when_unfiltered(monkeypatch):
 
     Filtering by name makes the page count describe the name matches, not the
     field, so the estimate must not be reported in that case.
+
+    The estimate is withheld for a private league too, so a national scope is
+    a precondition of the unfiltered assertion. DEFAULT_LEAGUE is read from the
+    environment when the module is imported, so pin it here rather than inherit
+    whatever LIGA_RECORD_LEAGUE happens to hold in the shell running the suite.
     """
 
     class Ranked:
@@ -617,6 +622,7 @@ def test_standings_sizes_the_field_only_when_unfiltered(monkeypatch):
             return [row], 1909
 
     monkeypatch.setattr(mcp_server, "_market", Ranked())
+    monkeypatch.setattr(mcp_server, "DEFAULT_LEAGUE", None)
 
     unfiltered = mcp_server.standings()
     assert unfiltered["field_size_estimate"] == 1909 * 20
@@ -624,6 +630,40 @@ def test_standings_sizes_the_field_only_when_unfiltered(monkeypatch):
     filtered = mcp_server.standings(team="Melro")
     assert "field_size_estimate" not in filtered
     assert filtered["teams"][0]["position"] == 6598
+
+
+def test_standings_withholds_the_field_size_for_a_private_league(monkeypatch):
+    """A private league's page count sizes the league, not the field.
+
+    The estimate is reported under a key that sits beside a national position,
+    so publishing a twenty-friend league's page count there would state that
+    the field is twenty — which is how the private league came to be printed
+    as a national ranking in the first place. Nothing is filtered by name
+    here: the guid alone has to suppress it.
+    """
+
+    class Ranked:
+        def standings(self, *, team="", **kwargs):
+            row = TeamStanding(
+                team_id=1, team_name="Melro", user_name="u",
+                points_total=87, points_round=38, position=6598,
+            )
+            return [row], 3
+
+    monkeypatch.setattr(mcp_server, "_market", Ranked())
+    monkeypatch.setattr(mcp_server, "DEFAULT_LEAGUE", "a-configured-league")
+
+    private = mcp_server.standings()
+    assert private["scope"] == "private league"
+    assert "field_size_estimate" not in private
+    assert "field_size_note" not in private
+
+    # The same stub answers both calls, so the page count is identical and the
+    # scope is the only thing that differs — which pins the guid as the reason
+    # it was withheld, rather than anything about the rows that came back.
+    national = mcp_server.standings(national=True)
+    assert national["scope"] == "national"
+    assert national["field_size_estimate"] == 3 * 20
 
 
 def test_standings_reports_a_site_failure_as_detail(monkeypatch):
