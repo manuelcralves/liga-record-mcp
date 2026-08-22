@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+from collections import Counter
 import os
 import sys
 from pathlib import Path
@@ -37,7 +38,7 @@ sys.path[:0] = [str(ROOT / "src")]
 from liga_record_mcp import server as mcp  # noqa: E402
 from liga_record_mcp.advice import MIN_OWN_HISTORY, valuation  # noqa: E402
 from liga_record_mcp.optimise import best_eleven, improve_squad  # noqa: E402
-from liga_record_mcp.source import ManualSquadSource, load_appearances  # noqa: E402
+from liga_record_mcp.source import load_coaches, ManualSquadSource, load_appearances  # noqa: E402
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
 from liga_record_mcp.models import LAST_MATCHDAY, Position  # noqa: E402
@@ -56,6 +57,7 @@ from liga_record_mcp.stats import (  # noqa: E402
 
 LOG_PATH = ROOT / "data" / "projections.json"
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
+COACHES_PATH = ROOT / "data" / "coaches.yaml"
 
 #: Draws the transfer search plays each candidate squad through. Four
 #: hundred is where the churn stopped in testing: below it, near ties are
@@ -68,10 +70,34 @@ POS_PT = {"GK": "GR", "DEF": "DEF", "MID": "MED", "FWD": "AVA"}
 
 # The sheet as entered on the site. Kept here rather than read back, because
 # reading a team sheet needs a login this project deliberately does not hold.
-XI = "38800 41584 41670 43052 42725 21459 43500 33728 42896 42920 42142".split()
-BENCH = "42398 42937 42893 43430".split()
-CAPTAIN = "42896"
-COACH = "Farioli", "FC Porto"
+def _filed_sheet() -> tuple[list[str], list[str], str, tuple[str, str]]:
+    """The team sheet Manuel actually entered, read from data/squad.yaml.
+
+    It used to sit here as three lists of bare ids. That made changing a team
+    sheet an edit to a Python file, and the page went on showing last week's
+    eleven for as long as it took somebody to remember. In the squad file it is
+    data, the loader validates it against §6.13 before this script draws a
+    thing, and an illegal formation refuses instead of rendering.
+
+    Falls back to naming nobody rather than to a stale eleven: a page that says
+    "no sheet on file" is honest, and one showing a sheet that is no longer his
+    is not.
+    """
+    snapshot = ManualSquadSource(SQUAD_PATH).load()
+    picked = snapshot.selection
+    if picked is None:
+        return [], [], "", ("", "")
+    named = ""
+    if picked.coach_id:
+        found = next(
+            (c for c in load_coaches(COACHES_PATH) if c.id == picked.coach_id), None
+        )
+        if found is not None:
+            named = (found.name, found.club)
+    return list(picked.starters), list(picked.bench), picked.captain or "", named or ("", "")
+
+
+XI, BENCH, CAPTAIN, COACH = _filed_sheet()
 GRID_ROUNDS = 5
 
 
@@ -541,6 +567,7 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         person = market[player_id]
         week = fixture_of.get(player_id)
         return {
+            "id": player_id,
             "name": person.name,
             "position": person.position.value,
             "club": person.club,
@@ -631,6 +658,29 @@ def model_sheet(stored: dict, round_number: int) -> dict:
             "gain": gain,
         }
 
+    # HIS OWN SHEET, PRICED ON THE SAME NUMBERS. This is the whole point of
+    # showing the two side by side: a difference is only a difference if both
+    # halves were measured with one ruler. The obvious shortcut — reading the
+    # projections filed with the round — would compare a fresh estimate against
+    # a stale one and call the gap an improvement.
+    #
+    # §10.3(l) doubles the captain rather than replacing him, on both sides.
+    def worth(ids, captain_id) -> float:
+        total = sum(expected.get(i, float(UNUSED_PENALTY)) for i in ids)
+        return total + expected.get(captain_id, float(UNUSED_PENALTY))
+
+    yours = {}
+    if XI and all(i in view for i in XI):
+        shape = Counter(market[i].position.value for i in XI)
+        yours = {
+            "starters": [described(i) for i in XI],
+            "bench": [described(i) for i in BENCH if i in view],
+            "captain": described(CAPTAIN) if CAPTAIN in view else None,
+            "formation": f"{shape['DEF']}-{shape['MID']}-{shape['FWD']}",
+            "expected": worth(XI, CAPTAIN),
+            "coach": {"name": COACH[0], "club": COACH[1]},
+        }
+
     return {
         "starters": [described(i) for i in sheet["starters"]],
         "bench": [described(i) for i in sheet["bench"]],
@@ -640,6 +690,12 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         "in_not_filed": [described(i) for i in sorted(picked - filed)],
         "out_of_filed": [described(i) for i in sorted(filed - picked)],
         "transfer": move,
+        "yours": yours,
+        # Never negative in practice — best_eleven is exact over the same 23, so
+        # the model's sheet is the ceiling his squad could have put out. A zero
+        # here means he already picked it, which is the good outcome and should
+        # read as one.
+        "edge": (sheet["points"] - yours["expected"]) if yours else None,
     }
 
 
@@ -1131,6 +1187,119 @@ def sheet_section(data: dict) -> str:
           </dl>
         </div>
       </div>"""
+
+
+def versus_section(data: dict) -> str:
+    """The sheet he entered against the sheet the model would have entered.
+
+    Both priced on ONE set of numbers — see `model_sheet`, where his eleven is
+    scored with the same fixture-adjusted estimates the model picks from. Two
+    columns of numbers that came from different places would make every gap
+    look like a finding.
+
+    The gap is the only figure here that matters, and it has a floor of zero:
+    best_eleven is exact over the same twenty-three, so the model's sheet is
+    the most his squad could have put out. Zero means he already picked it.
+    """
+    found = data.get("model") or {}
+    yours = found.get("yours") or {}
+    if not found or not yours:
+        return """      <p class="lede">Sem folha entregue no <code>data/squad.yaml</code>,
+      não há nada para comparar. Acrescenta o bloco <code>selection:</code>.</p>"""
+
+    edge = found.get("edge")
+
+    def column(title: str, sheet: dict, coach: dict | None, mark: str) -> str:
+        by_pos = {}
+        for entry in sheet["starters"]:
+            by_pos.setdefault(entry["position"], []).append(entry)
+        blocks = []
+        for pos in ("GK", "DEF", "MID", "FWD"):
+            members = sorted(by_pos.get(pos, []), key=lambda e: -e["expected"])
+            if not members:
+                continue
+            lines = []
+            for entry in members:
+                # On the id, never the name. Two men sharing a surname in one
+                # squad is unlikely and not impossible, and the failure would be
+                # a second armband on the page rather than an error.
+                worn = (sheet.get("captain") or {}).get("id")
+                is_cap = worn is not None and entry["id"] == worn
+                lines.append(
+                    '            <tr>' + chr(10)
+                    + '              <td class="name">' + esc(entry["name"])
+                    + ('<span class="cap">C</span>' if is_cap else "")
+                    + '<span class="sub">' + esc(entry["club"])
+                    + ("" if entry["opponent"] is None else " · v " + esc(entry["opponent"]))
+                    + "</span></td>" + chr(10)
+                    + '              <td class="fig strong">'
+                    + f"{entry['expected']:.2f}" + "</td>" + chr(10)
+                    + "            </tr>"
+                )
+            blocks.append(
+                '        <tbody>' + chr(10)
+                + '          <tr><th colspan="2" class="pos-row">' + POS_PT[pos]
+                + "</th></tr>" + chr(10)
+                + chr(10).join(lines) + chr(10)
+                + "        </tbody>"
+            )
+
+        bench = []
+        for n, entry in enumerate(sheet.get("bench") or [], 1):
+            bench.append(
+                '            <tr>' + chr(10)
+                + '              <td class="name"><span class="ord">' + str(n)
+                + "</span> " + esc(entry["name"])
+                + '<span class="sub">' + esc(POS_PT[entry["position"]]) + " · "
+                + esc(entry["club"]) + "</span></td>" + chr(10)
+                + '              <td class="fig">' + f"{entry['expected']:.2f}"
+                + "</td>" + chr(10)
+                + "            </tr>"
+            )
+
+        named = "—"
+        if coach and coach.get("name"):
+            named = esc(coach["name"]) + ' <span class="muted">' + esc(coach.get("club", "")) + "</span>"
+
+        return f"""      <div class="side {mark}">
+        <h3>{esc(title)}</h3>
+        <p class="shape">{esc(sheet['formation'])} <span class="muted">·
+          esperado</span> <strong>{sheet['expected']:.1f}</strong></p>
+        <div class="scroll">
+          <table>
+{chr(10).join(blocks)}
+        <tbody>
+          <tr><th colspan="2" class="pos-row">Banco</th></tr>
+{chr(10).join(bench) if bench else '            <tr><td colspan="2" class="muted">sem suplentes</td></tr>'}
+        </tbody>
+        <tbody>
+          <tr><th colspan="2" class="pos-row">Treinador</th></tr>
+          <tr><td class="name">{named}</td><td class="fig">—</td></tr>
+        </tbody>
+          </table>
+        </div>
+      </div>"""
+
+    verdict = (
+        "Escolheste o melhor onze que este plantel dá. Não há nada a mudar."
+        if edge is not None and edge < 0.05
+        else f"O onze do modelo vale <strong>{edge:+.1f}</strong> pontos esperados "
+        "a mais nesta jornada."
+    )
+
+    return f"""      <p class="lede">A folha que entregaste e a folha que o modelo
+      entregaria, avaliadas com <strong>os mesmos números</strong> — as estimativas
+      já ajustadas ao adversário desta jornada. Duas colunas medidas com réguas
+      diferentes fariam qualquer diferença parecer uma descoberta.</p>
+      <p class="lede">{verdict} O melhor onze é exato sobre os mesmos 23, portanto
+      esta diferença nunca é negativa: é o que o teu plantel ainda tinha para dar.</p>
+      <div class="versus">
+{column("O teu", yours, yours.get("coach"), "mine")}
+{column("O do modelo", found, yours.get("coach"), "theirs")}
+      </div>
+      <p class="foot muted">O treinador é o mesmo nos dois lados: o modelo
+      escolhe-o à época, não à jornada, e essa escolha está em
+      <a href="decisoes.html">As decisões</a>.</p>"""
 
 
 def exposure_section(data: dict) -> str:
@@ -1679,7 +1848,7 @@ def questions_section() -> str:
     )
 
 
-head_body = '<title>{title}</title>\n<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Instrument+Serif&display=swap">\n<style>\n/* Paper, below the hinge. The reader\'s theme moves these and nothing else. */\n/* Declared so the browser knows this page handles its own themes. Without it\n   Chrome\'s automatic dark mode forces a scheme on top of ours, and it reaches\n   inside tables: on a light ground the paper stayed light while every table\n   inherited dark ink, which renders the player names invisible. */\n:root {{\n  color-scheme: light;\n  --paper: #eceae5;\n  --ink:   #16150f;\n  --dim:   #6a6860;\n  --rule:  #c9c6bd;\n  --hair:  #dcd9d1;\n  --wash:  #e3e0d9;\n  --red:   #a8112a;\n  --green: #1f6b4a;\n}}\n@media (prefers-color-scheme: dark) {{\n  :root:not([data-theme="light"]) {{\n    color-scheme: dark;\n    --paper: #14140f;\n    --ink:   #efece4;\n    --dim:   #918e85;\n    --rule:  #3a3931;\n    --hair:  #2a2923;\n    --wash:  #1e1e17;\n    --red:   #e0374f;\n    --green: #4fa87c;\n  }}\n}}\n:root[data-theme="dark"] {{\n  color-scheme: dark;\n  --paper: #14140f;\n  --ink:   #efece4;\n  --dim:   #918e85;\n  --rule:  #3a3931;\n  --hair:  #2a2923;\n  --wash:  #1e1e17;\n  --red:   #e0374f;\n  --green: #4fa87c;\n}}\n\n* {{ box-sizing: border-box; }}\nbody {{\n  margin: 0;\n  background: var(--paper);\n  color: var(--ink);\n  font-family: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;\n  font-size: 16.5px;\n  line-height: 1.5;\n  -webkit-font-smoothing: antialiased;\n}}\n.page {{ max-width: 1020px; margin: 0 auto; }}\n.body {{ padding: 0 32px 64px; }}\n\n/* ------------------------------------------------------------------ *\n * The broadcast panel. A fixed graphic: it does not follow the        *\n * reader\'s theme, the way a front page\'s photograph is the photograph *\n * whatever paper it is printed on.                                    *\n * ------------------------------------------------------------------ */\n.bcast {{\n  --bg:   #0a0d14;\n  --sunk: #141a27;\n  --bink: #ffffff;\n  --bdim: #8b95a8;\n  --hot:  #ff2d46;\n  --mint: #00d9a3;\n  background: var(--bg); color: var(--bink); padding-bottom: 32px;\n}}\n.mast {{ display: flex; align-items: stretch; height: 82px; }}\n.mast-name {{\n  background: var(--hot); display: flex; align-items: center;\n  padding: 0 40px 0 32px;\n  clip-path: polygon(0 0, 100% 0, calc(100% - 22px) 100%, 0 100%);\n}}\n.mast-name span {{ font-family: Anton, Impact, "Arial Narrow", sans-serif; font-size: 44px; line-height: 1; }}\n.mast-meta {{ flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 20px; padding: 0 32px; }}\n.mast-tag {{ font-size: 12.5px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: var(--bdim); }}\n.mast-round {{ font-family: Anton, Impact, sans-serif; font-size: 25px; letter-spacing: .04em; }}\n\n.hero {{ display: flex; align-items: flex-end; gap: 26px; padding: 30px 32px 0; }}\n.hero-figure {{ font-family: Anton, Impact, sans-serif; font-size: 178px; line-height: .78; letter-spacing: -.03em; color: var(--hot); }}\n.hero-side {{ display: flex; flex-direction: column; gap: 3px; padding-bottom: 15px; }}\n.hero-of {{ font-family: Anton, Impact, sans-serif; font-size: 38px; line-height: 1; }}\n.hero-label {{ font-size: 16px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }}\n\n.figs {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 3px; padding: 28px 32px 0; }}\n.fig-block {{ background: var(--sunk); padding: 15px 19px 13px; }}\n.fig-label {{ display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }}\n.fig-value {{ display: block; font-family: Anton, Impact, sans-serif; font-size: 40px; line-height: 1.15; font-variant-numeric: tabular-nums; }}\n.fig-value.hot {{ color: var(--hot); }}\n.fig-note {{ display: block; font-size: 14.5px; color: var(--bdim); }}\n\n.form {{ display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px; padding: 28px 32px 0; }}\n.form-bars {{ display: grid; grid-auto-flow: column; grid-auto-columns: 126px; grid-template-rows: 140px auto auto; gap: 0 3px; }}\n.bar-slot {{ display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }}\n.bar {{ width: 100%; background: var(--sunk); display: flex; align-items: flex-start; justify-content: center; padding-top: 9px; align-self: end; }}\n.bar.lead {{ background: var(--hot); }}\n.bar-value {{ font-family: Anton, Impact, sans-serif; font-size: 44px; line-height: 1; }}\n.bar-round {{ font-size: 12.5px; font-weight: 600; letter-spacing: .08em; color: var(--bdim); padding-top: 7px; }}\n.move {{ display: block; font-size: 12px; font-weight: 600; line-height: 1.4; min-height: 1.4em; }}\n.move.down {{ color: var(--hot); }}\n.move.up {{ color: var(--mint); }}\n.form-story {{\n  background: var(--sunk); display: flex; flex-direction: column;\n  justify-content: center; gap: 1px; padding: 0 28px;\n  clip-path: polygon(0 0, 100% 0, 100% 100%, 26px 100%);\n}}\n.form-figure {{ font-family: Anton, Impact, sans-serif; font-size: 46px; line-height: 1; color: var(--hot); }}\n.form-note {{ font-size: 15.5px; color: var(--bdim); }}\n\n/* The hinge: graphics above, type below. */\n.hinge {{ height: 5px; background: var(--ink); }}\n\n/* ------------------------------------------------------------------ *\n * The results page. No boxes, no shadows: rules and weight only.      *\n * ------------------------------------------------------------------ */\nsection {{ padding-top: 34px; }}\nh2 {{\n  font-family: "Instrument Serif", Georgia, serif; font-weight: 400;\n  font-size: 31px; line-height: 1.1; margin: 0 0 3px; letter-spacing: -.01em;\n  text-wrap: balance;\n}}\n.rule {{ height: 2px; background: var(--ink); margin-bottom: 14px; }}\n.lede {{ margin: 0 0 16px; max-width: 68ch; color: var(--dim); }}\n.lede strong {{ color: var(--ink); font-weight: 600; }}\n.footnote {{ margin: 12px 0 0; font-size: 14.5px; color: var(--dim); max-width: 68ch; }}\ncode {{ font-family: ui-monospace, monospace; font-size: 14px; }}\n\n.cols {{ display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0 34px; }}\n@media (max-width: 780px) {{ .cols {{ grid-template-columns: 1fr; gap: 28px; }} .rail {{ border-left: none; padding-left: 0; }} }}\n.rail {{ border-left: 1px solid var(--rule); padding-left: 26px; }}\n.rail h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 23px; margin: 0; }}\n.rail-note {{ margin: 0 0 4px; font-size: 14px; color: var(--dim); }}\n\n.scroll {{ overflow-x: auto; }}\ntable {{ width: 100%; border-collapse: collapse; }}\nth {{\n  text-align: left; font-size: 11.5px; font-weight: 600; letter-spacing: .14em;\n  text-transform: uppercase; color: var(--dim); padding: 0 12px 6px 0;\n  border-bottom: 1px solid var(--rule); white-space: nowrap;\n}}\ntd {{ padding: 8px 12px 8px 0; border-bottom: 1px solid var(--hair); vertical-align: baseline; }}\ntbody tr:last-child td {{ border-bottom: none; }}\n.fig {{ text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }}\nth.fig {{ text-align: right; }}\n.name {{ font-weight: 600; }}\n.sub {{ font-size: 14px; color: var(--dim); font-weight: 400; }}\ntd.name .sub {{ display: block; }}\n.muted {{ color: var(--dim); font-weight: 400; }}\n.strong {{ font-weight: 600; }}\n.up {{ color: var(--green); }}\n.down {{ color: var(--red); }}\n.pending {{ font-size: 14px; color: var(--dim); font-style: italic; }}\n\n.pos-row {{\n  font-family: "Instrument Serif", Georgia, serif; font-size: 17px;\n  font-weight: 400; letter-spacing: .03em; text-transform: none;\n  color: var(--ink); border-bottom: 1px solid var(--rule); padding-top: 18px;\n}}\n.ord {{ color: var(--dim); font-size: 13px; width: 16px; padding-right: 8px; }}\n.cap, .late {{ font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 1px 5px; white-space: nowrap; }}\n.cap {{ background: var(--red); color: #fff; }}\n.late {{ color: var(--red); border: 1px solid currentColor; }}\n.role.is-xi {{ font-weight: 600; }}\n.role.is-xi::before {{ content: ""; display: inline-block; width: 3px; height: 11px; background: var(--red); margin-right: 7px; vertical-align: -1px; }}\n\n.lead-fig {{ font-family: "Instrument Serif", Georgia, serif; font-size: 30px; width: 46px; text-align: right; padding-right: 16px; }}\n\n.facts {{ margin: 20px 0 0; padding-top: 12px; border-top: 2px solid var(--ink); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 14px; font-size: 15px; }}\n.facts dt {{ font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }}\n.facts dd {{ margin: 0; font-weight: 600; min-width: 0; }}\n.facts .big {{ font-family: "Instrument Serif", Georgia, serif; font-size: 29px; font-weight: 400; }}\n\n.grid td.cell {{ text-align: center; min-width: 92px; padding: 6px 8px; }}\n.cell-opp {{ display: block; font-size: 12px; color: var(--dim); white-space: nowrap; }}\n.cell-fig {{ display: block; font-weight: 600; font-variant-numeric: tabular-nums; }}\n.cell.easy {{ background: color-mix(in srgb, var(--green) 13%, transparent); }}\n.cell.easy .cell-fig {{ color: var(--green); }}\n.cell.hard {{ background: color-mix(in srgb, var(--red) 13%, transparent); }}\n.cell.hard .cell-fig {{ color: var(--red); }}\n\ntr.is-me td {{ background: var(--wash); }}\ntr.is-me .name {{ font-weight: 700; }}\ntr.is-me td:first-child {{ box-shadow: inset 3px 0 0 var(--red); }}\ntr.is-dead td, tr.is-dead .name {{ color: var(--dim); font-weight: 400; }}\n.rank {{ width: 38px; color: var(--dim); }}\n\n.dist {{ padding: 6px 0 0; }}\n.dist-track {{ position: relative; height: 34px; border-bottom: 1px solid var(--rule); }}\n.mark {{ position: absolute; bottom: 0; width: 2px; height: 20px; background: var(--rule); transform: translateX(-1px); }}\n.mark.is-me {{ background: var(--red); height: 34px; width: 3px; }}\n.dist-axis {{ position: relative; height: 22px; margin-top: 6px; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }}\n.dist-end {{ position: absolute; left: 0; }}\n.dist-end.right {{ left: auto; right: 0; }}\n.dist-me {{ position: absolute; transform: translateX(-50%); color: var(--red); font-weight: 600; white-space: nowrap; }}\n\n.quad {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0 30px; }}\n.quad h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0 0 2px; border-bottom: 1px solid var(--rule); padding-bottom: 4px; }}\n.quad .cap {{ margin-left: 6px; }}\n.spread {{ margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rule); }}\n.spread-label {{ margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }}\n.ticks {{ display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); grid-template-rows: 76px auto auto; gap: 0 14px; max-width: 460px; }}\n.tick {{ display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }}\n.tick-bar {{ width: 100%; background: var(--red); align-self: end; min-height: 2px; }}\n.tick-n {{ font-size: 12px; font-variant-numeric: tabular-nums; color: var(--dim); padding-top: 4px; }}\n.tick-v {{ font-family: "Instrument Serif", Georgia, serif; font-size: 19px; padding-top: 2px; }}\n.questions {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }}\n.q h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }}\n.q-state {{ margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }}\n.q p {{ margin: 0; font-size: 14.5px; color: var(--dim); }}\n\nfooter {{ margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 13.5px; color: var(--dim); display: flex; flex-wrap: wrap; gap: 4px 20px; }}\na {{ color: var(--red); }}\n:focus-visible {{ outline: 2px solid var(--red); outline-offset: 2px; }}\n@media (prefers-reduced-motion: reduce) {{ * {{ animation: none !important; transition: none !important; }} }}\n\n/* The page nav. Five links, current one marked, and nothing clever: it has to\n   work from a file:// URL with no server behind it. */\n.nav {{\n  display: flex; flex-wrap: wrap; gap: 0;\n  border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);\n  margin: 0 0 2.4rem 0; background: var(--wash);\n}}\n.nav a {{\n  padding: 0.7rem 1.15rem; text-decoration: none; color: var(--dim);\n  font: 600 0.78rem/1 "IBM Plex Sans Condensed", system-ui, sans-serif;\n  letter-spacing: 0.09em; text-transform: uppercase;\n  border-right: 1px solid var(--hair);\n}}\n.nav a:hover {{ color: var(--ink); background: var(--paper); }}\n.nav a[aria-current] {{ color: var(--paper); background: var(--ink); }}\n.slim {{\n  display: flex; align-items: baseline; justify-content: space-between;\n  gap: 1rem; padding: 1.6rem 0 1.1rem 0;\n}}\n.slim .mark {{\n  font: 400 2.1rem/1 Anton, Impact, sans-serif; letter-spacing: 0.01em;\n  text-transform: uppercase;\n}}\n.slim .where {{ color: var(--dim); font-size: 0.82rem; }}\n</style>'
+head_body = '<title>{title}</title>\n<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Instrument+Serif&display=swap">\n<style>\n/* Paper, below the hinge. The reader\'s theme moves these and nothing else. */\n/* Declared so the browser knows this page handles its own themes. Without it\n   Chrome\'s automatic dark mode forces a scheme on top of ours, and it reaches\n   inside tables: on a light ground the paper stayed light while every table\n   inherited dark ink, which renders the player names invisible. */\n:root {{\n  color-scheme: light;\n  --paper: #eceae5;\n  --ink:   #16150f;\n  --dim:   #6a6860;\n  --rule:  #c9c6bd;\n  --hair:  #dcd9d1;\n  --wash:  #e3e0d9;\n  --red:   #a8112a;\n  --green: #1f6b4a;\n}}\n@media (prefers-color-scheme: dark) {{\n  :root:not([data-theme="light"]) {{\n    color-scheme: dark;\n    --paper: #14140f;\n    --ink:   #efece4;\n    --dim:   #918e85;\n    --rule:  #3a3931;\n    --hair:  #2a2923;\n    --wash:  #1e1e17;\n    --red:   #e0374f;\n    --green: #4fa87c;\n  }}\n}}\n:root[data-theme="dark"] {{\n  color-scheme: dark;\n  --paper: #14140f;\n  --ink:   #efece4;\n  --dim:   #918e85;\n  --rule:  #3a3931;\n  --hair:  #2a2923;\n  --wash:  #1e1e17;\n  --red:   #e0374f;\n  --green: #4fa87c;\n}}\n\n* {{ box-sizing: border-box; }}\nbody {{\n  margin: 0;\n  background: var(--paper);\n  color: var(--ink);\n  font-family: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;\n  font-size: 16.5px;\n  line-height: 1.5;\n  -webkit-font-smoothing: antialiased;\n}}\n.page {{ max-width: 1020px; margin: 0 auto; }}\n.body {{ padding: 0 32px 64px; }}\n\n/* ------------------------------------------------------------------ *\n * The broadcast panel. A fixed graphic: it does not follow the        *\n * reader\'s theme, the way a front page\'s photograph is the photograph *\n * whatever paper it is printed on.                                    *\n * ------------------------------------------------------------------ */\n.bcast {{\n  --bg:   #0a0d14;\n  --sunk: #141a27;\n  --bink: #ffffff;\n  --bdim: #8b95a8;\n  --hot:  #ff2d46;\n  --mint: #00d9a3;\n  background: var(--bg); color: var(--bink); padding-bottom: 32px;\n}}\n.mast {{ display: flex; align-items: stretch; height: 82px; }}\n.mast-name {{\n  background: var(--hot); display: flex; align-items: center;\n  padding: 0 40px 0 32px;\n  clip-path: polygon(0 0, 100% 0, calc(100% - 22px) 100%, 0 100%);\n}}\n.mast-name span {{ font-family: Anton, Impact, "Arial Narrow", sans-serif; font-size: 44px; line-height: 1; }}\n.mast-meta {{ flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 20px; padding: 0 32px; }}\n.mast-tag {{ font-size: 12.5px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase; color: var(--bdim); }}\n.mast-round {{ font-family: Anton, Impact, sans-serif; font-size: 25px; letter-spacing: .04em; }}\n\n.hero {{ display: flex; align-items: flex-end; gap: 26px; padding: 30px 32px 0; }}\n.hero-figure {{ font-family: Anton, Impact, sans-serif; font-size: 178px; line-height: .78; letter-spacing: -.03em; color: var(--hot); }}\n.hero-side {{ display: flex; flex-direction: column; gap: 3px; padding-bottom: 15px; }}\n.hero-of {{ font-family: Anton, Impact, sans-serif; font-size: 38px; line-height: 1; }}\n.hero-label {{ font-size: 16px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }}\n\n.figs {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 3px; padding: 28px 32px 0; }}\n.fig-block {{ background: var(--sunk); padding: 15px 19px 13px; }}\n.fig-label {{ display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--bdim); }}\n.fig-value {{ display: block; font-family: Anton, Impact, sans-serif; font-size: 40px; line-height: 1.15; font-variant-numeric: tabular-nums; }}\n.fig-value.hot {{ color: var(--hot); }}\n.fig-note {{ display: block; font-size: 14.5px; color: var(--bdim); }}\n\n.form {{ display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px; padding: 28px 32px 0; }}\n.form-bars {{ display: grid; grid-auto-flow: column; grid-auto-columns: 126px; grid-template-rows: 140px auto auto; gap: 0 3px; }}\n.bar-slot {{ display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }}\n.bar {{ width: 100%; background: var(--sunk); display: flex; align-items: flex-start; justify-content: center; padding-top: 9px; align-self: end; }}\n.bar.lead {{ background: var(--hot); }}\n.bar-value {{ font-family: Anton, Impact, sans-serif; font-size: 44px; line-height: 1; }}\n.bar-round {{ font-size: 12.5px; font-weight: 600; letter-spacing: .08em; color: var(--bdim); padding-top: 7px; }}\n.move {{ display: block; font-size: 12px; font-weight: 600; line-height: 1.4; min-height: 1.4em; }}\n.move.down {{ color: var(--hot); }}\n.move.up {{ color: var(--mint); }}\n.form-story {{\n  background: var(--sunk); display: flex; flex-direction: column;\n  justify-content: center; gap: 1px; padding: 0 28px;\n  clip-path: polygon(0 0, 100% 0, 100% 100%, 26px 100%);\n}}\n.form-figure {{ font-family: Anton, Impact, sans-serif; font-size: 46px; line-height: 1; color: var(--hot); }}\n.form-note {{ font-size: 15.5px; color: var(--bdim); }}\n\n/* The hinge: graphics above, type below. */\n.hinge {{ height: 5px; background: var(--ink); }}\n\n/* ------------------------------------------------------------------ *\n * The results page. No boxes, no shadows: rules and weight only.      *\n * ------------------------------------------------------------------ */\nsection {{ padding-top: 34px; }}\nh2 {{\n  font-family: "Instrument Serif", Georgia, serif; font-weight: 400;\n  font-size: 31px; line-height: 1.1; margin: 0 0 3px; letter-spacing: -.01em;\n  text-wrap: balance;\n}}\n.rule {{ height: 2px; background: var(--ink); margin-bottom: 14px; }}\n.lede {{ margin: 0 0 16px; max-width: 68ch; color: var(--dim); }}\n.lede strong {{ color: var(--ink); font-weight: 600; }}\n.footnote {{ margin: 12px 0 0; font-size: 14.5px; color: var(--dim); max-width: 68ch; }}\ncode {{ font-family: ui-monospace, monospace; font-size: 14px; }}\n\n.cols {{ display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0 34px; }}\n@media (max-width: 780px) {{ .cols {{ grid-template-columns: 1fr; gap: 28px; }} .rail {{ border-left: none; padding-left: 0; }} }}\n.rail {{ border-left: 1px solid var(--rule); padding-left: 26px; }}\n.rail h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 23px; margin: 0; }}\n.rail-note {{ margin: 0 0 4px; font-size: 14px; color: var(--dim); }}\n\n.scroll {{ overflow-x: auto; }}\ntable {{ width: 100%; border-collapse: collapse; }}\nth {{\n  text-align: left; font-size: 11.5px; font-weight: 600; letter-spacing: .14em;\n  text-transform: uppercase; color: var(--dim); padding: 0 12px 6px 0;\n  border-bottom: 1px solid var(--rule); white-space: nowrap;\n}}\ntd {{ padding: 8px 12px 8px 0; border-bottom: 1px solid var(--hair); vertical-align: baseline; }}\ntbody tr:last-child td {{ border-bottom: none; }}\n.fig {{ text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }}\nth.fig {{ text-align: right; }}\n.name {{ font-weight: 600; }}\n.sub {{ font-size: 14px; color: var(--dim); font-weight: 400; }}\ntd.name .sub {{ display: block; }}\n.muted {{ color: var(--dim); font-weight: 400; }}\n.strong {{ font-weight: 600; }}\n.up {{ color: var(--green); }}\n.down {{ color: var(--red); }}\n.pending {{ font-size: 14px; color: var(--dim); font-style: italic; }}\n\n.pos-row {{\n  font-family: "Instrument Serif", Georgia, serif; font-size: 17px;\n  font-weight: 400; letter-spacing: .03em; text-transform: none;\n  color: var(--ink); border-bottom: 1px solid var(--rule); padding-top: 18px;\n}}\n.ord {{ color: var(--dim); font-size: 13px; width: 16px; padding-right: 8px; }}\n.cap, .late {{ font-size: 11px; font-weight: 600; letter-spacing: .04em; padding: 1px 5px; white-space: nowrap; }}\n.cap {{ background: var(--red); color: #fff; }}\n.late {{ color: var(--red); border: 1px solid currentColor; }}\n.role.is-xi {{ font-weight: 600; }}\n.role.is-xi::before {{ content: ""; display: inline-block; width: 3px; height: 11px; background: var(--red); margin-right: 7px; vertical-align: -1px; }}\n\n.lead-fig {{ font-family: "Instrument Serif", Georgia, serif; font-size: 30px; width: 46px; text-align: right; padding-right: 16px; }}\n\n.facts {{ margin: 20px 0 0; padding-top: 12px; border-top: 2px solid var(--ink); display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 7px 14px; font-size: 15px; }}\n.facts dt {{ font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }}\n.facts dd {{ margin: 0; font-weight: 600; min-width: 0; }}\n.facts .big {{ font-family: "Instrument Serif", Georgia, serif; font-size: 29px; font-weight: 400; }}\n\n.grid td.cell {{ text-align: center; min-width: 92px; padding: 6px 8px; }}\n.cell-opp {{ display: block; font-size: 12px; color: var(--dim); white-space: nowrap; }}\n.cell-fig {{ display: block; font-weight: 600; font-variant-numeric: tabular-nums; }}\n.cell.easy {{ background: color-mix(in srgb, var(--green) 13%, transparent); }}\n.cell.easy .cell-fig {{ color: var(--green); }}\n.cell.hard {{ background: color-mix(in srgb, var(--red) 13%, transparent); }}\n.cell.hard .cell-fig {{ color: var(--red); }}\n\ntr.is-me td {{ background: var(--wash); }}\ntr.is-me .name {{ font-weight: 700; }}\ntr.is-me td:first-child {{ box-shadow: inset 3px 0 0 var(--red); }}\ntr.is-dead td, tr.is-dead .name {{ color: var(--dim); font-weight: 400; }}\n.rank {{ width: 38px; color: var(--dim); }}\n\n.dist {{ padding: 6px 0 0; }}\n.dist-track {{ position: relative; height: 34px; border-bottom: 1px solid var(--rule); }}\n.mark {{ position: absolute; bottom: 0; width: 2px; height: 20px; background: var(--rule); transform: translateX(-1px); }}\n.mark.is-me {{ background: var(--red); height: 34px; width: 3px; }}\n.dist-axis {{ position: relative; height: 22px; margin-top: 6px; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }}\n.dist-end {{ position: absolute; left: 0; }}\n.dist-end.right {{ left: auto; right: 0; }}\n.dist-me {{ position: absolute; transform: translateX(-50%); color: var(--red); font-weight: 600; white-space: nowrap; }}\n\n.quad {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0 30px; }}\n.quad h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0 0 2px; border-bottom: 1px solid var(--rule); padding-bottom: 4px; }}\n.quad .cap {{ margin-left: 6px; }}\n.spread {{ margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rule); }}\n.spread-label {{ margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }}\n.ticks {{ display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); grid-template-rows: 76px auto auto; gap: 0 14px; max-width: 460px; }}\n.tick {{ display: grid; grid-row: 1 / -1; grid-template-rows: subgrid; justify-items: center; align-items: end; }}\n.tick-bar {{ width: 100%; background: var(--red); align-self: end; min-height: 2px; }}\n.tick-n {{ font-size: 12px; font-variant-numeric: tabular-nums; color: var(--dim); padding-top: 4px; }}\n.tick-v {{ font-family: "Instrument Serif", Georgia, serif; font-size: 19px; padding-top: 2px; }}\n/* Two sheets, side by side. Equal columns on purpose: widening the model column\n   wider would argue for it by layout rather than by number. */\n.versus {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 0 34px; }}\n.side h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 23px; margin: 0; }}\n.side.theirs {{ border-left: 1px solid var(--rule); padding-left: 26px; }}\n@media (max-width: 640px) {{ .side.theirs {{ border-left: none; padding-left: 0; padding-top: 18px; border-top: 1px solid var(--rule); }} }}\n.shape {{ margin: 0 0 6px; font-size: 14.5px; color: var(--dim); }}\n.shape strong {{ font-family: "Instrument Serif", Georgia, serif; font-size: 25px; font-weight: 400; color: var(--ink); }}\n.foot {{ margin: 16px 0 0; font-size: 14px; }}\n.questions {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 4px 30px; }}\n.q h3 {{ font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 21px; margin: 0; text-wrap: balance; }}\n.q-state {{ margin: 1px 0 7px; font-size: 11.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--red); }}\n.q p {{ margin: 0; font-size: 14.5px; color: var(--dim); }}\n\nfooter {{ margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--rule); font-size: 13.5px; color: var(--dim); display: flex; flex-wrap: wrap; gap: 4px 20px; }}\na {{ color: var(--red); }}\n:focus-visible {{ outline: 2px solid var(--red); outline-offset: 2px; }}\n@media (prefers-reduced-motion: reduce) {{ * {{ animation: none !important; transition: none !important; }} }}\n\n/* The page nav. Five links, current one marked, and nothing clever: it has to\n   work from a file:// URL with no server behind it. */\n.nav {{\n  display: flex; flex-wrap: wrap; gap: 0;\n  border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);\n  margin: 0 0 2.4rem 0; background: var(--wash);\n}}\n.nav a {{\n  padding: 0.7rem 1.15rem; text-decoration: none; color: var(--dim);\n  font: 600 0.78rem/1 "IBM Plex Sans Condensed", system-ui, sans-serif;\n  letter-spacing: 0.09em; text-transform: uppercase;\n  border-right: 1px solid var(--hair);\n}}\n.nav a:hover {{ color: var(--ink); background: var(--paper); }}\n.nav a[aria-current] {{ color: var(--paper); background: var(--ink); }}\n.slim {{\n  display: flex; align-items: baseline; justify-content: space-between;\n  gap: 1rem; padding: 1.6rem 0 1.1rem 0;\n}}\n.slim .mark {{\n  font: 400 2.1rem/1 Anton, Impact, sans-serif; letter-spacing: 0.01em;\n  text-transform: uppercase;\n}}\n.slim .where {{ color: var(--dim); font-size: 0.82rem; }}\n</style>'
 
 
 PAGES = [
@@ -1688,6 +1857,7 @@ PAGES = [
         "A equipa",
         [
             ("A folha entregue", "sheet"),
+            ("O teu onze contra o do modelo", "versus"),
             ("Onde está o risco", "exposure"),
             ("As próximas jornadas", "grid"),
         ],
@@ -1732,6 +1902,7 @@ PAGES = [
 #: references so PAGES stays readable as a table of contents.
 SECTIONS = {
     "sheet": lambda data, public: sheet_section(data),
+    "versus": lambda data, public: versus_section(data),
     "exposure": lambda data, public: exposure_section(data),
     "grid": lambda data, public: grid_section(data),
     "model": lambda data, public: model_section(data),

@@ -228,3 +228,37 @@ players:
     initial_value: 500000
     points_total: 7
     points_round: 0
+
+# The sheet as entered on the site, for the round named above.
+#
+# THIS IS THE ONE PLACE IT LIVES. It sat in build_dashboard.py as three lists
+# of bare ids, which meant changing a team sheet meant editing a Python file
+# and the page silently kept showing last week's eleven until somebody
+# remembered. Here it is data, the loader validates it against §6.13 and §6.15
+# before anything is drawn, and an illegal formation is a refusal rather than a
+# page that looks fine.
+#
+# `bench` order matters: §11.2 works down it when it substitutes.
+#
+# Read back from the site by hand, because reading a team sheet needs a login
+# this project deliberately does not hold — the server advises, Manuel clicks.
+selection:
+  starters:
+    - "38800"    # Diogo Costa      GR   FC Porto
+    - "41584"    # Nehuén Pérez     DEF  FC Porto
+    - "41670"    # Zaidu            DEF  FC Porto
+    - "43052"    # Léo Santos       DEF  Nacional
+    - "42725"    # Zalazar          MED  Sporting
+    - "21459"    # Raphael Guzzo    MED  Marítimo
+    - "43500"    # Issa Doumbia     MED  Sporting
+    - "33728"    # Samu             MED  V. Guimarães
+    - "42896"    # Pavlidis         AVA  Benfica
+    - "42920"    # Begraoui         AVA  Estoril
+    - "42142"    # Fran Navarro     AVA  Sp. Braga
+  bench:
+    - "42398"    # Héctor Hernández AVA  Gil Vicente
+    - "42937"    # Santi García     MED  Gil Vicente
+    - "42893"    # Jose Fontán      DEF  Arouca
+    - "43430"    # Lucão            GR   Gil Vicente
+  captain: "42896"    # Pavlidis
+  coach: "890"        # Farioli, FC Porto
