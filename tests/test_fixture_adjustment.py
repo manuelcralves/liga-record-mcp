@@ -15,6 +15,7 @@ from liga_record_mcp.backtest import (
     SUSPENDED_PLAYS,
     adjusted_projection,
     card_table,
+    position_bias,
     club_form_upto,
     fixture_adjusted_projection,
     fixture_table,
@@ -125,8 +126,16 @@ def test_the_appearance_floor_is_never_scaled():
 
 
 def test_a_projection_below_the_floor_is_not_pushed_lower():
-    """A hard fixture dents the variable part; it cannot eat the floor."""
-    adjusted = adjust_for_fixture(1.0, Position.DEF, 0.55, 0.55)
+    """A hard fixture dents the variable part; it cannot eat the floor.
+
+    Strictly below, and expressed against the constant rather than as a number.
+    This used to pass 1.0 against a floor of 2.0; when the floor was remeasured
+    down to 1.0 the test went on passing while testing a value exactly ON it,
+    which is a weaker claim wearing the same name.
+    """
+    adjusted = adjust_for_fixture(
+        APPEARANCE_FLOOR / 2, Position.DEF, 0.55, 0.55
+    )
     assert adjusted == pytest.approx(APPEARANCE_FLOOR)
 
 
@@ -423,3 +432,74 @@ def test_a_ban_moves_the_appearance_half_and_leaves_the_returns_half_alone():
     expected = SUSPENDED_PLAYS * returns["p"] + (1 - SUSPENDED_PLAYS) * ABSENT
     assert banned["p"] == pytest.approx(expected)
     assert banned["p"] < playing["p"] * returns["p"] + (1 - playing["p"]) * ABSENT
+
+
+# --------------------------------------------------------------------------
+# Correcting a position against the positions
+# --------------------------------------------------------------------------
+
+
+def test_the_bias_is_the_mean_miss_of_the_position():
+    """Nothing cleverer. A ridge given position as a plain one-hot found
+    +0.0077, +0.0030 and +0.0033 of correlation in this gap; this is the closed
+    form of the same thing, with no constant to set."""
+    cells = {
+        "a": ("Porto", Position.FWD.value),
+        "b": ("Braga", Position.FWD.value),
+        "c": ("Porto", Position.GK.value),
+    }
+    points = {"a": {1: 8.0}, "b": {1: 4.0}, "c": {1: 1.0}}
+    seen = {1: {"a": 5.0, "b": 3.0, "c": 4.0}}
+
+    bias = position_bias(points, cells, seen)
+    assert bias[Position.FWD] == pytest.approx(2.0)   # missed by +3 and +1
+    assert bias[Position.GK] == pytest.approx(-3.0)
+    # A position nobody played is left at zero rather than guessed.
+    assert bias[Position.DEF] == pytest.approx(0.0)
+
+
+def test_the_bias_cannot_see_the_round_it_corrects():
+    """The rule the whole backtest rests on, applied to the newest thing that
+    reads the past.
+
+    `seen` is what was said BEFORE each round, and the correction is the mean
+    of how wrong that turned out. Rebuilding those estimates later, with what
+    is known now, would score the model against rounds it had already been
+    fitted on — and the bias would come back flattering and useless. So the
+    caller passes the estimates it actually made, and this asserts that nothing
+    from an unseen round can reach the answer.
+    """
+    cells = {"a": ("Porto", Position.FWD.value)}
+    points = {"a": {1: 8.0, 2: 4.0, 3: 999.0}}
+    seen = {1: {"a": 5.0}, 2: {"a": 3.0}}
+
+    before = position_bias(points, cells, seen)
+    # Round 3 is not in `seen`, so rewriting it must change nothing.
+    wrecked = {"a": {1: 8.0, 2: 4.0, 3: -999.0}}
+    assert position_bias(wrecked, cells, seen) == before
+    # And it does move when a round it HAS seen changes, or the guard above
+    # would pass on a function that read nothing.
+    changed = {"a": {1: 0.0, 2: 4.0, 3: 999.0}}
+    assert position_bias(changed, cells, seen) != before
+
+
+def test_the_correction_lands_on_the_blend_and_not_on_the_returns():
+    """A position being under-projected is a fact about the whole estimate, not
+    about what a man scores on the days he plays. It is added last, after the
+    two halves have been put back together."""
+    points = {"p": {m: 6.0 for m in range(1, 5)}}
+    minutes = {"p": {m: 90 for m in range(1, 5)}}
+    cells = {"p": ("Porto", Position.FWD.value)}
+
+    plain = adjusted_projection(points, minutes, cells, upto=4)
+    lifted = adjusted_projection(
+        points, minutes, cells, upto=4, bias={Position.FWD: 1.5}
+    )
+    assert lifted["p"] == pytest.approx(plain["p"] + 1.5)
+
+
+def test_the_appearance_floor_is_what_was_measured():
+    """Pinned, because it moved on evidence and the old value has a reasoned
+    comment behind it that reads just as convincingly. 2.0 was the low end of
+    a two-to-three reading; the sweep put the optimum lower on both seasons."""
+    assert APPEARANCE_FLOOR == 1.0
