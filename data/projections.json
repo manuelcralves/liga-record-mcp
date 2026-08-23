@@ -38,7 +38,8 @@
           "attacking_multiplier": 1.1,
           "projected": 2.09,
           "points_before": 8,
-          "actual": null
+          "actual": 2,
+          "error": -0.09
         },
         "43430": {
           "name": "Lucão",
@@ -218,7 +219,8 @@
           "attacking_multiplier": 1.332,
           "projected": 6.05,
           "points_before": 9,
-          "actual": null
+          "actual": 2,
+          "error": -4.05
         },
         "21459": {
           "name": "Raphael Guzzo",
@@ -236,7 +238,8 @@
           "attacking_multiplier": 1.1,
           "projected": 5.11,
           "points_before": 17,
-          "actual": null
+          "actual": 4,
+          "error": -1.11
         },
         "43500": {
           "name": "Issa Doumbia",
@@ -254,7 +257,8 @@
           "attacking_multiplier": 1.332,
           "projected": 5.04,
           "points_before": 7,
-          "actual": null
+          "actual": 4,
+          "error": -1.04
         },
         "33728": {
           "name": "Samu",
@@ -290,7 +294,8 @@
           "attacking_multiplier": 1.1,
           "projected": 3.21,
           "points_before": 8,
-          "actual": null
+          "actual": 4,
+          "error": 0.79
         },
         "42937": {
           "name": "Santi García",
@@ -398,7 +403,8 @@
           "attacking_multiplier": 1.447,
           "projected": 5.39,
           "points_before": 7,
-          "actual": null
+          "actual": 1,
+          "error": -4.39
         },
         "42398": {
           "name": "Héctor Hernández",
@@ -419,7 +425,7 @@
           "actual": null
         }
       },
-      "settled_at": "2026-08-21T11:07:39.288013+00:00",
+      "settled_at": "2026-08-23T07:32:25.091099+00:00",
       "fully_settled": false,
       "coach": {
         "id": "890",
