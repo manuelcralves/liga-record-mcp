@@ -47,3 +47,8 @@ data/routine.log
 # The raw output of the last scheduled run, overwritten each time. It exists so
 # a run that dies before it can log anything still leaves its reason behind.
 data/routine.err
+
+# Snapshots of a postponed fixture's players, taken until it is finally played.
+# Observation, not a decision — the verdict it produces gets written down, the
+# readings behind it do not need to be.
+data/postponed-watch.json

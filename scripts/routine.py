@@ -91,6 +91,11 @@ STEPS = [
     ),
     Step("liquidar", "liquidar a jornada", ["scripts/record_projection.py", "--settle"]),
     Step("historico", "histórico por jornada", ["scripts/record_history.py"]),
+    # Watches the one rule nobody has verified: whether a postponed fixture
+    # eventually awards points for its round, or §15.3 zeroes it. The answer
+    # arrives whenever Sp. Braga–Gil Vicente is finally played, which is a date
+    # nobody has set — so it has to be waiting rather than remembered.
+    Step("adiado", "jogo adiado", ["scripts/watch_postponed.py", "--quiet"]),
     Step("privada", "página privada", ["scripts/build_dashboard.py"], needs_league=True),
     Step("publica", "página pública", ["scripts/build_dashboard.py", "--public"]),
     # Last, and it changes nothing: it says what the ledger is still waiting
