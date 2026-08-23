@@ -37,11 +37,21 @@ sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp import server as mcp  # noqa: E402
 from liga_record_mcp.advice import MIN_OWN_HISTORY, valuation  # noqa: E402
-from liga_record_mcp.optimise import best_eleven, improve_squad  # noqa: E402
+from liga_record_mcp.optimise import (  # noqa: E402
+    best_eleven,
+    best_squad_under_budget,
+    improve_squad,
+    squad_value,
+)
 from liga_record_mcp.source import load_coaches, ManualSquadSource, load_appearances  # noqa: E402
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
-from liga_record_mcp.models import LAST_MATCHDAY, Position  # noqa: E402
+from liga_record_mcp.models import (  # noqa: E402
+    BASE_BUDGET,
+    FIRST_SCORING_MATCHDAY,
+    LAST_MATCHDAY,
+    Position,
+)
 from liga_record_mcp.source import OpenFootballClient  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
     MEAN_MARK_POINTS,
@@ -658,6 +668,99 @@ def model_sheet(stored: dict, round_number: int) -> dict:
             "gain": gain,
         }
 
+    # THE TWENTY-THREE THE MODEL WOULD BUY, which is a different question from
+    # the transfer above and worth more than it. Transfers are unlimited until
+    # matchday 5 and one a round after, so until then this whole squad is
+    # reachable in an afternoon; from then on it is a destination, not a plan.
+    #
+    # Measured over a reconstructed season the gap between a good squad and a
+    # careless one is several hundred points, and the gap between good weekly
+    # transfers and none at all is a few dozen. This is the decision that
+    # matters, and it has a deadline.
+    #
+    # Season values, not this week's, for the same reason the transfer uses
+    # them: a squad is held to May.
+    ideal = {}
+    season_view = {i: v["expected"] for i, v in wide.items()}
+    bought = best_squad_under_budget(
+        [
+            {"id": i, "position": whole[i].position, "value": whole[i].value}
+            for i in known
+        ],
+        {i: season_view.get(i, 0.0) * max(1, LAST_MATCHDAY - round_number + 1) for i in known},
+        budget=BASE_BUDGET,
+    )
+    if bought is not None:
+        # The exact optimiser maximises the sum of twenty-three, which is not
+        # the game — eleven score. The search finishes the job on the real
+        # objective, which is what the eleven returns once absences and §11
+        # substitutions have been played out.
+        settled = improve_squad(
+            bought["players"],
+            whole,
+            {i: v["returns"] for i, v in wide.items()},
+            {i: v["playing"] for i, v in wide.items()},
+            budget=BASE_BUDGET,
+            candidates=known,
+            draws=SWAP_DRAWS,
+        )
+        chosen = settled["players"]
+        eleven = best_eleven(
+            [
+                {"id": i, "position": whole[i].position, "value": whole[i].value}
+                for i in chosen
+            ],
+            {i: expected.get(i, season_view.get(i, 0.0)) for i in chosen},
+        )
+
+        def outsider(player_id: str) -> dict:
+            person = whole[player_id]
+            entry = wide[player_id]
+            week = weeks.get(person.club)
+            return {
+                "id": player_id,
+                "name": person.name,
+                "position": person.position.value,
+                "club": person.club,
+                "value": person.value,
+                "expected": expected.get(player_id, season_view.get(player_id, 0.0)),
+                "season": entry["expected"],
+                "playing": entry["playing"],
+                "appearances": entry["appearances"],
+                "label": LABEL_PT.get(entry["label"], entry["label"]),
+                "opponent": None if week is None else week["opponent"],
+                "at_home": None if week is None else week["at_home"],
+                "owned": (quoted.get(player_id) or {}).get("owned_percent"),
+                "held": player_id in market,
+            }
+
+        # HIS TWENTY-THREE ON THE SAME RULER. The first version of this section
+        # printed the model's Monte Carlo round against his fixture-adjusted
+        # team-sheet total and reported the ideal squad as 2.2 points WORSE —
+        # which is the exact error the section above it warns about, made one
+        # section later. They are different quantities: one plays the round out
+        # with absences and §11 substitutions, the other is eleven names added
+        # up. Both squads are now valued by the same call.
+        mine_round = squad_value(
+            [p.id for p in squad.players],
+            whole,
+            {i: v["returns"] for i, v in wide.items()},
+            {i: v["playing"] for i, v in wide.items()},
+            draws=SWAP_DRAWS,
+        )
+
+        ideal = {
+            "players": [outsider(i) for i in chosen],
+            "cost": sum(whole[i].value for i in chosen),
+            "expected_round": settled["expected_round"],
+            "yours_round": mine_round,
+            "eleven": [outsider(i) for i in (eleven or {}).get("starters", [])],
+            "bench": [outsider(i) for i in (eleven or {}).get("bench", [])],
+            "captain": (eleven or {}).get("captain"),
+            "formation": (eleven or {}).get("formation"),
+            "kept": sum(1 for i in chosen if i in market),
+        }
+
     # HIS OWN SHEET, PRICED ON THE SAME NUMBERS. This is the whole point of
     # showing the two side by side: a difference is only a difference if both
     # halves were measured with one ruler. The obvious shortcut — reading the
@@ -691,6 +794,7 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         "out_of_filed": [described(i) for i in sorted(filed - picked)],
         "transfer": move,
         "yours": yours,
+        "ideal": ideal,
         # Never negative in practice — best_eleven is exact over the same 23, so
         # the model's sheet is the ceiling his squad could have put out. A zero
         # here means he already picked it, which is the good outcome and should
@@ -1302,6 +1406,113 @@ def versus_section(data: dict) -> str:
       <a href="decisoes.html">As decisões</a>.</p>"""
 
 
+def ideal_section(data: dict) -> str:
+    """The twenty-three the model would buy, and the eleven it would field.
+
+    A different question from the weekly transfer, and a larger one. Over a
+    reconstructed season the gap between a good squad and a careless one runs
+    to several hundred points; the gap between good weekly transfers and none
+    at all is a few dozen. This is the decision that matters.
+
+    And it has a deadline, which is why it is on the front page rather than
+    filed away: transfers are unlimited until matchday 5 and one a round after.
+    Until then the whole squad is reachable in an afternoon. From then on it is
+    a destination reached one move a week, if at all.
+    """
+    found = data.get("model") or {}
+    ideal = found.get("ideal") or {}
+    yours = found.get("yours") or {}
+    if not ideal:
+        return """      <p class="lede">O plantel ideal não foi calculado — falta a
+      reconstrução das épocas. Corre <code>scripts/build_last_season.py</code>.</p>"""
+
+    round_number = data["round"]
+    free = round_number < FIRST_SCORING_MATCHDAY
+    per_round = ideal["expected_round"]
+    mine = ideal.get("yours_round")
+
+    groups = []
+    for pos in ("GK", "DEF", "MID", "FWD"):
+        members = sorted(
+            (e for e in ideal["players"] if e["position"] == pos),
+            key=lambda e: -e["season"],
+        )
+        if not members:
+            continue
+        lines = []
+        for entry in members:
+            lines.append(
+                '            <tr' + (' class="is-me"' if entry["held"] else "") + ">" + chr(10)
+                + '              <td class="name">' + esc(entry["name"])
+                + '<span class="sub">' + esc(entry["club"])
+                + (" · já é teu" if entry["held"] else "") + "</span></td>" + chr(10)
+                + '              <td class="fig">' + f"{entry['value'] / 1e6:.2f}M" + "</td>" + chr(10)
+                + '              <td class="fig strong">' + f"{entry['season']:.2f}" + "</td>" + chr(10)
+                + '              <td class="fig">'
+                + ("—" if entry["owned"] is None else f"{entry['owned']:.0f}%")
+                + "</td>" + chr(10)
+                + '              <td class="name"><span class="sub">'
+                + esc(entry["label"]) + "</span></td>" + chr(10)
+                + "            </tr>"
+            )
+        groups.append(
+            '        <tbody>' + chr(10)
+            + '          <tr><th colspan="5" class="pos-row">' + POS_PT[pos]
+            + "</th></tr>" + chr(10) + chr(10).join(lines) + chr(10) + "        </tbody>"
+        )
+
+    eleven = []
+    for entry in sorted(ideal["eleven"], key=lambda e: (-e["expected"])):
+        worn = entry["id"] == ideal.get("captain")
+        eleven.append(
+            esc(entry["name"]) + ('<span class="cap">C</span>' if worn else "")
+        )
+
+    deadline = (
+        f"""<strong>Até à jornada {FIRST_SCORING_MATCHDAY} as transferências são
+      ilimitadas</strong>, portanto este plantel ainda é alcançável de uma vez.
+      Estás na jornada {round_number}."""
+        if free
+        else f"""O plantel fechou na jornada {FIRST_SCORING_MATCHDAY}. Daqui para a
+      frente isto é um destino, alcançável a uma transferência por jornada pelo
+      §6.8 — não um plano para esta semana."""
+    )
+
+    gap = ""
+    if mine is not None:
+        # Per round and over what is left, because a squad is held to May and a
+        # number per round hides how much a season of it comes to.
+        left = max(1, LAST_MATCHDAY - round_number + 1)
+        gap = f"""      <p class="lede">Jogando a jornada centenas de vezes — quem
+      aparece sorteado da probabilidade de cada um, com as substituições do §11
+      aplicadas — o teu plantel vale <strong>{mine:.1f}</strong> por jornada e
+      este vale <strong>{per_round:.1f}</strong>.
+      Uma diferença de <strong>{per_round - mine:+.1f}</strong> por jornada, ou
+      <strong>{(per_round - mine) * left:+.0f}</strong> até ao fim da época.</p>"""
+
+    return f"""      <p class="lede">Os vinte e três que o modelo compraria com os
+      mesmos 40 milhões, se pudesse começar do zero hoje. <strong>Isto é uma
+      pergunta diferente da transferência da semana, e vale mais</strong>: medido
+      sobre uma época reconstruída, a distância entre um bom plantel e um
+      descuidado são centenas de pontos, e entre boas transferências semanais e
+      nenhumas são algumas dezenas.</p>
+      <p class="lede">{deadline}</p>
+{gap}
+      <p class="lede">Guarda <strong>{ideal['kept']} dos teus 23</strong>. As
+      linhas marcadas já são tuas.</p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>o plantel</th><th class="fig">preço</th>
+          <th class="fig">por jornada</th><th class="fig">posse</th>
+          <th>o que é</th></tr></thead>
+{chr(10).join(groups)}
+        </table>
+      </div>
+      <p class="footnote">Custa <strong>{ideal['cost'] / 1e6:.2f}M</strong> de 40M.
+      O onze que alinharia esta jornada, em <strong>{esc(ideal['formation'] or '')}</strong>:
+      {', '.join(eleven)}.</p>"""
+
+
 def exposure_section(data: dict) -> str:
     matches = (data["exposure"] or {}).get("matches") or []
     if not matches:
@@ -1858,6 +2069,7 @@ PAGES = [
         [
             ("A folha entregue", "sheet"),
             ("O teu onze contra o do modelo", "versus"),
+            ("O plantel que o modelo compraria", "ideal"),
             ("Onde está o risco", "exposure"),
             ("As próximas jornadas", "grid"),
         ],
@@ -1903,6 +2115,7 @@ PAGES = [
 SECTIONS = {
     "sheet": lambda data, public: sheet_section(data),
     "versus": lambda data, public: versus_section(data),
+    "ideal": lambda data, public: ideal_section(data),
     "exposure": lambda data, public: exposure_section(data),
     "grid": lambda data, public: grid_section(data),
     "model": lambda data, public: model_section(data),
