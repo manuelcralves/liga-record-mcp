@@ -93,10 +93,34 @@ jobs:
             exit 0
           fi
 
+          # WHAT ACTUALLY HAPPENED, read off the diff rather than assumed. The
+          # message here was fixed prose — "registado antes do apito" — and the
+          # job says that whether it recorded a prediction or filled in a result
+          # afterwards. It settled six players and claimed to have predicted
+          # them, which in a file whose whole purpose is keeping those two
+          # apart is the one lie it must not tell.
+          #
+          # The diff is the honest source: a new round brings a recorded_at, and
+          # a settled player turns "actual": null into a number.
+          diff="$(git diff -U0 -- data/projections.json)"
+          recorded=$(printf '%s\n' "$diff" | grep -c '^+.*"recorded_at"' || true)
+          settled=$(printf '%s\n' "$diff" | grep -c '^+.*"actual": [^n]' || true)
+
+          if [ "$recorded" -gt 0 ] && [ "$settled" -gt 0 ]; then
+            subject="chore: uma ronda registada, e $settled jogadores liquidados"
+          elif [ "$recorded" -gt 0 ]; then
+            subject="chore: a previsão da ronda, registada antes do apito"
+          elif [ "$settled" -gt 0 ]; then
+            subject="chore: $settled jogadores liquidados contra o que foi previsto"
+          else
+            subject="chore: o ledger, atualizado pelo trabalho agendado"
+          fi
+          echo "::notice::$subject"
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- data/projections.json
-          git commit -m "chore: o ledger, registado antes do apito pelo trabalho agendado"
+          git commit -m "$subject" -m "Trabalho agendado. Registar recusa depois do apito, e liquidar só preenche clubes que já jogaram — o que este commit contém é o que o regulamento deixou fazer no momento em que correu."
 
           # He commits from the laptop too. Rebasing one file's commit onto
           # whatever he pushed meanwhile is almost always clean; when it is

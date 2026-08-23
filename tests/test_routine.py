@@ -154,3 +154,42 @@ def test_a_round_already_complete_is_left_alone(settle):
     assert not settle(
         settled=0, coach_settled=False, pending=[], was_fully_settled=True
     )
+
+
+# --- The job must not describe work it did not do -----------------------------
+#
+# The commit subject was fixed prose: "o ledger, registado antes do apito". The
+# job says that whether it recorded a prediction or filled in a result after
+# the fact — and it settled six players under exactly that heading. In a file
+# whose entire purpose is keeping predictions and results apart, a commit
+# message that confuses the two is the one thing it cannot be allowed to say.
+
+
+def test_the_commit_subject_is_derived_not_fixed(workflow):
+    """It has to read what changed, not assert what usually changes."""
+    run = next(
+        step["run"]
+        for step in workflow["jobs"]["ledger"]["steps"]
+        if "git commit" in (step.get("run") or "")
+    )
+    assert 'git commit -m "$subject"' in run, (
+        "the commit subject is hardcoded again — derive it from the diff, or "
+        "the job will describe settling as predicting"
+    )
+    # Both halves of the ledger have to be detectable, or one of them gets
+    # reported as the other.
+    assert '"recorded_at"' in run, "nothing detects a newly recorded round"
+    assert '"actual"' in run, "nothing detects a settled player"
+
+
+def test_the_subject_covers_every_outcome(workflow):
+    """Recorded, settled, both, and neither. A missing branch is a wrong message."""
+    run = next(
+        step["run"]
+        for step in workflow["jobs"]["ledger"]["steps"]
+        if "git commit" in (step.get("run") or "")
+    )
+    assert run.count("subject=") >= 4, (
+        "fewer than four branches: one of recorded / settled / both / neither "
+        "would fall through to another one's wording"
+    )
