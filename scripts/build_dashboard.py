@@ -126,6 +126,10 @@ def gather(round_number: int) -> dict:
     if key not in log:
         raise SystemExit(f"round {round_number} has no recorded projection")
     stored = log[key]
+    # Every round, not only this one. `track_rounds` reads them to answer the
+    # question the rest of the site cannot: whether following the model would
+    # have paid. Carried inside `stored` so nothing else has to change shape.
+    stored["_all"] = log
 
     guid = os.environ.get("LIGA_RECORD_LEAGUE")
     league = mcp.standings(league_guid=guid, page_size=50) if guid else None
@@ -170,7 +174,7 @@ def gather(round_number: int) -> dict:
             if row:
                 history.append({"round": int(round_key), **row})
 
-    return {
+    data = {
         "round": round_number,
         "stored": stored,
         "league": (league or {}).get("teams") or [],
@@ -190,6 +194,9 @@ def gather(round_number: int) -> dict:
         "holidays": holiday_rows(round_number),
         "as_of": national.get("as_of", ""),
     }
+    # After the dict exists, because it reads what the dict carries.
+    data["track"] = track_rounds(data)
+    return data
 
 
 #: What a pick's label is called on the page. stats.py speaks English like the
@@ -1513,6 +1520,144 @@ def ideal_section(data: dict) -> str:
       {', '.join(eleven)}.</p>"""
 
 
+def track_rounds(data: dict) -> list[dict]:
+    """Every round on file, scored three ways from what the ledger already holds.
+
+    NO LOOKAHEAD ANYWHERE, and it is worth spelling out why. The model's eleven
+    is recomputed from the projections FILED BEFORE KICKOFF — they are on record
+    with a timestamp, and the record step refuses to write after the whistle —
+    then scored with what actually happened. The sheet he filed is read from the
+    same snapshot. Only the ceiling looks at results to choose, and it is
+    labelled as the thing nobody could have picked.
+
+    A partly settled round is reported and excluded from the totals. Eight
+    players still pending would score as nothing, which would not be a worse
+    result — it would be a different question.
+    """
+    out = []
+    for key, stored in sorted(
+        data["stored"].get("_all", {}).items(), key=lambda kv: int(kv[0])
+    ):
+        rows = stored.get("players") or {}
+        settled = {i: r for i, r in rows.items() if r.get("actual") is not None}
+        if not settled:
+            continue
+
+        shape = [
+            {"id": i, "position": Position(r["position"]), "value": r["value"]}
+            for i, r in rows.items()
+        ]
+        theirs = best_eleven(shape, {i: r["projected"] for i, r in rows.items()})
+        ceiling = best_eleven(
+            shape, {i: float(r["actual"]) for i, r in settled.items()}
+        )
+
+        def scored(ids, captain) -> float | None:
+            """What an eleven actually returned, §10.3(l) included."""
+            if not ids or any(i not in settled for i in ids):
+                return None
+            total = sum(settled[i]["actual"] for i in ids)
+            return total + (settled[captain]["actual"] if captain in settled else 0)
+
+        filed = stored.get("filed") or {}
+        errors = [r["error"] for r in settled.values() if r.get("error") is not None]
+        whole = len(settled) == len(rows)
+
+        out.append(
+            {
+                "round": int(key),
+                "settled": len(settled),
+                "of": len(rows),
+                "whole": whole,
+                # NO TOTALS FOR A PARTLY SETTLED ROUND, not even the ceiling.
+                # It is the one that would compute anyway — it picks from the
+                # players who have results — and printing 78 beside two dashes
+                # invites reading it as the ceiling for the round, when it is
+                # the best eleven among whoever happens to have played. Three
+                # dashes say "not yet"; one number and two dashes says
+                # something false.
+                "model": scored(theirs["starters"], theirs["captain"]) if whole and theirs else None,
+                "mine": scored(filed.get("starters") or [], filed.get("captain")) if whole else None,
+                "ceiling": scored(ceiling["starters"], ceiling["captain"]) if whole and ceiling else None,
+                "error": (sum(abs(e) for e in errors) / len(errors)) if errors else None,
+                "bias": (sum(errors) / len(errors)) if errors else None,
+            }
+        )
+    return out
+
+
+def track_section(data: dict) -> str:
+    """Whether following the model would have paid — the question behind all of it.
+
+    Every other number on this site is an argument about what should happen.
+    This is the only one that reports what did, and it is the one that gets
+    better on its own: one round says nothing, twelve say something.
+    """
+    rounds = data.get("track") or []
+    if not rounds:
+        return """      <p class="lede">Nenhuma jornada liquidada ainda. Isto enche-se
+      sozinho — a rotina regista antes do apito e liquida depois.</p>"""
+
+    body = []
+    for row in rounds:
+        mark = "" if row["whole"] else '<span class="pending">parcial</span>'
+        body.append(
+            "            <tr>" + chr(10)
+            + f'              <td class="name">Jornada {row["round"]} {mark}'
+            + f'<span class="sub">{row["settled"]} de {row["of"]} liquidados</span></td>' + chr(10)
+            + '              <td class="fig strong">'
+            + ("—" if row["model"] is None else f"{row['model']:.0f}") + "</td>" + chr(10)
+            + '              <td class="fig">'
+            + ("—" if row["mine"] is None else f"{row['mine']:.0f}") + "</td>" + chr(10)
+            + '              <td class="fig muted">'
+            + ("—" if row["ceiling"] is None else f"{row['ceiling']:.0f}") + "</td>" + chr(10)
+            + '              <td class="fig">'
+            + ("—" if row["error"] is None else f"{row['error']:.2f}") + "</td>" + chr(10)
+            + '              <td class="fig">'
+            + ("—" if row["bias"] is None else f"{row['bias']:+.2f}") + "</td>" + chr(10)
+            + "            </tr>"
+        )
+
+    whole = [r for r in rounds if r["whole"] and r["model"] is not None]
+    verdict = """      <p class="footnote">Nenhuma jornada está liquidada por
+      inteiro, portanto ainda não há totais para somar. Um clube com jogo adiado
+      fica pendente, e contá-lo como zero seria uma pergunta diferente.</p>"""
+    if whole:
+        model = sum(r["model"] for r in whole)
+        mine = sum(r["mine"] for r in whole if r["mine"] is not None)
+        n = len(whole)
+        gap = model - mine
+        verdict = f"""      <p class="footnote">Sobre {n} jornada{'s' if n != 1 else ''}
+      liquidada{'s' if n != 1 else ''} por inteiro: o onze do modelo somou
+      <strong>{model:.0f}</strong>, o teu somou <strong>{mine:.0f}</strong>.
+      Diferença de <strong>{gap:+.0f}</strong>.
+      {'Ainda é pouco para concluir seja o que for — pergunta outra vez à jornada 12.' if n < 8 else ''}</p>"""
+
+    return f"""      <p class="lede">A única tabela deste site que reporta o que
+      <em>aconteceu</em> em vez de argumentar sobre o que devia acontecer. E a
+      única que melhora sozinha: uma jornada não diz nada, doze dizem.</p>
+      <p class="lede"><strong>Sem olhar para o futuro em lado nenhum.</strong> O
+      onze do modelo é recalculado das projeções registadas <em>antes</em> do
+      apito — estão em ficheiro com data, e o registo recusa-se depois do jogo —
+      e depois pontuado com o que aconteceu. Só o teto escolhe sabendo os
+      resultados, e é por isso que está marcado como o que ninguém conseguia
+      escolher.</p>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>jornada</th><th class="fig">o modelo</th>
+          <th class="fig">o teu</th><th class="fig">o teto</th>
+          <th class="fig">erro</th><th class="fig">viés</th></tr></thead>
+          <tbody>
+{chr(10).join(body)}
+          </tbody>
+        </table>
+      </div>
+{verdict}
+      <p class="footnote">O <strong>viés</strong> é o sinal do erro: positivo
+      quer dizer que os jogadores fizeram mais do que o previsto, ou seja o
+      modelo foi pessimista.</p>"""
+
+
 def exposure_section(data: dict) -> str:
     matches = (data["exposure"] or {}).get("matches") or []
     if not matches:
@@ -2106,7 +2251,11 @@ PAGES = [
     (
         "modelo",
         "O modelo",
-        [("Projetado contra real", "ledger"), ("Por resolver", "questions")],
+        [
+            ("Projetado contra real", "ledger"),
+            ("Valeria a pena seguir o modelo?", "track"),
+            ("Por resolver", "questions"),
+        ],
     ),
 ]
 
@@ -2129,6 +2278,7 @@ SECTIONS = {
     "league": lambda data, public: league_section(data, public),
     "liga": lambda data, public: liga_section(data),
     "ledger": lambda data, public: ledger_section(data),
+    "track": lambda data, public: track_section(data),
     "questions": lambda data, public: (
         '      <div class="questions">' + chr(10) + questions_section() + chr(10)
         + "      </div>"

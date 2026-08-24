@@ -352,9 +352,25 @@ def main() -> None:
 
     history = OpenFootballClient(timeout=60.0)
     rows = snapshot(market, history, squad, snapshot_of_squad.round_number)
+    # THE SHEET HE FILED, alongside what was expected of it. Without this the
+    # ledger can say whether the model predicted well, and never whether
+    # following it would have paid — which is the question he actually asked.
+    # It is read from the same squad file the projections come from, so it is
+    # what he had entered at the moment the round was snapshotted, and like
+    # everything else here it is written before kickoff.
+    picked = snapshot_of_squad.selection
     log["rounds"][key] = {
         "recorded_at": now,
         "squad_value": squad.value(),
+        "filed": (
+            {
+                "starters": list(picked.starters),
+                "bench": list(picked.bench),
+                "captain": picked.captain,
+            }
+            if picked is not None
+            else None
+        ),
         "players": rows,
         "coach": coach_snapshot(
             history, matches_played(market.fixtures()), snapshot_of_squad.round_number
