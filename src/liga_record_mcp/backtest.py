@@ -560,6 +560,7 @@ def adjusted_projection(
     suspended: float = SUSPENDED_PLAYS,
     shares: Mapping[Position, float] | None = None,
     floor: float | None = None,
+    strength: float | None = None,
     bias: Mapping[Position, float] | None = None,
     **kwargs: Any,
 ) -> dict[str, float]:
@@ -620,6 +621,7 @@ def adjusted_projection(
                 attacking,
                 share=None if shares is None else shares[position],
                 **({} if floor is None else {"floor": floor}),
+                **({} if strength is None else {"strength": strength}),
             )
 
     blended = {

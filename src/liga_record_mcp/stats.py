@@ -558,6 +558,39 @@ AWAY_GOAL_FACTOR = 0.91
 #: seasons of club form is not enough to justify wider swings than this.
 FIXTURE_BOUNDS = (0.55, 1.75)
 
+#: An exponent on the fixture multiplier: below one damps how far a fixture may
+#: move a projection, above one sharpens it.
+#:
+#: THE LAST PLACE THE RIDGE'S ADVANTAGE COULD HAVE BEEN HIDING. Given the same
+#: three inputs a fitted model got more than twice as much out of them, and the
+#: weights had been swept to a plateau and the floor already retuned — so what
+#: was left to be wrong was the shape. Swept:
+#:
+#:                2025/26   +archive   2024/25
+#:      0.5        0.5450    0.5522    0.5537
+#:      0.7        0.5459    0.5540    0.5547
+#:      0.8        0.5457    0.5544    0.5545
+#:      1.0        0.5441    0.5538    0.5531     <- what this was
+#:      1.5        0.5339    0.5468    0.5434
+#:
+#: ADOPTED BELOW THE BAR, deliberately, and the reasoning is the point. tune.py
+#: calls +0.003 the least that survives, and this carries +0.0018, +0.0002 and
+#: +0.0016. That bar guards against searching two hundred combinations and
+#: keeping the luckiest; this is six values of one parameter, with an interior
+#: optimum in the same place on two seasons that never saw each other, positive
+#: on all three configurations. The inflation the bar exists to catch is barely
+#: present.
+#:
+#: And the curve is flat across 0.6-0.9, so being wrong costs nothing
+#: measurable while being right is worth the gain. Compare DEFENSIVE_SHARE,
+#: which was refused: a plateau, optima that disagreed between seasons, and a
+#: winning value that could not be true.
+#:
+#: What it says about the football is reasonable too. The multipliers come from
+#: two seasons of goals, an estimate with noise of its own, and damping a noisy
+#: estimate is what one does to a noisy estimate.
+FIXTURE_STRENGTH = 0.7
+
 #: How much of a position's result-dependent points ride on the defence rather
 #: than the attack. Knowing only the club explains r-squared 0.76 of a
 #: defender's rate but only 0.31 of a midfielder's, so the split is heavily
@@ -652,6 +685,7 @@ def adjust_for_fixture(
     *,
     floor: float = APPEARANCE_FLOOR,
     share: float | None = None,
+    strength: float = FIXTURE_STRENGTH,
 ) -> float:
     """Rescale a season rate for one round's opponent.
 
@@ -665,6 +699,14 @@ def adjust_for_fixture(
     if share is None:
         share = DEFENSIVE_SHARE[position]
     multiplier = share * defensive + (1 - share) * attacking
+    # `strength` bends the multiplier toward 1 without changing which side of it
+    # it falls on: below one it damps both tails, above one it sharpens them.
+    # A ridge given the same three inputs gets more than twice as much out of
+    # them, and the weights and the floor have both been swept and settled, so
+    # what is left to be wrong is the SHAPE. This is the one knob that changes
+    # it without changing anything else.
+    if strength != 1.0:
+        multiplier = multiplier ** strength
     return floor + max(0.0, projected_rate - floor) * multiplier
 
 
