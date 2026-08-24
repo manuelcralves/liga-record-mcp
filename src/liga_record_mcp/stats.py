@@ -579,6 +579,23 @@ FIXTURE_BOUNDS = (0.55, 1.75)
 #: they move together and the weight between them is barely identified. A
 #: search that separates them needs a signal that pulls them apart, not a finer
 #: grid over the same two.
+#:
+#: RE-CHECKED AND UNCHANGED, by scripts/tune_fixture.py, which exists so the
+#: numbers above can be re-run instead of taken on trust. Sweeping each position
+#: on its own from the values in use — no coordinate order to confound it:
+#:
+#:                 2025/26              2024/25
+#:      GK    0.00 best, 1.00 worst   0.00 best, 1.00 worst   agree, span 0.0004/0.0010
+#:      DEF   0.25-0.50 best          0.00-0.25 best          agree, span 0.0008/0.0029
+#:      MID   0.25 best               0.50 best               already about right
+#:      FWD   0.25 best, falls after  0.75 best, rises to it  OPPOSITE DIRECTIONS
+#:
+#: Changing only where both seasons agree on the DIRECTION — GK to 0.00, DEF to
+#: 0.25 — is worth +0.0009 and +0.0029, under the bar on both. And GK 0.00 says
+#: a keeper's return moves only with how likely his own side is to SCORE, which
+#: is not a thing that can be true. That is the collinearity above showing its
+#: face: with the two multipliers moving together, the search is free to put the
+#: weight anywhere and picks on noise.
 DEFENSIVE_SHARE = {
     Position.GK: 1.0,
     Position.DEF: 0.85,
