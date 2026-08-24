@@ -218,6 +218,27 @@ def squad_value(
         coach_id="candidate",
     )
 
+    # ABSENCE IS DRAWN PER PLAYER, NOT PER CLUB, and that is a simplification
+    # rather than the truth — a postponed fixture removes a whole club at once,
+    # and §11 allows only three substitutions, so five starters from one club
+    # going out together is a different event from five going out separately.
+    #
+    # Measured before deciding it did not matter. Postponements run at 1.1% of
+    # club-rounds — seventeen fixtures in the five seasons openfootball holds —
+    # and at that rate, on Manuel's squad:
+    #
+    #     drawn per club (what happens)    44.795
+    #     drawn per player (what this does) 44.865
+    #
+    # Seven hundredths of a point a round, about two over a season, against a
+    # squad choice worth ninety. Not worth the complication.
+    #
+    # The reason it is so small is worth keeping, because it will not always
+    # hold: his concentration sits on the BENCH — five of Gil Vicente in the
+    # twenty-three but one in the eleven — and a substitute contributes almost
+    # nothing to a round. A squad with five of one club STARTING would pay
+    # considerably more, and this measurement would not describe it.
+    #
     # Each player misses exactly his share of the draws, in an order of his
     # own. Two things had to be fixed here and only the first is obvious.
     #
