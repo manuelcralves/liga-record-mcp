@@ -495,6 +495,30 @@ def round_fixtures(round_number: int) -> dict[str, dict]:
     return out
 
 
+def judged_on(
+    fresh: dict[str, float], stored: dict, *, kicked_off: bool
+) -> dict[str, float]:
+    """Which estimates a round's team sheet should be judged against.
+
+    Fresh ones while the sheet is open — that is advice, and advice uses
+    everything known now. The ones ON RECORD once it has shut, because from
+    that moment the comparison stops being advice and becomes a verdict on a
+    choice already made.
+
+    Falls back to fresh if the record is incomplete: a partial map would score
+    some players on one model and the rest on another, which is worse than
+    either.
+    """
+    if not kicked_off:
+        return fresh
+    on_record = {
+        i: row["projected"]
+        for i, row in (stored.get("players") or {}).items()
+        if row.get("projected") is not None
+    }
+    return on_record if len(on_record) == len(fresh) else fresh
+
+
 def model_sheet(stored: dict, round_number: int) -> dict:
     """What the model would field next round, beside what was actually filed.
 
@@ -571,6 +595,28 @@ def model_sheet(stored: dict, round_number: int) -> dict:
             + (1 - entry["playing"]) * float(UNUSED_PENALTY)
         )
         fixture_of[player_id] = week
+
+    # ONCE THE ROUND HAS KICKED OFF, JUDGE THE DECISION BY WHAT WAS KNOWN THEN.
+    #
+    # §6.13 shut the sheet fifteen minutes before the first match, so from that
+    # moment this section stops being advice and becomes a verdict on a choice
+    # already made. Computing it fresh judges that choice with constants that
+    # have moved since — and they have: APPEARANCE_FLOOR went 2.0 to 1.0 and
+    # tripled the fixture adjustment, all after round 3 was filed.
+    #
+    # It said Manuel should have captained Begraoui over Pavlidis. The
+    # projections ON RECORD, written before kickoff, put Pavlidis at 9.19 and
+    # Begraoui at 5.39 — the model of the day agreed with him. Telling someone
+    # they chose badly using information that did not exist when they chose is
+    # the same error as scoring a prediction after the result, wearing a
+    # different hat.
+    #
+    # While the sheet is open, fresh is right: that is advice, and advice should
+    # use everything known now.
+    kicked_off = any(
+        f.round_number == round_number and f.played for f in mcp._market.fixtures()
+    )
+    expected = judged_on(expected, stored, kicked_off=kicked_off)
 
     sheet = best_eleven(rows, expected)
     if sheet is None:

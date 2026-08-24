@@ -143,3 +143,40 @@ def test_the_recorder_stores_the_filed_sheet(dash):
         "record_projection.py no longer snapshots the team sheet — the track "
         "record stops being reconstructible from that round on"
     )
+
+
+# --- judging a decision by what was known when it was made ---------------------
+#
+# §6.13 shuts the team sheet fifteen minutes before a round's first match. From
+# that moment the comparison on the front page stops being advice and becomes a
+# verdict on a choice already made — and computing it fresh judges that choice
+# with constants that have since moved. APPEARANCE_FLOOR went from 2.0 to 1.0
+# after round 3 was filed, tripling the fixture adjustment, and the page began
+# telling Manuel he should have captained Begraoui. The projections on record,
+# written before kickoff, had Pavlidis at 9.19 against Begraoui's 5.39: the
+# model of the day agreed with him.
+
+
+def test_an_open_round_is_judged_on_todays_estimates(dash):
+    """While the sheet is open this is advice, and advice uses what is known."""
+    fresh = {"1": 5.0, "2": 3.0}
+    stored = {"players": {"1": {"projected": 9.0}, "2": {"projected": 1.0}}}
+    assert dash.judged_on(fresh, stored, kicked_off=False) == fresh
+
+
+def test_a_closed_round_is_judged_on_what_was_on_record(dash):
+    fresh = {"1": 5.0, "2": 3.0}
+    stored = {"players": {"1": {"projected": 9.0}, "2": {"projected": 1.0}}}
+    assert dash.judged_on(fresh, stored, kicked_off=True) == {"1": 9.0, "2": 1.0}
+
+
+def test_an_incomplete_record_falls_back_rather_than_mixing(dash):
+    """Half on one model and half on another is worse than either."""
+    fresh = {"1": 5.0, "2": 3.0}
+    stored = {"players": {"1": {"projected": 9.0}}}
+    assert dash.judged_on(fresh, stored, kicked_off=True) == fresh
+
+
+def test_a_round_with_no_record_at_all_falls_back(dash):
+    fresh = {"1": 5.0}
+    assert dash.judged_on(fresh, {}, kicked_off=True) == fresh
