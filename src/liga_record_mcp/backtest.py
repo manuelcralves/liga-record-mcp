@@ -54,6 +54,7 @@ from .models import Player, Position, Selection, Squad
 from .optimise import best_eleven
 from .rules import simulate_autosubs
 from .stats import (
+    STARTER_MINUTES,
     PRIOR_STRENGTH,
     ROTATION_PRIOR,
     ROTATION_WINDOW,
@@ -127,6 +128,7 @@ def two_part_projection(
     window: int = ROTATION_WINDOW,
     rotation_prior: float = ROTATION_PRIOR,
     minutes_weighted: bool = False,
+    by_minutes: bool = False,
     parts: bool = False,
 ) -> dict[str, float] | tuple[dict[str, float], dict[str, float]]:
     """Expected points, split into whether he plays and what he does when he does.
@@ -156,7 +158,41 @@ def two_part_projection(
     returns. That is the difference between a starter and a man who comes on at
     eighty minutes, which the appearance flag alone cannot see.
 
-    It is off by default because it measures WORSE. Predicting each round from
+    MINUTES HAVE NOW BEEN TRIED ON BOTH HALVES AND BOTH ARE WORSE, which is
+    worth more than either result alone. `minutes_weighted` scales what he
+    RETURNS; `by_minutes` counts a part-appearance as a fraction on the half
+    that decides whether he PLAYS. The ridge's block ablation says the
+    information is real — dropping recent minutes costs it more than dropping
+    any other block — so the fault is in the shape, twice:
+
+                             2025/26   +archive   2024/25
+        by_minutes           -0.0414    -0.0415   -0.0509
+
+    The reason is the same reason both times. `playing` multiplies `returns`,
+    and a substitute's low returns ALREADY carry the fact that he is a
+    substitute. Scaling either half by minutes charges him for it twice.
+
+    Whatever the ridge is extracting, it is not a shrinkage. It stays open.
+
+    THE POSITION BLOCK WAS THE OTHER LEAD AND IT CLOSES. The estimator carries
+    a real, structural bias by position — it over-rates goalkeepers by roughly
+    four tenths of a point a round, on every configuration:
+
+                             GK       DEF      MID      FWD
+        2025/26            -0.430   +0.017   +0.053   +0.078
+        2025/26 + archive  -0.176   +0.038   +0.070   +0.123
+        2024/25            -0.370   +0.030   +0.024   +0.041
+
+    Correcting it walk-forward, from the bias seen in earlier rounds only, is
+    worth +0.0013, +0.0001 and +0.0003 — nothing. Correcting all four is worse
+    than correcting the keepers alone.
+
+    The reason is worth keeping: a constant offset per position cannot reorder
+    anyone WITHIN that position, and one goalkeeper is picked from eighteen who
+    are ranked against each other. The ridge gains on pooled correlation, where
+    every position sits in one column together. A team sheet does not.
+
+    `minutes_weighted` is off by default because it measures WORSE. Predicting each round from
     what came before, over two seasons and about ten thousand player-rounds, it
     loses to the plain split in both (1.601 against 1.530, and 1.592 against
     1.518). The idea is sound and the estimate is too noisy to pay for itself.
@@ -208,13 +244,31 @@ def two_part_projection(
 
         # Whether he takes it at all, weighted toward what has happened lately.
         recent = [m for m in earlier if m >= upto - window]
+        # HOW MUCH OF A MATCH, not merely whether. A man who came on at eighty
+        # counts as a full appearance here, and next week he is not the same
+        # bet as the one who played ninety — the block ablation puts the
+        # ridge's largest single loss on exactly this information, and the
+        # split has never used it on THIS half.
+        #
+        # The earlier attempt scaled what he RETURNS by minutes and measured
+        # worse. Minutes are not about how much he does when he plays; they
+        # are about how much of the next match he is likely to get, which is
+        # the other half entirely.
+        def share(matchday: int) -> float:
+            played = his_minutes.get(matchday, 0)
+            if not played:
+                return 0.0
+            return min(1.0, played / STARTER_MINUTES) if by_minutes else 1.0
+
         recent_rate = (
-            sum(1 for m in recent if his_minutes.get(m, 0) > 0) / len(recent)
+            sum(share(m) for m in recent) / len(recent)
             if recent
             else league_availability
         )
         season_rate = (
-            len(on_the_field) / len(earlier) if earlier else league_availability
+            sum(share(m) for m in on_the_field) / len(earlier)
+            if earlier
+            else league_availability
         )
         weight = len(recent)
         playing = (recent_rate * weight + season_rate * rotation_prior) / (

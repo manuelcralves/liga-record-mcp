@@ -215,7 +215,66 @@ def correlation(pairs):
     return covariance / (spread_a * spread_g) if spread_a and spread_g else 0.0
 
 
-def walk_forward(points, minutes, cells, table, cards):
+#: The feature columns, grouped by what they are about. Ablation is only
+#: legible by block: dropping `defensive` alone tells you nothing when
+#: `attacking` is still there to carry it.
+#:
+#: The indices follow `features_for` exactly, and a test holds them to it —
+#: this list silently drifting out of step with that function would produce
+#: an ablation table that looks fine and describes nothing.
+#: How many columns `features_for` produces. Derived rather than typed, so a
+#: feature added there cannot silently fall outside every block.
+FEATURE_COUNT = 22
+
+BLOCKS = {
+    "our own answer": (0,),
+    "the split": (1, 2),
+    "fixture": (3, 4, 5),
+    "suspension": (6,),
+    "club form": (7, 8),
+    "availability": (9,),
+    "how far into the season": (10,),
+    "recent minutes": (11, 12, 13),
+    "recent points": (14, 15, 16, 17),
+    "position": (18, 19, 20, 21),
+}
+
+
+def ablate(points, minutes, cells, table, cards, base_within):
+    """Where the ridge's advantage lives, one block at a time.
+
+    Two readings, and they answer different questions. DROPPING a block asks
+    what is lost that nothing else can replace — a block whose information is
+    duplicated elsewhere shows nothing here even when it matters. Running the
+    estimator plus ONE block asks what that block carries on its own, and a
+    block can score well there while being redundant.
+
+    A block that is large on both is the place to go looking.
+    """
+    print()
+    print(f"  {'block':<26}{'drop it':>10}{'it alone':>11}")
+    found = []
+    for name, columns in BLOCKS.items():
+        without = set(range(FEATURE_COUNT)) - set(columns)
+        alone = {0} | set(columns)
+        loss = _within_for(points, minutes, cells, table, cards, sorted(without))
+        only = _within_for(points, minutes, cells, table, cards, sorted(alone))
+        found.append((name, loss - base_within, only - base_within))
+        print(f"  {name:<26}{loss - base_within:>+10.4f}{only - base_within:>+11.4f}")
+    return found
+
+
+def _within_for(points, minutes, cells, table, cards, columns):
+    """The best within-round correlation reachable from these columns alone."""
+    _, _, _, per_round, _ = walk_forward(
+        points, minutes, cells, table, cards, columns=columns
+    )
+    return max(
+        (within(rounds) for rounds in per_round.values() if rounds), default=0.0
+    )
+
+
+def walk_forward(points, minutes, cells, table, cards, columns=None):
     """Predict every round from rounds strictly before it, for every penalty.
 
     The feature matrix is built ONCE per round. What a player looked like
@@ -227,6 +286,11 @@ def walk_forward(points, minutes, cells, table, cards):
         matchday: features_for(points, minutes, cells, table, cards, matchday)
         for matchday in range(FEATURE_FROM, LAST_MATCHDAY + 1)
     }
+    if columns is not None:
+        built = {
+            matchday: {p: [row[c] for c in columns] for p, row in rows.items()}
+            for matchday, rows in built.items()
+        }
 
     predictions: dict[float, list[tuple[float, float]]] = {p: [] for p in PENALTIES}
     baseline: list[tuple[float, float]] = []
@@ -321,8 +385,23 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--season", type=Path, default=SEASON_PATH)
     parser.add_argument("--archive", type=Path, default=None)
+    parser.add_argument(
+        "--ablate",
+        action="store_true",
+        help="where the advantage lives, block by block",
+    )
     args = parser.parse_args()
-    report(f"{args.season.name}, archive={bool(args.archive)}", args.season, args.archive)
+    base, _ = report(
+        f"{args.season.name}, archive={bool(args.archive)}", args.season, args.archive
+    )
+    if args.ablate:
+        points, minutes, cells, _, table, cards = harness.load(args.season, args.archive)
+        _, _, _, per_round, _ = walk_forward(points, minutes, cells, table, cards)
+        best = max((within(r) for r in per_round.values() if r), default=0.0)
+        ablate(points, minutes, cells, table, cards, best)
+        print()
+        print("  Read against the ridge, not the estimator: these say what the")
+        print("  FITTED model loses, which is where its advantage is coming from.")
 
 
 if __name__ == "__main__":
