@@ -20,7 +20,8 @@
           "attacking_multiplier": 1.447,
           "projected": 4.16,
           "points_before": 14,
-          "actual": null
+          "actual": 7,
+          "error": 2.84
         },
         "43383": {
           "name": "Alfonso Pastor",
@@ -75,7 +76,8 @@
           "attacking_multiplier": 1.447,
           "projected": 4.04,
           "points_before": 13,
-          "actual": null
+          "actual": 9,
+          "error": 4.96
         },
         "42893": {
           "name": "Jose Fontán",
@@ -93,7 +95,8 @@
           "attacking_multiplier": 0.55,
           "projected": 2.83,
           "points_before": 16,
-          "actual": null
+          "actual": 10,
+          "error": 7.17
         },
         "41670": {
           "name": "Zaidu",
@@ -111,7 +114,8 @@
           "attacking_multiplier": 1.447,
           "projected": 3.34,
           "points_before": 10,
-          "actual": null
+          "actual": 5,
+          "error": 1.66
         },
         "43052": {
           "name": "Léo Santos",
@@ -129,7 +133,8 @@
           "attacking_multiplier": 0.933,
           "projected": 2.83,
           "points_before": 11,
-          "actual": null
+          "actual": 10,
+          "error": 7.17
         },
         "43426": {
           "name": "Javi Sánchez",
@@ -147,7 +152,8 @@
           "attacking_multiplier": 0.55,
           "projected": 2.41,
           "points_before": 12,
-          "actual": null
+          "actual": 6,
+          "error": 3.59
         },
         "41350": {
           "name": "Tiago Esgaio",
@@ -165,7 +171,8 @@
           "attacking_multiplier": 0.55,
           "projected": 2.41,
           "points_before": 11,
-          "actual": null
+          "actual": 6,
+          "error": 3.59
         },
         "43510": {
           "name": "Finn van Breemen",
@@ -183,7 +190,8 @@
           "attacking_multiplier": 0.774,
           "projected": 2.61,
           "points_before": 8,
-          "actual": null
+          "actual": 6,
+          "error": 3.39
         },
         "41400": {
           "name": "Buatu",
@@ -276,7 +284,8 @@
           "attacking_multiplier": 1.217,
           "projected": 4.42,
           "points_before": 11,
-          "actual": null
+          "actual": 7,
+          "error": 2.58
         },
         "42019": {
           "name": "Danilovic",
@@ -425,7 +434,7 @@
           "actual": null
         }
       },
-      "settled_at": "2026-08-23T07:32:25.091099+00:00",
+      "settled_at": "2026-08-24T07:58:04.958228+00:00",
       "fully_settled": false,
       "coach": {
         "id": "890",
