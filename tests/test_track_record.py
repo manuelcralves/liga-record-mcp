@@ -180,3 +180,32 @@ def test_an_incomplete_record_falls_back_rather_than_mixing(dash):
 def test_a_round_with_no_record_at_all_falls_back(dash):
     fresh = {"1": 5.0}
     assert dash.judged_on(fresh, {}, kicked_off=True) == fresh
+
+
+def test_rounds_from_a_different_estimator_are_marked_and_excluded(dash):
+    """A total spanning a change of model measures the change, not the model.
+
+    Rounds 1-3 were written by the folded `project()`, which is not what the
+    pages advise with — it recorded Pavlidis at 9.19 on a two-round streak the
+    split shrinks to about five. Their error is still worth seeing; averaging
+    it in with later rounds is not.
+    """
+    rows = squad_rows({}, {str(i): 3 for i in range(1, 24)})
+    old = dash.track_rounds({"stored": ledger(rows)})[0]
+    assert old["estimator"] is None
+
+    marked = ledger(rows)
+    marked["_all"]["5"]["estimator"] = "valuation+fixture"
+    new = dash.track_rounds({"stored": marked})[0]
+    assert new["estimator"] == "valuation+fixture"
+
+
+def test_the_recorder_marks_which_estimator_wrote_the_round(dash):
+    source = (ROOT / "scripts" / "record_projection.py").read_text(encoding="utf-8")
+    assert '"estimator"' in source, (
+        "record_projection.py no longer marks the estimator — a later change of "
+        "model would be averaged into the accuracy figures silently"
+    )
+    assert "valuation(" in source, (
+        "the ledger has stopped recording the estimator the pages advise with"
+    )

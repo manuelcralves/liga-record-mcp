@@ -1648,6 +1648,11 @@ def track_rounds(data: dict) -> list[dict]:
                 "ceiling": scored(ceiling["starters"], ceiling["captain"]) if whole and ceiling else None,
                 "error": (sum(abs(e) for e in errors) / len(errors)) if errors else None,
                 "bias": (sum(errors) / len(errors)) if errors else None,
+                # Which estimator wrote the round. Rounds 1-3 were recorded by
+                # the folded `project()`, which is not what the pages advise
+                # with; averaging their error together with later rounds would
+                # report a change of model as weather.
+                "estimator": stored.get("estimator"),
             }
         )
     return out
@@ -1668,6 +1673,8 @@ def track_section(data: dict) -> str:
     body = []
     for row in rounds:
         mark = "" if row["whole"] else '<span class="pending">parcial</span>'
+        if row["estimator"] is None:
+            mark += '<span class="pending">modelo antigo</span>'
         body.append(
             "            <tr>" + chr(10)
             + f'              <td class="name">Jornada {row["round"]} {mark}'
@@ -1685,7 +1692,14 @@ def track_section(data: dict) -> str:
             + "            </tr>"
         )
 
-    whole = [r for r in rounds if r["whole"] and r["model"] is not None]
+    # Only rounds written by the estimator in use. A total that spans a change
+    # of model measures the change, not the model.
+    whole = [
+        r
+        for r in rounds
+        if r["whole"] and r["model"] is not None and r["estimator"] is not None
+    ]
+    stale = [r for r in rounds if r["estimator"] is None]
     verdict = """      <p class="footnote">Nenhuma jornada está liquidada por
       inteiro, portanto ainda não há totais para somar. Um clube com jogo adiado
       fica pendente, e contá-lo como zero seria uma pergunta diferente.</p>"""
@@ -1720,6 +1734,7 @@ def track_section(data: dict) -> str:
         </table>
       </div>
 {verdict}
+      {'<p class="footnote">As jornadas marcadas <strong>modelo antigo</strong> foram registadas por um estimador diferente do que hoje te aconselha — uma média dobrada, sem a divisão entre <em>joga</em> e <em>quanto rende</em>. Ficam à vista mas fora das somas: um total que atravessa uma mudança de modelo mede a mudança, não o modelo.</p>' if stale else ''}
       <p class="footnote">O <strong>viés</strong> é o sinal do erro: positivo
       quer dizer que os jogadores fizeram mais do que o previsto, ou seja o
       modelo foi pessimista.</p>"""

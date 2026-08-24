@@ -28,9 +28,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
+from liga_record_mcp.advice import valuation  # noqa: E402
 from liga_record_mcp.models import Position  # noqa: E402
 from liga_record_mcp.source import (  # noqa: E402
     LigaRecordClient,
+    load_appearances,
     ManualSquadSource,
     OpenFootballClient,
     load_coaches,
@@ -44,7 +46,11 @@ from liga_record_mcp.stats import (  # noqa: E402
     matches_played,
     position_baselines,
     project,
+    UNUSED_PENALTY,
 )
+
+from liga_record_mcp.source.appearances import current_records  # noqa: E402
+from liga_record_mcp.source.last_season import archive_records  # noqa: E402
 
 LOG_PATH = ROOT / "data" / "projections.json"
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
@@ -99,32 +105,53 @@ def snapshot(market, history, squad, round_number):
         opponents[f.home] = (f.away, True, f.kickoff)
         opponents[f.away] = (f.home, False, f.kickoff)
 
+    # THE ESTIMATOR THE PAGES ADVISE WITH, and until now this was not it.
+    #
+    # This file recorded `project()` — and called it without `appearances`, so
+    # it got the FOLDED average, the one that function's own docstring says
+    # hides the largest single fact about a fantasy footballer. The pages have
+    # always used `valuation()`: two seasons of archive, this season so far,
+    # and the split into whether he plays and what he returns when he does.
+    #
+    # The gap is not academic. Pavlidis, on 30 points from two rounds, recorded
+    # at 9.19 by the folded average riding a two-round streak, where the split
+    # shrinks it to about five. Every accuracy figure the ledger has produced
+    # was measuring a model nobody was being advised by — the same fault
+    # 162d930 found in the backtest, still sitting here because nobody checked
+    # whether it was true twice.
+    view = valuation(
+        {p.id: p for p in squad.players},
+        archive_records(ROOT / "data"),
+        current_records(
+            {m.id: m.as_player() for pos in Position for m in market.search(pos)},
+            counts,
+            load_appearances(ROOT / "data" / "appearances.json"),
+        ),
+    )
+
     rows = {}
     for player in squad.players:
         if player.club not in opponents:
             raise SystemExit(f"{player.club} has no round {round_number} fixture")
         opponent, at_home, kickoff = opponents[player.club]
 
-        detail = project(
-            player,
-            counts.get(player.club, 0),
-            records.get(player.club),
-            baselines,
-            position_mean[player.position],
-            league_ga,
-            league_gf,
-            club_index=index.get(player.club, 1.0),
-        )
-        season_rate = float(detail["projected_rate"])
+        entry = view.get(player.id)
+        if entry is None:
+            raise SystemExit(f"{player.name} has no valuation — cannot record a round")
+        season_rate = float(entry["expected"])
 
         own_ga, own_gf, known = club_rates(records, player.club, league_ga, league_gf)
         opp_ga, opp_gf, _ = club_rates(records, opponent, league_ga, league_gf)
         defensive, attacking = fixture_multipliers(
             own_ga, own_gf, opp_ga, opp_gf, league_ga, league_gf, at_home=at_home
         )
-        adjusted = adjust_for_fixture(
-            season_rate, player.position, defensive, attacking
-        )
+        # The fixture scales what he returns WHEN HE PLAYS and never the blend:
+        # §10.3(i) pays the same -1 whoever the opponent is, and scaling that
+        # would make an easy fixture a reason to own a man who is not in the
+        # side. This is the arithmetic build_dashboard does, to the letter.
+        adjusted = entry["playing"] * adjust_for_fixture(
+            entry["returns"], player.position, defensive, attacking
+        ) + (1 - entry["playing"]) * float(UNUSED_PENALTY)
 
         rows[player.id] = {
             "name": player.name,
@@ -136,8 +163,9 @@ def snapshot(market, history, squad, round_number):
             "kickoff": kickoff,
             "club_has_history": known,
             "season_rate": round(season_rate, 2),
-            "observed_rate": detail["observed_rate"],
-            "weight_on_form": detail["weight_on_form"],
+            "returns": round(entry["returns"], 2),
+            "playing": round(entry["playing"], 3),
+            "appearances": entry["appearances"],
             "defensive_multiplier": round(defensive, 3),
             "attacking_multiplier": round(attacking, 3),
             "projected": round(adjusted, 2),
@@ -361,6 +389,11 @@ def main() -> None:
     picked = snapshot_of_squad.selection
     log["rounds"][key] = {
         "recorded_at": now,
+        # Which estimator wrote this round. Rounds recorded before this existed
+        # came from the folded `project()`; mixing the two in one accuracy
+        # figure would average across a change of model and report it as
+        # weather.
+        "estimator": "valuation+fixture",
         "squad_value": squad.value(),
         "filed": (
             {
