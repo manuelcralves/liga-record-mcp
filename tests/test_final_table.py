@@ -20,6 +20,7 @@ from liga_record_mcp.final_table import (
     _hungarian,
     best_order,
     distribution,
+    everyone,
     expected_goals,
     play_out,
     score,
@@ -218,3 +219,52 @@ def test_the_order_is_not_a_sort_by_most_likely_finish():
     chosen = sum(value_of(c, i, spread, 3) for i, c in enumerate(order))
     other = sum(value_of(c, i, spread, 3) for i, c in enumerate(naive))
     assert chosen >= other
+
+
+# --- the table is not the league ---------------------------------------------
+#
+# `stats.league_table` builds standings from PLAYED fixtures, so a club that
+# has played none is absent from it while the calendar still lists its games.
+# Reading the club list off the table alone made `play_out` insert that club on
+# its own and `distribution` raise KeyError against a row it never allocated —
+# and only on draws where the missing club won or drew, so the same command
+# passed on one seed and died on another.
+
+
+def test_a_club_with_nothing_played_is_still_in_the_league():
+    """The crash, and the seventeen-club table hiding behind it."""
+    table = [
+        row("A", played=1, points=3, goals_for=2, goals_against=0, position=1),
+        row("B", played=1, points=0, goals_for=0, goals_against=2, position=2),
+    ]
+    spread = distribution(table, [("A", "C"), ("B", "C")], {}, draws=200, seed=0)
+    assert set(spread) == {"A", "B", "C"}
+    assert sum(spread["C"]) == pytest.approx(1.0)
+    assert all(len(odds) == 3 for odds in spread.values()), (
+        "a place matrix sized for the table cannot hold the league"
+    )
+
+
+def test_it_does_not_depend_on_which_draws_the_missing_club_wins():
+    """The RNG-dependence: it used to survive seeds where C lost every match."""
+    table = [row("A", played=1, points=3, goals_for=9, goals_against=0, position=1)]
+    for seed in range(6):
+        spread = distribution(table, [("A", "C")], {}, draws=50, seed=seed)
+        assert set(spread) == {"A", "C"}
+
+
+def test_a_club_with_no_row_starts_from_zero_not_from_its_first_result():
+    """Seeded explicitly, rather than conjured by whichever match it plays first."""
+    table = [row("A", played=30, points=90, goals_for=90, goals_against=10, position=1)]
+    finished = play_out(table, [], {}, random.Random(0))
+    assert finished == ["A"]
+
+    with_newcomer = play_out(table, [("A", "B")], {}, random.Random(0))
+    assert set(with_newcomer) == {"A", "B"}
+    assert with_newcomer[0] == "A", "ninety points did not survive a newcomer"
+
+
+def test_everyone_is_sorted_so_the_matrix_order_cannot_vary():
+    """Set order decided an answer in this project once already."""
+    table = [row("Z", position=1), row("A", position=2)]
+    assert everyone(table, [("M", "Z"), ("A", "M")]) == ["A", "M", "Z"]

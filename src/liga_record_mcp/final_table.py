@@ -156,6 +156,29 @@ def _poisson(mean: float, draw: random.Random) -> int:
         count += 1
 
 
+def everyone(
+    table: Sequence[Mapping[str, Any]], remaining: Sequence[tuple[str, str]]
+) -> list[str]:
+    """Every club in the league, from both halves of what we are given.
+
+    THE TABLE ALONE IS NOT THE LEAGUE. `stats.league_table` builds standings
+    from PLAYED fixtures, so a club that has played none — the opening weeks,
+    or a side whose first matches were all postponed — is simply absent from
+    it, while the calendar still lists every game it will play.
+
+    Reading the club list off the table alone left `play_out` inserting that
+    club on its own and `distribution` raising KeyError against a row it had
+    never allocated. Worse, it did so only on draws where the missing club won
+    or drew, so the same command passed on one seed and died on another, and
+    when it did not die it returned a seventeen-club table.
+
+    Sorted, and not a set, because the order reaches the counts matrix and this
+    project has already paid once for letting set iteration decide an answer.
+    """
+    known = {row["club"] for row in table}
+    return sorted(known | {club for game in remaining for club in game})
+
+
 def play_out(
     table: Sequence[Mapping[str, Any]],
     remaining: Sequence[tuple[str, str]],
@@ -170,24 +193,31 @@ def play_out(
     simulated here, but the difference only decides clubs level on points, and
     a tie broken the wrong way moves two clubs by one place.
     """
-    points = {row["club"]: row["points"] for row in table}
-    scored = {row["club"]: row["goals_for"] for row in table}
-    against = {row["club"]: row["goals_against"] for row in table}
+    # Seeded for every club, so one that has played nothing starts at zero
+    # rather than being conjured into the standings by its first simulated draw.
+    clubs = everyone(table, remaining)
+    points = {club: 0 for club in clubs}
+    scored = {club: 0 for club in clubs}
+    against = {club: 0 for club in clubs}
+    for row in table:
+        points[row["club"]] = row["points"]
+        scored[row["club"]] = row["goals_for"]
+        against[row["club"]] = row["goals_against"]
 
     for home, away in remaining:
         at_home, at_away = expected_goals(home, away, strength)
         goals_home, goals_away = _poisson(at_home, draw), _poisson(at_away, draw)
-        scored[home] = scored.get(home, 0) + goals_home
-        scored[away] = scored.get(away, 0) + goals_away
-        against[home] = against.get(home, 0) + goals_away
-        against[away] = against.get(away, 0) + goals_home
+        scored[home] += goals_home
+        scored[away] += goals_away
+        against[home] += goals_away
+        against[away] += goals_home
         if goals_home > goals_away:
-            points[home] = points.get(home, 0) + 3
+            points[home] += 3
         elif goals_away > goals_home:
-            points[away] = points.get(away, 0) + 3
+            points[away] += 3
         else:
-            points[home] = points.get(home, 0) + 1
-            points[away] = points.get(away, 0) + 1
+            points[home] += 1
+            points[away] += 1
 
     return sorted(
         points,
@@ -209,7 +239,7 @@ def distribution(
     recommendation — the same lesson the squad search cost this project a
     hundred and thirty-six points to learn.
     """
-    clubs = [row["club"] for row in table]
+    clubs = everyone(table, remaining)
     counts = {club: [0] * len(clubs) for club in clubs}
     draw = random.Random(seed)
     for _ in range(draws):
