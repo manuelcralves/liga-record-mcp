@@ -378,6 +378,20 @@ def best_order(
 # fewer places moved, so a move worth almost nothing is worth not making.
 # --------------------------------------------------------------------------
 
+#: HOW CLOSE THE PERFECT TABLE IS, since the same entry plays for it. Chips are
+#: blind — the one for matchday 29 opens when 28 ends — so the last information
+#: anyone can act on is the table after matchday 28, and six rounds then play
+#: out untouchable. Simulating fifty thousand seasons from that point:
+#:
+#:      season     already final   best guess   exact tables in 50,000
+#:      2023-24       13 of 18      12 of 18            4
+#:      2024-25        6 of 18       6 of 18            0
+#:      2025-26        8 of 18       8 of 18            1
+#:
+#: So roughly one in twelve thousand in a settled season and worse in a loose
+#: one, playing every chip perfectly all year to reach the best guess available.
+#: A lottery ticket rather than a plan — which is why the policy above maximises
+#: expected points and never reaches for the perfect table.
 WEEKLY_REACH = 3
 BONUS_REACH = 5
 BONUS_ROUNDS = (18, 24, 29)
