@@ -1154,9 +1154,34 @@ def fixture_grid(stored: dict, from_round: int) -> list[dict]:
             defensive, attacking = fixture_multipliers(
                 own_ga, own_gf, opp_ga, opp_gf, league_ga, league_gf, at_home=at_home
             )
-            projected = adjust_for_fixture(
-                row["season_rate"], position, defensive, attacking
-            )
+            # THE FIXTURE SCALES WHAT HE RETURNS, NEVER THE BLEND, and this
+            # line used to do the second. `season_rate` changed meaning under
+            # it: the old estimator stored a rate — which is what
+            # `adjust_for_fixture`'s parameter is called — and the new one
+            # stores `playing * returns + (1 - playing) * -1`. Scaling that
+            # charges the fixture against the -1 a man collects for NOT
+            # playing, which no opponent can move.
+            #
+            # What it produced: a fringe player at playing=0.10 has a blend of
+            # -0.30, below the floor, so max(0.0, -0.30 - 1.0) clamped to zero
+            # and every cell printed exactly 1.0 whoever the opponent was —
+            # with an edge of +1.30, over the 0.25 threshold, painting all five
+            # weeks green under a legend reading "verde é melhor que a média
+            # dele".
+            #
+            # Each round is drawn with the arithmetic ITS OWN estimator implies.
+            # Rounds 1-3 hold a rate and are scaled directly, which was right
+            # for them; from round 4 the halves are on file and are recombined
+            # the way model_sheet recombines them.
+            returns, playing = row.get("returns"), row.get("playing")
+            if returns is None or playing is None:
+                projected = adjust_for_fixture(
+                    row["season_rate"], position, defensive, attacking
+                )
+            else:
+                projected = playing * adjust_for_fixture(
+                    returns, position, defensive, attacking
+                ) + (1 - playing) * float(UNUSED_PENALTY)
             cells.append(
                 {
                     "round": rnd,
