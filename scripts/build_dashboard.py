@@ -1398,12 +1398,33 @@ def versus_section(data: dict) -> str:
         "a mais nesta jornada."
     )
 
+    # THE ARMBAND, SAID OUT LOUD. Both columns already carry a C, so a reader
+    # comparing them line by line can see the disagreement — and Manuel read
+    # this page and missed it, because nothing named it. §10.3(l) doubles the
+    # captain rather than replacing him, so the difference between two choices
+    # is exactly the gap between the two men, and it is the cheapest points on
+    # the page: no transfer, no cost, one tap on the site.
+    armband = ""
+    his = (yours.get("captain") or {})
+    theirs = (found.get("captain") or {})
+    if his and theirs and his.get("id") != theirs.get("id"):
+        worth = theirs["expected"] - his["expected"]
+        armband = f"""      <p class="lede"><strong>A braçadeira.</strong> Deste-a
+      ao {esc(his['name'])} ({his['expected']:.2f}); o modelo dá-a ao
+      <strong>{esc(theirs['name'])}</strong> ({theirs['expected']:.2f}).
+      O §10.3(l) conta o capitão duas vezes, portanto isso vale
+      <strong>{worth:+.2f}</strong> — e não custa transferência nenhuma.</p>"""
+    elif his and theirs:
+        armband = f"""      <p class="lede"><strong>A braçadeira</strong> está no
+      sítio: tu e o modelo escolhem os dois o {esc(his['name'])}.</p>"""
+
     return f"""      <p class="lede">A folha que entregaste e a folha que o modelo
       entregaria, avaliadas com <strong>os mesmos números</strong> — as estimativas
       já ajustadas ao adversário desta jornada. Duas colunas medidas com réguas
       diferentes fariam qualquer diferença parecer uma descoberta.</p>
       <p class="lede">{verdict} O melhor onze é exato sobre os mesmos 23, portanto
       esta diferença nunca é negativa: é o que o teu plantel ainda tinha para dar.</p>
+{armband}
       <div class="versus">
 {column("O teu", yours, yours.get("coach"), "mine")}
 {column("O do modelo", found, yours.get("coach"), "theirs")}

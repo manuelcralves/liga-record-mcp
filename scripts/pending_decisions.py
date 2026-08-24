@@ -20,12 +20,16 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
-from liga_record_mcp.models import HOLIDAY_ROUNDS  # noqa: E402
+from liga_record_mcp.models import (  # noqa: E402
+    FIRST_SCORING_MATCHDAY,
+    HOLIDAY_ROUNDS,
+)
 from liga_record_mcp.source import (  # noqa: E402
     LigaRecordClient,
     SiteError,
@@ -37,6 +41,127 @@ from liga_record_mcp.stats import last_scored_round  # noqa: E402
 DECISIONS_PATH = ROOT / "data" / "decisions.json"
 
 
+#: The site labels a kickoff "28 AGO 20:15" and carries no year, which is why
+#: models.py keeps it as text rather than inventing one. To say how far away a
+#: deadline is, a year has to be chosen — so it picks the one that puts the
+#: date nearest to today, and refuses to say anything when that is ambiguous.
+MONTHS = {
+    "JAN": 1, "FEV": 2, "MAR": 3, "ABR": 4, "MAI": 5, "JUN": 6,
+    "JUL": 7, "AGO": 8, "SET": 9, "OUT": 10, "NOV": 11, "DEZ": 12,
+}
+
+#: §6.13 — the sheet closes fifteen minutes before the round's first match.
+SHEET_CLOSES_BEFORE = timedelta(minutes=15)
+
+
+def when(label: str | None) -> datetime | None:
+    """A kickoff label as a moment, or None if it cannot be read confidently."""
+    if not label:
+        return None
+    parts = label.split()
+    if len(parts) < 3 or parts[1].upper() not in MONTHS:
+        return None
+    try:
+        day, hour_minute = int(parts[0]), parts[2]
+        hour, minute = (int(x) for x in hour_minute.split(":"))
+    except ValueError:
+        return None
+
+    now = datetime.now()
+    best = None
+    for year in (now.year - 1, now.year, now.year + 1):
+        try:
+            moment = datetime(year, MONTHS[parts[1].upper()], day, hour, minute)
+        except ValueError:
+            continue
+        if best is None or abs(moment - now) < abs(best - now):
+            best = moment
+    # More than half a year away in either direction means the year guess is
+    # doing the work rather than the label, and a wrong deadline is worse than
+    # no deadline.
+    if best is None or abs(best - now) > timedelta(days=180):
+        return None
+    return best
+
+
+def in_words(moment: datetime) -> str:
+    """How far off, in the units a person would use."""
+    left = moment - datetime.now()
+    if left.total_seconds() < 0:
+        return "já passou"
+    days, seconds = left.days, left.seconds
+    if days >= 2:
+        return f"faltam {days} dias"
+    hours = days * 24 + seconds // 3600
+    if hours >= 2:
+        return f"faltam {hours} horas"
+    return f"faltam {max(1, seconds // 60)} minutos"
+
+
+def deadlines(fixtures) -> list[str]:
+    """What is about to close, and what closes for good.
+
+    Two kinds. The weekly one is §6.13's team sheet, which shuts fifteen
+    minutes before the round's first match and is the one he has already missed
+    once. The other is matchday 5, where the squad, the top-scorer bet and the
+    one-transfer-a-round rule all begin at once — the single decision on this
+    project worth the most points, and the only one with no second chance.
+    """
+    said: list[str] = []
+
+    # A ROUND'S SHEET IS OPEN UNTIL ITS FIRST MATCH, so any round with a result
+    # already in it is closed — however many of its fixtures are still to come.
+    # The naive reading, "the lowest round with an unplayed fixture", points at
+    # round 2, whose sheet shut on 20 August and whose one remaining match was
+    # postponed to a date nobody has set. That is a deadline that has passed
+    # presented as one to act on.
+    played_in = {f.round_number for f in fixtures if f.played}
+    open_rounds = {}
+    for fixture in fixtures:
+        if fixture.round_number in played_in:
+            continue
+        moment = when(fixture.kickoff)
+        if moment is None or moment < datetime.now():
+            continue
+        first = open_rounds.get(fixture.round_number)
+        if first is None or moment < first:
+            open_rounds[fixture.round_number] = moment
+
+    for round_number in sorted(open_rounds)[:1]:
+        shuts = open_rounds[round_number] - SHEET_CLOSES_BEFORE
+        said.append(
+            f"  §6.13: a folha da jornada {round_number} fecha "
+            f"{shuts:%d/%m às %H:%M} — {in_words(shuts)}"
+        )
+
+    upcoming = sorted({f.round_number for f in fixtures if not f.played})
+    locked = [r for r in upcoming if r >= FIRST_SCORING_MATCHDAY]
+    lock_line = None
+    if locked and locked[0] == FIRST_SCORING_MATCHDAY:
+        starts = [
+            moment
+            for moment in (
+                when(f.kickoff)
+                for f in fixtures
+                if f.round_number == FIRST_SCORING_MATCHDAY
+            )
+            if moment is not None
+        ]
+        where = (
+            f"{min(starts):%d/%m} — {in_words(min(starts))}"
+            if starts
+            else "ainda sem data marcada"
+        )
+        lock_line = (
+            f"  A JORNADA {FIRST_SCORING_MATCHDAY} FECHA TUDO: {where}. Até lá as "
+            "transferências são ilimitadas; depois é uma por jornada, o plantel "
+            "fica fechado e o melhor marcador também."
+        )
+    # The lock first, the sheet last: the sheet is the one with a clock on it,
+    # and the last line is the one that reaches the log.
+    return ([lock_line] if lock_line else []) + said
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--decisions", type=Path, default=DECISIONS_PATH)
@@ -46,7 +171,8 @@ def main() -> None:
     recorded = {int(r) for r in (store.get("rounds") or {})}
 
     try:
-        latest = last_scored_round(LigaRecordClient(timeout=40.0).fixtures())
+        fixtures = LigaRecordClient(timeout=40.0).fixtures()
+        latest = last_scored_round(fixtures)
     except SiteError as exc:
         raise SystemExit(f"could not read the calendar: {exc}")
     if latest is None:
@@ -55,6 +181,7 @@ def main() -> None:
 
     missing = [r for r in range(1, latest + 1) if r not in recorded]
     used = holidays_used(store)
+
 
     if not missing:
         print(f"nothing pending — rounds 1-{latest} are all on file")
@@ -78,6 +205,17 @@ def main() -> None:
         + (f" (rounds {', '.join(map(str, used))})" if used else "")
         + f", {HOLIDAY_ROUNDS - len(used)} left"
     )
+
+    # LAST, and that is not a style choice. routine.py logs the final line of
+    # each step, so whatever ends this output is what he sees on a day he does
+    # not open the page. Everything above describes work that can be done
+    # whenever; a deadline is the only thing here that stops being true, and
+    # the nearest one goes last so it is the line that survives.
+    said = deadlines(fixtures)
+    if said:
+        print()
+        for line in said:
+            print(line)
 
 
 if __name__ == "__main__":
