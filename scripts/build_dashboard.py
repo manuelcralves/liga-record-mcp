@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import time
 from collections import Counter
 import os
 import sys
@@ -46,6 +47,14 @@ from liga_record_mcp.optimise import (  # noqa: E402
 from liga_record_mcp.source import load_coaches, ManualSquadSource, load_appearances  # noqa: E402
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
+from liga_record_mcp.final_table import (  # noqa: E402
+    RELEGATION_PLACES,
+    TOP_FOUR,
+    best_order,
+    distribution,
+    strengths,
+    value_of,
+)
 from liga_record_mcp.models import (  # noqa: E402
     BASE_BUDGET,
     FIRST_SCORING_MATCHDAY,
@@ -66,6 +75,10 @@ from liga_record_mcp.stats import (  # noqa: E402
 )
 
 LOG_PATH = ROOT / "data" / "projections.json"
+#: Seasons played out for the Final Table. Two thousand already moves the
+#: order by nothing; four thousand costs two seconds.
+FINAL_TABLE_DRAWS = 4000
+
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
 COACHES_PATH = ROOT / "data" / "coaches.yaml"
 
@@ -195,6 +208,7 @@ def gather(round_number: int) -> dict:
         "as_of": national.get("as_of", ""),
     }
     # After the dict exists, because it reads what the dict carries.
+    data["final"] = final_table(round_number)
     data["track"] = track_rounds(data)
     return data
 
@@ -1740,6 +1754,123 @@ def track_section(data: dict) -> str:
       modelo foi pessimista.</p>"""
 
 
+def final_table(round_number: int) -> dict:
+    """zerozero's Final Table: where the eighteen finish, and in what order to
+    write them.
+
+    A different game from the fantasy squad, sharing its deadline — both lock at
+    matchday 5. And a different problem: this predicts CLUBS, from two completed
+    seasons of real results plus the table so far, by playing the rest of the
+    season out thousands of times.
+    """
+    table = data_table()
+    if not table:
+        return {}
+    remaining = [(f.home, f.away) for f in mcp._market.fixtures() if not f.played]
+    strength = strengths(OpenFootballClient(timeout=60.0).club_records(), table)
+    spread = distribution(table, remaining, strength, draws=FINAL_TABLE_DRAWS)
+    clubs = [row["club"] for row in table]
+    order = best_order(spread, clubs=clubs)
+    size = len(clubs)
+    now = {row["club"]: row["position"] for row in table}
+
+    rows = []
+    for place, club in enumerate(order):
+        odds = spread[club]
+        rows.append(
+            {
+                "place": place + 1,
+                "club": club,
+                "exact": odds[place],
+                "top_four": sum(odds[:TOP_FOUR]),
+                "down": sum(odds[size - RELEGATION_PLACES:]),
+                "worth": value_of(club, place, spread, size),
+                "now": now[club],
+                "moved": now[club] - (place + 1),
+            }
+        )
+    return {
+        "rows": rows,
+        "remaining": len(remaining),
+        "played": table[0]["played"],
+        "expected": sum(r["worth"] for r in rows),
+    }
+
+
+def final_section(data: dict) -> str:
+    found = data.get("final") or {}
+    if not found:
+        return """      <p class="lede">A classificação não foi lida — sem ela não há
+      ponto de partida para simular o resto da época.</p>"""
+
+    body = []
+    for row in found["rows"]:
+        arrow = ""
+        if row["moved"]:
+            way = "up" if row["moved"] > 0 else "down"
+            arrow = f'<span class="sub {way}">{row["now"]}º agora</span>'
+        body.append(
+            "            <tr>" + chr(10)
+            + f'              <td class="rank">{row["place"]}</td>' + chr(10)
+            + f'              <td class="name">{esc(row["club"])}{arrow}</td>' + chr(10)
+            + f'              <td class="fig strong">{row["exact"]:.0%}</td>' + chr(10)
+            + f'              <td class="fig">{row["top_four"]:.0%}</td>' + chr(10)
+            + f'              <td class="fig">{row["down"]:.0%}</td>' + chr(10)
+            + f'              <td class="fig">{row["worth"]:.1f}</td>' + chr(10)
+            + "            </tr>"
+        )
+
+    return f"""      <p class="lede">Um jogo diferente do plantel, com o mesmo prazo:
+      ambos fecham na <strong>jornada {FIRST_SCORING_MATCHDAY}</strong>. Depois
+      disso a entrada fica fixa e só os chips a mexem — um por jornada para
+      mover um clube até três lugares, mais três de cinco lugares nas jornadas
+      18, 24 e 29. Cada chip joga-se às cegas e perde-se se não for usado.</p>
+
+      <p class="lede"><strong>Isto não é uma ordenação, e a tabela de pontos é a
+      razão.</strong> Os <span class="num">+25</span> por acertar em cheio pagam
+      convicção onde a distribuição de um clube é estreita; os
+      <span class="num">−5</span> por falhar em quatro ou mais cobram-na onde é
+      larga. Dois clubes com a mesma posição média não valem o mesmo lugar. Por
+      isso a época é jogada {FINAL_TABLE_DRAWS:,} vezes, cada clube fica com uma
+      probabilidade para cada lugar, e a ordem sai de resolver a atribuição que
+      maximiza os pontos esperados contra a matriz toda.</p>
+
+      <div class="scroll">
+        <table>
+          <thead><tr><th>#</th><th>clube</th><th class="fig">exato</th>
+          <th class="fig">top 4</th><th class="fig">desce</th>
+          <th class="fig">vale</th></tr></thead>
+          <tbody>
+{chr(10).join(body)}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="footnote">Valor esperado de
+      <strong>{found['expected']:.0f}</strong> pontos, dos lugares e dos bónus
+      que dependem de um clube só. O bónus do top 4 exige os quatro certos ao
+      mesmo tempo e não está nessa conta.</p>
+
+      <p class="footnote"><strong>O que isto não te pode dizer.</strong> Só
+      {found['played']} jornadas foram disputadas, portanto isto assenta quase
+      inteiramente em duas épocas completas de resultados reais. Um clube que
+      se reconstruiu no verão vai parecer o clube que era, e nada aqui vê isso.
+      E ao contrário do modelo dos jogadores, <strong>não há maneira de testar
+      este</strong> — uma época produz uma tabela final, e ninguém tem registo
+      de entradas passadas. É raciocinado, não medido.</p>"""
+
+
+def data_table(attempts: int = 3) -> list[dict]:
+    """The current league table, retried — the ranking service drops requests."""
+    for attempt in range(attempts):
+        found = mcp.primeira_liga()
+        if found.get("table"):
+            return found["table"]
+        if attempt + 1 < attempts:
+            time.sleep(2)
+    return []
+
+
 def exposure_section(data: dict) -> str:
     matches = (data["exposure"] or {}).get("matches") or []
     if not matches:
@@ -2331,6 +2462,11 @@ PAGES = [
         [("A liga privada", "league"), ("A Primeira Liga", "liga")],
     ),
     (
+        "tabela-final",
+        "A tabela final",
+        [("Onde acabam os dezoito", "final")],
+    ),
+    (
         "modelo",
         "O modelo",
         [
@@ -2346,6 +2482,7 @@ PAGES = [
 SECTIONS = {
     "sheet": lambda data, public: sheet_section(data),
     "versus": lambda data, public: versus_section(data),
+    "final": lambda data, public: final_section(data),
     "ideal": lambda data, public: ideal_section(data),
     "exposure": lambda data, public: exposure_section(data),
     "grid": lambda data, public: grid_section(data),
