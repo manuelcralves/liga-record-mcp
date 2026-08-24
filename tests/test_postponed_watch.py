@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from liga_record_mcp.models import Fixture
+from liga_record_mcp.models import Fixture, Position
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -152,3 +152,88 @@ def test_the_routine_runs_it(watch):
     assert step is not None, "nothing observes the postponed fixture on a timer"
     assert "scripts/watch_postponed.py" in step.command
     assert not step.needs_league, "this reads the public market and nothing else"
+
+
+# --- the watch has to survive the fixture being played ------------------------
+#
+# The bug this whole file exists to prevent, and it was here. `observe` derived
+# the watched clubs from the fixtures still OUTSTANDING, and a fixture stops
+# being outstanding the moment it is played — so at the one reading that
+# matters the watched set emptied, `verdict` compared nothing against nothing,
+# and announced "§15.3 zeroes them" whatever had actually happened.
+#
+# The control emptied from the other side at the same instant: it was
+# `everyone who played - the watched`, so those fifty-seven players joined the
+# pool the first forty ids are sliced from.
+
+
+class FakeMarket:
+    """Two watched clubs, one control club, and a switch for the fixture."""
+
+    def __init__(self, played: bool, totals: dict[str, int]) -> None:
+        self.played = played
+        self.totals = totals
+
+    def fixtures(self):
+        def game(home, away, round_number, done):
+            goals = {"home_goals": 1, "away_goals": 0} if done else {}
+            return Fixture(round_number=round_number, home=home, away=away, **goals)
+
+        return [
+            game("Braga", "GilV", 2, self.played),
+            game("X", "Y", 2, True),
+            game("X", "Y", 3, True),
+        ]
+
+    def search(self, position):
+        if position is not Position.GK:
+            return []
+        return [
+            _Player("1", "Braga", self.totals["1"]),
+            _Player("2", "GilV", self.totals["2"]),
+            _Player("9", "X", self.totals["9"]),
+        ]
+
+
+class _Player:
+    def __init__(self, pid, club, total):
+        self.id, self.name, self.club = pid, "p" + pid, club
+        self.points_total, self.points_round = total, 0
+
+
+def test_the_watched_clubs_survive_the_fixture_being_played(watch):
+    before = watch.observe(FakeMarket(False, {"1": 10, "2": 10, "9": 10}))
+    assert before["watching"] == ["Braga", "GilV"]
+
+    after = watch.observe(FakeMarket(True, {"1": 16, "2": 14, "9": 10}), before)
+    assert after["watching"] == ["Braga", "GilV"], (
+        "the watch emptied the moment the fixture was played — the verdict "
+        "will compare nothing against nothing"
+    )
+    assert set(after["affected"]) == set(before["affected"])
+
+
+def test_the_control_keeps_its_members_across_the_transition(watch):
+    before = watch.observe(FakeMarket(False, {"1": 10, "2": 10, "9": 10}))
+    after = watch.observe(FakeMarket(True, {"1": 16, "2": 14, "9": 10}), before)
+    assert set(after["control"]) == set(before["control"]), (
+        "the control changed membership at the one reading that matters"
+    )
+
+
+def test_points_arriving_is_reported_as_points_arriving(watch):
+    """The case the broken version could never reach."""
+    before = watch.observe(FakeMarket(False, {"1": 10, "2": 10, "9": 10}))
+    after = watch.observe(FakeMarket(True, {"1": 16, "2": 14, "9": 10}), before)
+    said = watch.verdict(before, after)
+    assert said is not None
+    assert "foram atribuídos" in said
+    assert "§15.3 zera" not in said
+
+
+def test_points_not_arriving_is_still_reported_correctly(watch):
+    before = watch.observe(FakeMarket(False, {"1": 10, "2": 10, "9": 10}))
+    after = watch.observe(FakeMarket(True, {"1": 10, "2": 10, "9": 10}), before)
+    said = watch.verdict(before, after)
+    assert said is not None
+    assert "§15.3 zera" in said

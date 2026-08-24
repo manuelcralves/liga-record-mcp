@@ -52,3 +52,9 @@ data/routine.err
 # Observation, not a decision — the verdict it produces gets written down, the
 # readings behind it do not need to be.
 data/postponed-watch.json
+
+# Working notes from a review: what is wrong today and in what order to fix it.
+# They belong on disk, not in the history — a list of known defects is a poor
+# thing to publish, and docs/_config.yml excludes pages by NAME, so a new .md
+# here would be served by GitHub Pages rather than ignored by it.
+docs/REVISAO-*.md

@@ -96,33 +96,57 @@ def read_market(market) -> dict[str, dict]:
     }
 
 
-def observe(market) -> dict:
+def observe(market, previous: dict | None = None) -> dict:
+    """One reading, with the watch carried forward from the last one.
+
+    ONCE WATCHED, ALWAYS WATCHED — until a verdict is delivered. The first
+    version derived the affected clubs from the fixtures still OUTSTANDING, and
+    a fixture stops being outstanding the moment it is played. So at the single
+    reading that matters the watched set emptied, `verdict` compared nothing
+    against nothing, found no gains, and announced that §15.3 zeroes them —
+    the one question this file exists to settle, answered wrong and answered
+    the same way whatever had happened.
+
+    The control had the same fault from the other side. It was
+    `played_every - affected_clubs`, so when the affected set emptied those
+    fifty-seven players joined the pool the first forty ids are sliced from,
+    and the two readings were compared across different populations while the
+    docstring claimed the same forty came back every run.
+
+    Both are now sticky: the clubs and the control ids are taken from the
+    previous reading when there is one, so a settled fixture leaves the watch
+    list only after it has been read.
+    """
     fixtures = market.fixtures()
     waiting = outstanding(fixtures)
     everyone = read_market(market)
 
-    affected_clubs = {c for f in waiting for c in (f["home"], f["away"])}
+    watched = {c for f in waiting for c in (f["home"], f["away"])}
+    if previous:
+        watched |= set(previous.get("watching") or ())
 
-    # The control: clubs with nothing outstanding anywhere. Sorted by id so the
-    # same forty come back every run — a control group that changes membership
-    # between readings measures the membership, not the football.
-    played_every = {
-        club
-        for f in fixtures
-        if f.played
-        for club in (f.home, f.away)
-    } - affected_clubs
-    control = sorted(
-        (i for i, p in everyone.items() if p["club"] in played_every),
-    )[:CONTROL_SIZE]
+    control = list(previous.get("control") or ()) if previous else []
+    if not control:
+        # Clubs with nothing outstanding anywhere, sorted by id so the same
+        # forty come back — pinned here and reused from now on.
+        settled_clubs = {
+            club for f in fixtures if f.played for club in (f.home, f.away)
+        } - watched
+        control = sorted(
+            i for i, p in everyone.items() if p["club"] in settled_clubs
+        )[:CONTROL_SIZE]
 
     return {
         "at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "outstanding": waiting,
+        # The clubs under watch, kept explicitly rather than re-derived. A set
+        # is written as a sorted list so the file stays diffable and the order
+        # cannot vary between processes.
+        "watching": sorted(watched),
         "affected": {
-            i: p for i, p in everyone.items() if p["club"] in affected_clubs
+            i: p for i, p in everyone.items() if p["club"] in watched
         },
-        "control": {i: everyone[i] for i in control},
+        "control": {i: everyone[i] for i in control if i in everyone},
     }
 
 
@@ -195,8 +219,6 @@ def main() -> None:
     args = parser.parse_args()
 
     market = LigaRecordClient(timeout=60.0)
-    now = observe(market)
-
     log = (
         json.loads(WATCH_PATH.read_text(encoding="utf-8"))
         if WATCH_PATH.exists()
@@ -204,6 +226,8 @@ def main() -> None:
     )
     readings = log["readings"]
     previous = readings[-1] if readings else None
+
+    now = observe(market, previous)
 
     said = verdict(previous, now) if previous else None
 
@@ -228,6 +252,15 @@ def main() -> None:
         )
 
     if said:
+        # The watch is spent. Clearing it here — after the reading that
+        # produced the verdict is on file — means the next postponement starts
+        # a fresh observation instead of inheriting fifty-seven players whose
+        # question has already been answered.
+        now["watching"] = []
+        readings[-1] = now
+        WATCH_PATH.write_text(
+            json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8"
+        )
         print(said)
         return
 
