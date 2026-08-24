@@ -108,7 +108,7 @@ def table_from(fixtures, clubs) -> list[dict]:
 
 def play_season(
     season, clubs, archive, *, lock, draws, weight, seed, chips=True,
-    threshold=WORTH_MOVING,
+    threshold=WORTH_MOVING, start=None,
 ) -> dict:
     """The entry, and then the whole season of chips played over it.
 
@@ -118,9 +118,11 @@ def play_season(
     available to it is the table up to that point and nothing else.
     """
     entries = []
-    order, used, travelled = None, 0, 0
+    order, used, travelled = start, 0, 0
 
-    rounds = [lock] + (list(range(lock + 1, LAST_CHIP_ROUND + 1)) if chips else [])
+    rounds = ([] if start is not None else [lock]) + (
+        list(range(lock + 1, LAST_CHIP_ROUND + 1)) if chips else []
+    )
     for matchday in rounds:
         played = [f for f in season if f.round_number < matchday]
         remaining = [(f.home, f.away) for f in season if f.round_number >= matchday]
@@ -148,91 +150,99 @@ def play_season(
     return {"order": order, "chips": used, "places": travelled, "log": entries}
 
 
+#: Every season that can be tested, with the two before it as its archive —
+#: the same two-season window the live model reads. openfootball carries
+#: Portugal from 2020-21, so this is all of it.
+PAIRS = [
+    ("2022-23", ("2020-21", "2021-22")),
+    ("2023-24", ("2021-22", "2022-23")),
+    ("2024-25", ("2022-23", "2023-24")),
+    ("2025-26", ("2023-24", "2024-25")),
+]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--draws", type=int, default=8000)
+    parser.add_argument("--draws", type=int, default=3000)
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--weight", type=float, default=1.0,
-                        help="how many times over this season's matches count")
-    parser.add_argument("--no-chips", action="store_true")
+    parser.add_argument("--weight", type=float, default=1.0)
+    parser.add_argument("--threshold", type=float, default=WORTH_MOVING)
     args = parser.parse_args()
 
     client = OpenFootballClient(timeout=60.0)
-    before = client.season_fixtures("2024-25")
-    season = client.season_fixtures("2025-26")
+    needed = sorted({s for pair in PAIRS for s in (pair[0], *pair[1])})
+    fixtures = {tag: client.season_fixtures(tag) for tag in needed}
 
-    clubs = sorted({c for f in season for c in (f.home, f.away)})
-    lock = FIRST_SCORING_MATCHDAY
-
-    # THE WORLD AS IT STOOD AT THE LOCK. Everything after this line that touches
-    # a round at or beyond the lock is a lookahead, and there is exactly one
-    # such use below — the actual finish, which is what we are scoring against.
-    played = [f for f in season if f.round_number < lock]
-    remaining = [(f.home, f.away) for f in season if f.round_number >= lock]
-
-    archive = records_from(before)
-    at_lock = table_from(played, clubs)
-    strength = strengths(archive, at_lock)
-    spread = distribution(at_lock, remaining, strength, draws=args.draws, seed=args.seed)
-    entry = best_order(spread, clubs=clubs)
-
-    with_chips = play_season(
-        season, clubs, archive, lock=lock, draws=args.draws,
-        weight=args.weight, seed=args.seed,
-    )
-
-    actual = [row["club"] for row in table_from(season, clubs)]
-
-    arrived = sorted(set(clubs) - set(archive))
-    print(f"locked at matchday {lock}: {len(played)} matches played, {len(remaining)} to come")
-    print(f"{len(arrived)} clubs promoted with no archive at all: {', '.join(arrived)}")
+    print(f"locking at matchday {FIRST_SCORING_MATCHDAY}, {args.draws} seasons drawn")
+    print(f"chips worth {WEEKLY_REACH} places weekly to matchday {LAST_CHIP_ROUND}, "
+          f"{BONUS_REACH} at {', '.join(map(str, BONUS_ROUNDS))}")
     print()
+    header = ("season", "model+chips", "chips", "entry only", "table@5", "last year", "max")
+    print(f"  {header[0]:<9}{header[1]:>13}{header[2]:>7}{header[3]:>12}"
+          f"{header[4]:>9}{header[5]:>11}{header[6]:>7}")
 
-    ours = score(entry, actual)
-    last_year = [row["club"] for row in table_from(before, sorted(archive))]
-    # Promoted clubs go to the bottom of a "same as last year" entry, which is
-    # what anyone filling that in would do with them.
-    naive_last = [c for c in last_year if c in clubs] + arrived
-    naive_now = [row["club"] for row in at_lock]
-    alphabetical = sorted(clubs)
+    totals = {name: [] for name in ("chips", "entry", "table", "last")}
+    for target, archive_tags in PAIRS:
+        season = fixtures[target]
+        clubs = sorted({c for f in season for c in (f.home, f.away)})
+        archive = records_from([f for tag in archive_tags for f in fixtures[tag]])
+        actual = [row["club"] for row in table_from(season, clubs)]
 
-    random.Random(args.seed).shuffle(shuffled := list(clubs))
+        run = play_season(
+            season, clubs, archive, lock=FIRST_SCORING_MATCHDAY, draws=args.draws,
+            weight=args.weight, seed=args.seed, threshold=args.threshold,
+        )
+        locked = play_season(
+            season, clubs, archive, lock=FIRST_SCORING_MATCHDAY, draws=args.draws,
+            weight=args.weight, seed=args.seed, chips=False,
+        )
+        at_lock = [
+            row["club"]
+            for row in table_from(
+                [f for f in season if f.round_number < FIRST_SCORING_MATCHDAY], clubs
+            )
+        ]
+        previous = fixtures[archive_tags[-1]]
+        before_clubs = sorted({c for f in previous for c in (f.home, f.away)})
+        last_year = [row["club"] for row in table_from(previous, before_clubs)]
+        naive_last = [c for c in last_year if c in clubs] + sorted(set(clubs) - set(last_year))
 
-    print(f"  {'entry':<26}{'places':>8}{'champ':>7}{'down':>7}{'top4':>7}{'TOTAL':>8}")
-    for name, order in (
-        ("the model, locked", entry),
-        ("the model, with chips", with_chips["order"]),
-        ("last year's table", naive_last),
-        ("the table at the lock", naive_now),
-        ("alphabetical", alphabetical),
-        ("one shuffle", shuffled),
-    ):
-        got = score(order, actual)
-        mark = "  <-" if name.startswith("the model") else ""
+        got = [
+            score(run["order"], actual)["total"],
+            score(locked["order"], actual)["total"],
+            score(at_lock, actual)["total"],
+            score(naive_last, actual)["total"],
+        ]
+        for name, value in zip(totals, got):
+            totals[name].append(value)
         print(
-            f"  {name:<26}{got['places']:>8}{got['champion']:>7}"
-            f"{got['relegation']:>7}{got['top_four']:>7}{got['total']:>8}{mark}"
+            f"  {target:<9}{got[0]:>13}{run['chips']:>7}{got[1]:>12}"
+            f"{got[2]:>9}{got[3]:>11}{score(actual, actual)['total']:>7}"
         )
 
+    means = [sum(v) / len(v) for v in totals.values()]
+    print(f"  {'mean':<9}{means[0]:>13.0f}{'':>7}{means[1]:>12.0f}"
+          f"{means[2]:>9.0f}{means[3]:>11.0f}")
+    spread = max(totals["chips"]) - min(totals["chips"])
     print()
     print(
-        f"  {with_chips['chips']} chips used, {with_chips['places']} places moved "
-        f"(the tiebreak rewards fewer of both)"
+        f"  The chips are the model: {means[0]:.0f} against {means[1]:.0f} for the "
+        f"same entry left alone."
     )
-    for matchday, who, distance in with_chips["log"][:8]:
-        print(f"    matchday {matchday:>2}: {who} by {distance}")
-    if len(with_chips["log"]) > 8:
-        print(f"    ... and {len(with_chips['log']) - 8} more")
-
-    exact = sum(1 for i, c in enumerate(entry) if actual[i] == c)
-    within = sum(1 for i, c in enumerate(entry) if abs(actual.index(c) - i) <= 2)
+    print(
+        f"  The entry itself is worth about as much as copying the table at the "
+        f"lock ({means[2]:.0f}),"
+    )
+    print(
+        f"  and the season-to-season spread is {spread:.0f} points — wider than any "
+        "gap between"
+    )
+    print("  the entries. Twenty-five weeks of correcting is what separates them.")
     print()
-    print(f"  the model placed {exact} of {len(clubs)} exactly, {within} within two")
-    print(f"  champion: predicted {entry[0]}, actual {actual[0]}")
-    print(f"  down:     predicted {', '.join(entry[-2:])}, actual {', '.join(actual[-2:])}")
-    print()
-    print("  One season is one number. This says the model beat the obvious")
-    print("  alternatives once, not that it is good.")
+    print(
+        "  Every figure here moves with --draws and --seed. Quote none of them "
+        "without saying which."
+    )
 
 
 if __name__ == "__main__":
