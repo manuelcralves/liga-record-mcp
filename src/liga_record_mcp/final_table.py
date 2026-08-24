@@ -52,6 +52,12 @@ TOP_FOUR = 4
 #: three rounds cannot make a champion of anyone.
 CLUB_PRIOR_MATCHES = 12.0
 
+#: How many times over this season's matches are counted against the archive's.
+#: Provisionally 1 — face value — until the sweep across past seasons settles
+#: it. See scripts/backtest_final_table.py, which is the only test this model
+#: can have.
+RECENT_WEIGHT = 1.0
+
 #: Goals in the Primeira Liga, per club per match, either way. Used as the
 #: prior mean and as the fallback for a club with no record at all.
 LEAGUE_GOALS = 1.35
@@ -86,6 +92,7 @@ def strengths(
     table: Sequence[Mapping[str, Any]],
     *,
     prior_matches: float = CLUB_PRIOR_MATCHES,
+    recent_weight: float = RECENT_WEIGHT,
 ) -> dict[str, tuple[float, float]]:
     """Attack and defence for each club, as goals per match relative to nobody.
 
@@ -106,9 +113,15 @@ def strengths(
 
         row = current.get(club)
         if row:
-            played += row["played"]
-            scored += row["goals_for"]
-            conceded += row["goals_against"]
+            # Counted `recent_weight` times over. Four rounds against two full
+            # seasons is four against sixty-eight, and at face value that is
+            # almost no weight at all — while those four are the only matches
+            # played by the squad that exists now. The multiplier is what says
+            # how much a summer changes a club, and it is measured rather than
+            # chosen: see scripts/backtest_final_table.py.
+            played += row["played"] * recent_weight
+            scored += row["goals_for"] * recent_weight
+            conceded += row["goals_against"] * recent_weight
 
         attack = (scored + LEAGUE_GOALS * prior_matches) / (played + prior_matches)
         defence = (conceded + LEAGUE_GOALS * prior_matches) / (played + prior_matches)
@@ -348,3 +361,96 @@ def best_order(
         key=worth,
     )
     return best
+
+
+# --------------------------------------------------------------------------
+# Chips
+#
+# From the lock to matchday 29 there is one chip a week, moving a single club
+# up to three places. Three bonus chips move one up to five, at matchdays 18,
+# 24 and 29, and stack with that week's ordinary chip. Every chip is played
+# blind — it opens when the previous round ends and shuts when the next begins
+# — and is lost if unused.
+#
+# So roughly ninety places of correction are available across a season, which
+# is a great deal: the entry locked at matchday 5 is a starting position rather
+# than an answer. The tiebreak runs the other way, rewarding fewer chips and
+# fewer places moved, so a move worth almost nothing is worth not making.
+# --------------------------------------------------------------------------
+
+WEEKLY_REACH = 3
+BONUS_REACH = 5
+BONUS_ROUNDS = (18, 24, 29)
+LAST_CHIP_ROUND = 29
+
+#: Expected points a move must be worth before it is taken.
+#:
+#: MEASURED, and the measurement says something other than what it was looking
+#: for. Playing 2025/26 out from the matchday-5 lock, four Monte Carlo seeds
+#: per setting:
+#:
+#:      threshold   seed 0   1     2     3    mean   chips
+#:      0.5           395   452   412   452    428     26
+#:      7             439   451   371   422    421     12
+#:      20            387   427   435   370    405      3
+#:
+#: The spread WITHIN a setting is far wider than the gap between settings. So
+#: the threshold does not demonstrably change the score — and it halves or
+#: quarters the chips spent getting there.
+#:
+#: That decides it, because the tiebreak is fewest chips and then fewest places
+#: moved. When two settings score the same and one uses twelve chips against
+#: twenty-six, the cheap one wins every tie it reaches. A greedy policy burns
+#: chips on marginal moves it later has to undo.
+#:
+#: Seven, not twenty, because three chips a season leaves nothing in hand for a
+#: club that collapses in April — and the difference between 421 and 405 is
+#: inside the noise in the other direction too.
+WORTH_MOVING = 7.0
+
+
+def moved(order: Sequence[str], club: str, to: int) -> list[str]:
+    """The order with one club lifted out and put back at `to`."""
+    rest = [c for c in order if c != club]
+    return rest[:to] + [club] + rest[to:]
+
+
+def expected(order: Sequence[str], spread: Mapping[str, list[float]]) -> float:
+    """What an entry is worth against a distribution, bonuses included.
+
+    The top-four term is the joint probability of all four being exactly right,
+    which is the only part `value_of` cannot carry on its own.
+    """
+    size = len(order)
+    total = sum(value_of(club, place, spread, size) for place, club in enumerate(order))
+    exact = 1.0
+    for place, club in enumerate(order[:TOP_FOUR]):
+        exact *= spread[club][place]
+    return total + TOP_FOUR_BONUS * exact
+
+
+def best_chip(
+    order: Sequence[str],
+    spread: Mapping[str, list[float]],
+    *,
+    reach: int,
+    threshold: float = WORTH_MOVING,
+) -> tuple[list[str], str | None, int]:
+    """The move worth making this week, if any is.
+
+    Returns the new order, the club moved, and how many places it travelled.
+    Every legal move is priced — eighteen clubs by at most `reach` either way
+    is small enough to enumerate, so there is no need to be clever and no room
+    for a heuristic to be wrong.
+    """
+    here = expected(order, spread)
+    best, who, distance = list(order), None, 0
+    for place, club in enumerate(order):
+        for to in range(max(0, place - reach), min(len(order), place + reach + 1)):
+            if to == place:
+                continue
+            candidate = moved(order, club, to)
+            gain = expected(candidate, spread) - here
+            if gain > threshold and gain > expected(best, spread) - here:
+                best, who, distance = candidate, club, abs(to - place)
+    return best, who, distance
