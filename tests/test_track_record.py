@@ -182,6 +182,67 @@ def test_a_round_with_no_record_at_all_falls_back(dash):
     assert dash.judged_on(fresh, {}, kicked_off=True) == fresh
 
 
+# --- the same size is not the same squad --------------------------------------
+#
+# The check was `len(on_record) == len(fresh)`, and a squad is always
+# twenty-three — so after a transfer the two maps matched on count while one id
+# differed, and the stored map was used for a squad that no longer existed.
+#
+# The sequence is ordinary, not contrived. Round N kicks off. Manuel runs
+# `transferir.py` for round N+1, which ends by telling him to run the routine.
+# The routine rebuilds round N, which has already kicked off, against a squad
+# that now contains someone who was never in it. He is scored at
+# UNUSED_PENALTY, so he can never be picked; and if he reaches `described()`
+# the unguarded lookup raises KeyError and no page is written at all.
+#
+# Everything above this line has the stored map strictly SMALLER, which the
+# count check happened to catch. None of it could see this.
+
+
+def test_a_transfer_makes_the_record_the_wrong_squad(dash):
+    """Same count, one id different — the case the old check waved through."""
+    fresh = {"1": 5.0, "9": 4.0}
+    stored = {"players": {"1": {"projected": 9.0}, "2": {"projected": 1.0}}}
+    assert dash.judged_on(fresh, stored, kicked_off=True) == fresh, (
+        "the round was judged on a squad that has since changed — the arrival "
+        "has no estimate and can never be picked"
+    )
+
+
+def test_a_record_larger_than_the_squad_also_falls_back(dash):
+    """The other direction, which the count check also missed on its own terms."""
+    fresh = {"1": 5.0}
+    stored = {
+        "players": {"1": {"projected": 9.0}, "2": {"projected": 1.0}},
+    }
+    assert dash.judged_on(fresh, stored, kicked_off=True) == fresh
+
+
+def test_the_whole_squad_on_record_is_still_used(dash):
+    """The fix must not throw away the case the function exists for."""
+    fresh = {"1": 5.0, "2": 3.0, "3": 2.0}
+    stored = {
+        "players": {
+            "1": {"projected": 9.0},
+            "2": {"projected": 1.0},
+            "3": {"projected": 4.0},
+        }
+    }
+    assert dash.judged_on(fresh, stored, kicked_off=True) == {
+        "1": 9.0,
+        "2": 1.0,
+        "3": 4.0,
+    }
+
+
+def test_a_player_on_record_without_a_projection_is_a_gap_not_a_match(dash):
+    """A null `projected` drops the id, so the keys stop matching and it falls
+    back — rather than silently judging a squad on a map missing one man."""
+    fresh = {"1": 5.0, "2": 3.0}
+    stored = {"players": {"1": {"projected": 9.0}, "2": {"projected": None}}}
+    assert dash.judged_on(fresh, stored, kicked_off=True) == fresh
+
+
 def test_rounds_from_a_different_estimator_are_marked_and_excluded(dash):
     """A total spanning a change of model measures the change, not the model.
 

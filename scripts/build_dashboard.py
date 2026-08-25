@@ -529,9 +529,19 @@ def judged_on(
     that moment the comparison stops being advice and becomes a verdict on a
     choice already made.
 
-    Falls back to fresh if the record is incomplete: a partial map would score
-    some players on one model and the rest on another, which is worse than
-    either.
+    Falls back to fresh if the record does not cover exactly this squad: a
+    partial map would score some players on one model and the rest on another,
+    which is worse than either.
+
+    THE COMPARISON IS BY KEY, not by count, and the difference is not academic.
+    A squad is always twenty-three, so after a transfer the two maps are the
+    same SIZE while one id differs — and the stored map then gets used for a
+    squad that no longer exists. The way that happens is ordinary: round N
+    kicks off, Manuel runs `transferir.py` for round N+1, which tells him to run
+    the routine, and the page rebuilds round N against a squad already changed.
+    The arrival lands with no estimate, `best_eleven` scores him at
+    UNUSED_PENALTY so he can never be picked, and if he reaches `described()`
+    the unguarded lookup raises KeyError and no page is written at all.
     """
     if not kicked_off:
         return fresh
@@ -540,7 +550,7 @@ def judged_on(
         for i, row in (stored.get("players") or {}).items()
         if row.get("projected") is not None
     }
-    return on_record if len(on_record) == len(fresh) else fresh
+    return on_record if on_record.keys() == fresh.keys() else fresh
 
 
 def model_sheet(stored: dict, round_number: int) -> dict:
