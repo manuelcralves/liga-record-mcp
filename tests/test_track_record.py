@@ -270,3 +270,107 @@ def test_the_recorder_marks_which_estimator_wrote_the_round(dash):
     assert "valuation(" in source, (
         "the ledger has stopped recording the estimator the pages advise with"
     )
+
+
+# --- the verdict, which had no test at all ------------------------------------
+#
+# `whole` filtered on `model is not None` and then the total for `mine` carried
+# its own `if r["mine"] is not None`. So the two sums ran over different sets of
+# rounds while `n` reported the model's count, and the page printed "sobre 4
+# jornadas o modelo somou X, o teu somou Y" with Y drawn from three of them —
+# and a difference computed between them.
+#
+# `record_projection` writes `filed: None` whenever squad.yaml has no selection
+# block, which is exactly how a round ends up with a model eleven and no filed
+# one. Nothing exotic: it is the state of any round recorded before the sheet
+# was entered.
+
+
+def track_row(number, *, model=50.0, mine=45.0, estimator="valuation+fixture", whole=True):
+    return {
+        "round": number,
+        "settled": 23 if whole else 20,
+        "of": 23,
+        "whole": whole,
+        "model": model,
+        "mine": mine,
+        "ceiling": 70.0,
+        "error": 2.0,
+        "bias": -0.5,
+        "estimator": estimator,
+    }
+
+
+def verdict_of(dash, rounds):
+    """The section, with whitespace flattened — the HTML wraps mid-sentence."""
+    return " ".join(dash.track_section({"track": rounds}).split())
+
+
+def test_both_totals_span_the_same_rounds(dash):
+    """The defect: one round has no filed eleven, and only one side notices."""
+    said = verdict_of(
+        dash,
+        [
+            track_row(4, model=50.0, mine=45.0),
+            track_row(5, model=60.0, mine=None),
+            track_row(6, model=40.0, mine=38.0),
+        ],
+    )
+    assert "Sobre 2 jornadas" in said, (
+        "the verdict counted a round it could only score one side of"
+    )
+    assert "<strong>90</strong>" in said, "the model total included the unpaired round"
+    assert "<strong>83</strong>" in said
+
+
+def test_the_unpaired_round_is_named_rather_than_dropped_quietly(dash):
+    said = verdict_of(
+        dash, [track_row(4), track_row(5, mine=None), track_row(6)]
+    )
+    assert "Fora desta conta" in said
+    assert "jornada 5" in said
+
+
+def test_nothing_is_said_about_unpaired_rounds_when_there_are_none(dash):
+    said = verdict_of(dash, [track_row(4), track_row(6)])
+    assert "Fora desta conta" not in said
+
+
+def test_the_difference_is_between_the_two_totals_shown(dash):
+    said = verdict_of(dash, [track_row(4, model=50.0, mine=45.0)])
+    assert "<strong>50</strong>" in said and "<strong>45</strong>" in said
+    assert "<strong>+5</strong>" in said
+
+
+def test_a_partly_settled_round_is_not_in_the_verdict(dash):
+    """Its own comment says three dashes mean "not yet"; the total must agree."""
+    said = verdict_of(
+        dash, [track_row(4), track_row(5, whole=True), track_row(6, whole=False)]
+    )
+    assert "Sobre 2 jornadas" in said
+
+
+def test_a_round_from_the_old_estimator_is_excluded(dash):
+    """A total spanning a change of model measures the change, not the model."""
+    said = verdict_of(dash, [track_row(4), track_row(3, estimator=None)])
+    assert "Sobre 1 jornada" in said
+    assert "modelo antigo" in said
+
+
+def test_no_usable_round_says_so_instead_of_summing_nothing(dash):
+    """The HTML wraps, so compare on normalised whitespace rather than raw."""
+    said = " ".join(verdict_of(dash, [track_row(4, whole=False)]).split())
+    assert "Nenhuma jornada está liquidada por inteiro" in said
+    assert "o teu somou" not in said, "a verdict was printed with nothing in it"
+
+
+def test_an_empty_track_is_not_an_error(dash):
+    said = dash.track_section({"track": []})
+    assert "Nenhuma jornada liquidada ainda" in said
+
+
+def test_a_round_with_a_filed_eleven_but_no_model_one_is_also_unpaired(dash):
+    """The other direction — symmetric, and it was not handled either."""
+    said = verdict_of(dash, [track_row(4), track_row(5, model=None)])
+    assert "Sobre 1 jornada" in said
+    assert "Fora desta conta" in said

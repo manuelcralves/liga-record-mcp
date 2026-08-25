@@ -1753,18 +1753,27 @@ def track_section(data: dict) -> str:
 
     # Only rounds written by the estimator in use. A total that spans a change
     # of model measures the change, not the model.
-    whole = [
-        r
-        for r in rounds
-        if r["whole"] and r["model"] is not None and r["estimator"] is not None
-    ]
+    # BOTH SIDES OR NEITHER. This filtered on `model is not None` and then
+    # summed `mine` with its own `if r["mine"] is not None` tacked on, so the
+    # two totals ran over different sets of rounds while `n` reported the
+    # model's count — "sobre 4 jornadas o modelo somou X, o teu somou Y" with Y
+    # drawn from three of them. `record_projection` writes `filed: None`
+    # whenever squad.yaml has no selection block, which is how a round ends up
+    # with a model eleven and no filed one.
+    #
+    # A comparison needs a pair. Rounds with only one side are shown in the
+    # table above and counted out of the verdict, with a line saying so rather
+    # than silently.
+    usable = [r for r in rounds if r["whole"] and r["estimator"] is not None]
+    whole = [r for r in usable if r["model"] is not None and r["mine"] is not None]
+    unpaired = [r for r in usable if r not in whole]
     stale = [r for r in rounds if r["estimator"] is None]
     verdict = """      <p class="footnote">Nenhuma jornada está liquidada por
       inteiro, portanto ainda não há totais para somar. Um clube com jogo adiado
       fica pendente, e contá-lo como zero seria uma pergunta diferente.</p>"""
     if whole:
         model = sum(r["model"] for r in whole)
-        mine = sum(r["mine"] for r in whole if r["mine"] is not None)
+        mine = sum(r["mine"] for r in whole)
         n = len(whole)
         gap = model - mine
         verdict = f"""      <p class="footnote">Sobre {n} jornada{'s' if n != 1 else ''}
@@ -1772,6 +1781,15 @@ def track_section(data: dict) -> str:
       <strong>{model:.0f}</strong>, o teu somou <strong>{mine:.0f}</strong>.
       Diferença de <strong>{gap:+.0f}</strong>.
       {'Ainda é pouco para concluir seja o que for — pergunta outra vez à jornada 12.' if n < 8 else ''}</p>"""
+        if unpaired:
+            missing = ", ".join(str(r["round"]) for r in unpaired)
+            many = len(unpaired) != 1
+            label = "jornadas" if many else "jornada"
+            verdict += f"""
+      <p class="footnote"><strong>Fora desta conta:</strong> {label} {missing}.
+      Liquidada{'s' if many else ''} por inteiro, mas só com um dos dois onzes —
+      sem folha entregue não há com que comparar. Somar um lado sobre mais
+      jornadas do que o outro dá uma diferença que não quer dizer nada.</p>"""
 
     return f"""      <p class="lede">A única tabela deste site que reporta o que
       <em>aconteceu</em> em vez de argumentar sobre o que devia acontecer. E a
