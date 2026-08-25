@@ -131,16 +131,61 @@ def snapshot(market, history, squad, round_number):
 
     rows = {}
     for player in squad.players:
-        if player.club not in opponents:
-            raise SystemExit(f"{player.club} has no round {round_number} fixture")
-        opponent, at_home, kickoff = opponents[player.club]
-
+        # The player's own estimate first, because none of it depends on who he
+        # plays: `returns`, `playing` and the season rate are properties of the
+        # man, and the fixture only scales them afterwards.
         entry = view.get(player.id)
         if entry is None:
             raise SystemExit(f"{player.name} has no valuation — cannot record a round")
         season_rate = float(entry["expected"])
-
         own_ga, own_gf, known = club_rates(records, player.club, league_ga, league_gf)
+
+        # A CLUB WITH NO FIXTURE IS A ROW, NOT A REFUSAL.
+        #
+        # This raised SystemExit, so one player from a club missing from the
+        # calendar made the WHOLE round unrecordable — and an unrecorded round
+        # is gone from the track record for good, because the snapshot has to
+        # be taken before kickoff and there is no going back to take it.
+        #
+        # build_dashboard, looking at the same fact, writes 0.0 under §15.3 and
+        # carries on. Two halves of one system answering one question in
+        # opposite ways, and the half that refused was the half that lost data.
+        #
+        # §15.3 is why 0.0 and not -1: a match not played before the next round
+        # begins scores nothing, which is worse than a hard fixture and better
+        # than the -1 for a man left out. Either way he is not in the eleven.
+        #
+        # Only the fixture's own fields are null here. Nulling the estimate too
+        # would be a second bug: `fixture_grid` scales `season_rate` for future
+        # rounds and sorts on it, and the players table prints it.
+        if player.club not in opponents:
+            rows[player.id] = {
+                "name": player.name,
+                "position": player.position.value,
+                "club": player.club,
+                "value": player.value,
+                "opponent": None,
+                "at_home": None,
+                "kickoff": None,
+                "club_has_history": known,
+                "season_rate": round(season_rate, 2),
+                "returns": round(entry["returns"], 2),
+                "playing": round(entry["playing"], 3),
+                "appearances": entry["appearances"],
+                "defensive_multiplier": None,
+                "attacking_multiplier": None,
+                "projected": 0.0,
+                "points_before": player.points_total,
+                "actual": None,
+                "no_fixture": True,
+            }
+            print(
+                f"  {player.name} ({player.club}) nao tem jogo na jornada "
+                f"{round_number} — registado a 0.0 pelo §15.3"
+            )
+            continue
+
+        opponent, at_home, kickoff = opponents[player.club]
         opp_ga, opp_gf, _ = club_rates(records, opponent, league_ga, league_gf)
         defensive, attacking = fixture_multipliers(
             own_ga, own_gf, opp_ga, opp_gf, league_ga, league_gf, at_home=at_home
@@ -172,6 +217,7 @@ def snapshot(market, history, squad, round_number):
             "points_before": player.points_total,
             "actual": None,
         }
+
     return rows
 
 
