@@ -362,3 +362,143 @@ def test_a_clean_dry_run_still_writes_nothing(mod, tmp_path, monkeypatch):
     assert caught is None
     assert after == LEGAL
     assert ledger == EMPTY, "a dry run reached the ledger"
+
+
+# --- the last player in the file ----------------------------------------------
+#
+# `find_block` used to end a player's entry at the next `  - id:`, the next
+# `  # ---` group heading, or `selection:`, whichever came first. For every
+# player but the last one some marker sits right after his entry and the span
+# is correct. For the last one only `selection:` matches — and everything
+# between him and it belongs to the span.
+#
+# In the real data/squad.yaml that is fourteen lines of comment: the paragraph
+# saying the team sheet lives in this file at all, that the loader validates it
+# before a page is drawn, and that §11.2 works down the bench in the order
+# written. Selling him wrote eight lines back over twenty-two, and the result
+# loaded, validated and saved — which is the worst way for this to be wrong.
+#
+# The old tests could not see it: in their fixture the last player is followed
+# immediately by `selection:`, so the span was right by accident.
+
+DOCUMENTED = LEGAL.replace(
+    "selection:",
+    """# A folha como foi entregue no site.
+#
+# ESTE É O ÚNICO SÍTIO ONDE ELA VIVE, e este parágrafo é o que se perdia.
+#
+# A ordem do `bench` conta: o §11.2 percorre-o por ordem quando substitui.
+
+selection:""",
+    1,
+)
+
+
+def last_id(text: str) -> str:
+    import re
+
+    return re.findall(r'  - id: "(\d+)"', text)[-1]
+
+
+def test_the_last_players_block_is_his_entry_and_nothing_else(mod):
+    """Eight lines: the id line and the seven under it."""
+    start, end = mod.find_block(DOCUMENTED, last_id(DOCUMENTED))
+    assert len(DOCUMENTED[start:end].splitlines()) == 8
+
+
+def test_the_last_players_block_does_not_reach_the_comment_paragraph(mod):
+    start, end = mod.find_block(DOCUMENTED, last_id(DOCUMENTED))
+    swallowed = DOCUMENTED[start:end]
+    assert "§11.2" not in swallowed, (
+        "the block reaches past the entry into the documentation above "
+        "`selection:` — selling this player deletes it"
+    )
+    assert "selection:" not in swallowed
+
+
+def test_selling_the_last_player_leaves_the_paragraph_where_it_was(mod):
+    """The whole point, stated as a round trip."""
+    text = DOCUMENTED
+    out = FakePlayer(last_id(text), "irrelevante", "FWD", "Arouca")
+    arrival = FakePlayer("999", "Novo Homem", "FWD", "Rio Ave")
+    after = mod.swap_in_yaml(text, out, arrival)
+
+    assert "ESTE É O ÚNICO SÍTIO ONDE ELA VIVE" in after
+    assert "§11.2 percorre-o por ordem" in after
+    assert "Novo Homem" in after
+    assert text.count("#") - after.count("#") <= 1, (
+        "comments went missing — only the departing player's own `# proj` note "
+        "may be replaced"
+    )
+
+
+def test_a_player_in_the_middle_still_ends_at_the_next_entry(mod):
+    """The fix must not lengthen the ordinary case."""
+    import re
+
+    first = re.findall(r'  - id: "(\d+)"', DOCUMENTED)[0]
+    start, end = mod.find_block(DOCUMENTED, first)
+    assert len(DOCUMENTED[start:end].splitlines()) == 8
+
+
+def test_a_group_heading_is_not_eaten_either(mod):
+    """The last player of a group is followed by a blank line and a `# ---`."""
+    import re
+
+    ids = re.findall(r'  - id: "(\d+)"', DOCUMENTED)
+    last_keeper = ids[2]  # 3 GK, so this one is followed by the DEF heading
+    start, end = mod.find_block(DOCUMENTED, last_keeper)
+    assert "# ---" not in DOCUMENTED[start:end]
+    assert len(DOCUMENTED[start:end].splitlines()) == 8
+
+
+# --- and against the file it will actually run on -----------------------------
+
+
+def test_every_entry_in_the_real_squad_is_eight_lines(mod):
+    """A fixture can be built to pass. This one is the file he owns."""
+    import re
+
+    real = (ROOT / "data" / "squad.yaml").read_text(encoding="utf-8")
+    ids = re.findall(r'  - id: "(\d+)"', real)
+    assert len(ids) == 23, "data/squad.yaml is not a full squad"
+    wrong = {}
+    for player_id in ids:
+        start, end = mod.find_block(real, player_id)
+        found = len(real[start:end].splitlines())
+        if found != 8:
+            wrong[player_id] = found
+    assert not wrong, f"blocks of the wrong length in the real file: {wrong}"
+
+
+def test_a_transfer_does_not_eat_the_blank_line_between_entries(mod):
+    """Wider than the finding, and quieter.
+
+    The old span ran to the newline BEFORE the next marker, so it took the
+    blank line separating one entry from the next: twenty-two of the real
+    twenty-three came back nine lines long against a `player_block` that writes
+    eight. Every transfer deleted one blank line — 264 lines in, 263 out, the
+    arrival butted straight up against the man below him — and over a season of
+    transfers the squad file loses its spacing a line at a time, with the data
+    correct throughout.
+
+    Only the last player lost a paragraph. All the others were losing the shape
+    of the file.
+    """
+    real = (ROOT / "data" / "squad.yaml").read_text(encoding="utf-8")
+    import re
+
+    middle = re.findall(r'  - id: "(\d+)"', real)[5]
+    out = FakePlayer(middle, "irrelevante", "DEF", "Arouca")
+    arrival = FakePlayer("999", "Novo Homem", "DEF", "Rio Ave")
+    after = mod.swap_in_yaml(real, out, arrival)
+
+    assert len(after.splitlines()) == len(real.splitlines()), (
+        "the file changed length on a like-for-like swap — a blank line went "
+        "missing"
+    )
+    entry = after[after.index('  - id: "999"') :]
+    assert entry.splitlines()[8].strip() == "", (
+        "the arrival is touching the next entry; the separating blank line was "
+        "eaten with his block"
+    )

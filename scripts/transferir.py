@@ -108,18 +108,38 @@ def player_block(player, projection: str = "") -> str:
 
 
 def find_block(text: str, player_id: str) -> tuple[int, int]:
-    """Where one player's entry starts and ends in the file."""
+    """Where one player's entry starts and ends in the file.
+
+    BY INDENTATION, not by hunting for whatever comes after. The first version
+    looked for the next `  - id:`, the next `  # ---` group heading, or
+    `selection:`, and stopped at whichever came first. That works for every
+    player but the LAST one in the file — for him only `selection:` matches,
+    and the span swallowed the fourteen lines of comment above it: the
+    paragraph explaining that the team sheet lives in this file at all, that
+    the loader validates it before a page is drawn, and that §11.2 works down
+    the bench in the order written.
+
+    Verified against the real squad before the fix: the block came back
+    twenty-two lines long, `player_block` wrote eight back, and the result
+    loaded and validated cleanly — so it was saved. Losing the comments while
+    the data stays correct is exactly the failure this module does text surgery
+    to avoid, and it looks precisely like it worked.
+
+    An entry is its `  - id:` line plus the lines indented under it. Anything at
+    a shallower indent is not part of it — a blank line, a group heading,
+    `selection:`, the end of the file — whatever it happens to be.
+    """
     start = text.find(f'  - id: "{player_id}"')
     if start < 0:
         raise Refused(f"o id {player_id} não está no data/squad.yaml")
-    following = text.find("\n  - id:", start + 1)
-    # The last player of a group is followed by a comment or the selection
-    # block rather than another entry, so stop at whichever comes first.
-    comment = text.find("\n  # ---", start + 1)
-    tail = text.find("\nselection:", start + 1)
-    ends = [i for i in (following, comment, tail) if i >= 0]
-    return start, (min(ends) + 1 if ends else len(text))
-
+    lines = text[start:].split(chr(10))
+    taken = 1
+    for line in lines[1:]:
+        if not line.startswith("    ") or not line.strip():
+            break
+        taken += 1
+    end = start + len(chr(10).join(lines[:taken])) + 1
+    return start, min(end, len(text))
 
 def swap_in_yaml(text: str, out_player, in_player) -> str:
     """Replace one entry with another, leaving every comment where it was.
