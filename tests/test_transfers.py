@@ -100,3 +100,67 @@ def test_cannot_buy_a_player_already_in_the_squad(squad: Squad):
     result = validate_transfer(squad, "GK1", already_owned)
     assert not result.is_valid
     assert "§6.6" in rules_broken(result)
+
+
+# --- which window a matchday is in --------------------------------------------
+#
+# `propose_squad` listed its changes one a round, best first, and closed with a
+# line citing §6.8. That is the wrong rule in two of the three windows — and the
+# wrong ADVICE in the one that matters most, because before matchday 5 §6.7 lets
+# the whole twenty-three be rebuilt at once and a ladder is a list nobody has to
+# climb. Manuel had to say so himself, twice, before it was fixed.
+
+
+from liga_record_mcp.models import (
+    FIRST_SCORING_MATCHDAY,
+    LAST_MATCHDAY,
+    REOPENED_LAST_MATCHDAY,
+    REOPENED_MAX_SWAPS,
+    matchday_of_round,
+    REOPENED_FIRST_ROUND,
+)
+from liga_record_mcp.rules import transfers_allowed
+
+
+def test_before_the_squad_locks_there_is_no_limit():
+    """§6.7 — "enquanto a quantidade de alterações é livre"."""
+    for matchday in range(1, FIRST_SCORING_MATCHDAY + 1):
+        count, article = transfers_allowed(matchday)
+        assert count is None
+        assert article == "§6.7"
+
+
+def test_the_round_after_the_lock_is_one_a_round():
+    count, article = transfers_allowed(FIRST_SCORING_MATCHDAY + 1)
+    assert (count, article) == (1, "§6.8")
+
+
+def test_february_gives_six_for_the_whole_window():
+    """Six for the period, not six a round, and §6.8 is off while it runs."""
+    opens = matchday_of_round(REOPENED_FIRST_ROUND)
+    for matchday in range(opens, REOPENED_LAST_MATCHDAY + 1):
+        count, article = transfers_allowed(matchday)
+        assert (count, article) == (REOPENED_MAX_SWAPS, "§6.9")
+
+
+def test_the_window_has_edges_on_both_sides():
+    opens = matchday_of_round(REOPENED_FIRST_ROUND)
+    assert transfers_allowed(opens - 1)[1] == "§6.8"
+    assert transfers_allowed(REOPENED_LAST_MATCHDAY + 1)[1] == "§6.8"
+
+
+def test_the_rest_of_the_season_is_one_a_round():
+    for matchday in (7, 15, 20, 25, 30, LAST_MATCHDAY):
+        assert transfers_allowed(matchday)[0] == 1
+
+
+def test_the_proposal_asks_which_window_it_is_in():
+    """The wiring, which is where this kind of fix usually fails to land."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "scripts" / "propose_squad.py").read_text(encoding="utf-8")
+    assert "transfers_allowed(matchday)" in source
+    assert "§6.8 allows one" not in source, (
+        "the closing line still cites the weekly rule whatever the window"
+    )

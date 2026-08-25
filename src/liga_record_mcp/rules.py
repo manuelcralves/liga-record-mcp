@@ -13,8 +13,12 @@ from collections.abc import Iterable, Sequence
 
 from .models import (
     BENCH_SIZE,
+    FIRST_SCORING_MATCHDAY,
     MAX_SUBS_ON,
     MIN_PRICE,
+    REOPENED_FIRST_ROUND,
+    REOPENED_LAST_MATCHDAY,
+    REOPENED_MAX_SWAPS,
     SQUAD_QUOTA,
     SQUAD_SIZE,
     STARTER_RANGE,
@@ -26,6 +30,7 @@ from .models import (
     Selection,
     SelectionCheck,
     Squad,
+    matchday_of_round,
     SquadCheck,
     Substitution,
     TransferCheck,
@@ -379,3 +384,30 @@ def simulate_autosubs(
         captain_inherited=captain_inherited,
         unreplaced=[i for i in failing if i not in replaced],
     )
+
+
+def transfers_allowed(matchday: int) -> tuple[int | None, str]:
+    """How many players may be swapped before a matchday, and under which rule.
+
+    Returns the count and the article it comes from; `None` means no limit.
+
+    THREE WINDOWS, NOT TWO, and code that knows only about §6.8 gives the wrong
+    answer in both of the others:
+
+        up to matchday 5      §6.7 — "enquanto a quantidade de alterações é
+                              livre". The squad has not gone to a match yet, so
+                              the whole twenty-three can be rebuilt at once.
+        matchdays 21 to 24    §6.9 — the February reopening. Six for the WHOLE
+                              window, not six a round, and §6.8's weekly
+                              transfer is switched off while it runs.
+        everything else       §6.8 — one a round.
+
+    Written down here because a tool that lists changes "one a round, best
+    first" is presenting a ladder nobody has to climb during the two windows
+    where they can simply take the whole thing.
+    """
+    if matchday <= FIRST_SCORING_MATCHDAY:
+        return None, "§6.7"
+    if matchday_of_round(REOPENED_FIRST_ROUND) <= matchday <= REOPENED_LAST_MATCHDAY:
+        return REOPENED_MAX_SWAPS, "§6.9"
+    return 1, "§6.8"

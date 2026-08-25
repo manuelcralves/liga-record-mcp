@@ -46,9 +46,11 @@ from liga_record_mcp.models import (  # noqa: E402
     BASE_BUDGET,
     FIRST_SCORING_MATCHDAY,
     LAST_MATCHDAY,
+    SQUAD_SIZE,
     Position,
 )
 from liga_record_mcp.advice import MIN_OWN_HISTORY  # noqa: E402
+from liga_record_mcp.rules import transfers_allowed  # noqa: E402
 from liga_record_mcp.optimise import (  # noqa: E402
     best_eleven,
     best_squad_under_budget,
@@ -166,8 +168,15 @@ def main() -> None:
     parser.add_argument(
         "--moves",
         type=int,
-        default=6,
-        help="how many rungs of the ladder to work out",
+        default=None,
+        help="how many rungs of the ladder to work out "
+             "(default: whatever the window allows)",
+    )
+    parser.add_argument(
+        "--jornada",
+        type=int,
+        default=None,
+        help="which matchday to price the window for (default: the squad file)",
     )
     args = parser.parse_args()
 
@@ -295,7 +304,18 @@ def main() -> None:
         draws=args.draws,
     )
 
-    mine = [p.id for p in ManualSquadSource(SQUAD_PATH).load().squad.players]
+    snapshot = ManualSquadSource(SQUAD_PATH).load()
+    # WHICH WINDOW THIS IS. The changes below used to be listed one a round,
+    # best first, with a closing line citing §6.8 — which is the wrong rule in
+    # two of the three windows, and the wrong ADVICE in the one that matters
+    # most. Before matchday 5 §6.7 lets the whole twenty-three be rebuilt at
+    # once, so a ladder is a list nobody has to climb; in February §6.9 gives
+    # six for the window and switches §6.8 off entirely.
+    matchday = args.jornada or snapshot.round_number
+    window, article = transfers_allowed(matchday)
+    rungs = args.moves if args.moves is not None else (window or SQUAD_SIZE)
+
+    mine = [p.id for p in snapshot.squad.players]
     covered = [i for i in mine if i in market]
     yours = squad_value(covered, market, returns, playing, draws=args.draws)
 
@@ -348,13 +368,24 @@ def main() -> None:
         if basis.get(i, (0, 0))[0] >= MIN_OWN_HISTORY or i in covered
     ]
     print()
-    print("THE CHANGES, BEST FIRST")
+    if window is None:
+        print(f"AS MUDANÇAS — {article}, sem limite ate a jornada "
+              f"{FIRST_SCORING_MATCHDAY}")
+        print("  Podes fazer as que quiseres de uma vez. A escada abaixo e so")
+        print("  para poderes parar a meio se quiseres.")
+    elif window > 1:
+        print(f"AS MUDANÇAS — {article}, ate {window} para a janela toda")
+        print("  Seis para o periodo inteiro, nao seis por jornada, e a "
+              "transferencia")
+        print("  semanal do §6.8 esta desligada enquanto isto corre.")
+    else:
+        print(f"AS MUDANÇAS, MELHOR PRIMEIRO — {article}, uma por jornada")
     print(f"  {'':4}{'sai':<20}{'entra':<20}{'ganho':>8}   o que é")
 
     working = list(covered)
     running = yours
     ladder = []
-    while len(ladder) < args.moves:
+    while len(ladder) < rungs:
         step = improve_squad(
             working,
             market,
@@ -394,11 +425,27 @@ def main() -> None:
         print("  none — the model does not beat your 23 with any single swap")
     else:
         print()
-        print(
-            f"  all {len(ladder)}: {running:.1f} a round "
-            f"({running - yours:+.1f}). The first is the one to make this "
-            f"round; §6.8 allows one."
-        )
+        print()
+        print(f"  as {len(ladder)}: {running:.1f} por jornada "
+              f"({running - yours:+.1f} sobre o teu plantel de agora)")
+        if window is None:
+            # The ladder is greedy and budget-bound, so it stops short of the
+            # squad chosen whole. Saying so matters: the gap between the two is
+            # the reason not to climb a ladder when nothing forces you to.
+            short = proposed["expected_round"] - running
+            if short > 0.05:
+                print(f"  o plantel proposto la em cima faz "
+                      f"{proposed['expected_round']:.1f} — mais {short:+.1f} do "
+                      "que esta escada")
+                print("  chega a dar. Uma escada gulosa presa ao orcamento para "
+                      "antes do melhor;")
+                print("  se podes comprar tudo de uma vez, compra o de la em "
+                      "cima e nao este.")
+        elif window > 1:
+            print(f"  {article} deixa {window} nesta janela; as primeiras "
+                  f"{min(window, len(ladder))} sao estas.")
+        else:
+            print(f"  {article} deixa uma por jornada — faz a primeira.")
 
     sheet = best_eleven(
         [
