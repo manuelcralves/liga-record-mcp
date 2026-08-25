@@ -127,7 +127,15 @@ def deadlines(fixtures) -> list[str]:
         if first is None or moment < first:
             open_rounds[fixture.round_number] = moment
 
-    for round_number in sorted(open_rounds)[:1]:
+    # BY KICKOFF, NOT BY NUMBER. This was `sorted(open_rounds)[:1]`, which
+    # assumes round order is calendar order — and the comments in this very
+    # project say it is not. A round postponed wholesale to April has no played
+    # fixture, survives the filter above, and sorts first on its number: the
+    # line would read "faltam 220 dias" while the sheet closing in six days
+    # went unmentioned. And this is the LAST line of the routine, put there on
+    # purpose to survive being truncated.
+    if open_rounds:
+        round_number = min(open_rounds, key=open_rounds.get)
         shuts = open_rounds[round_number] - SHEET_CLOSES_BEFORE
         said.append(
             f"  §6.13: a folha da jornada {round_number} fecha "

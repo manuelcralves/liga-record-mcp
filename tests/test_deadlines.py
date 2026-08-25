@@ -207,3 +207,84 @@ def test_the_sheet_deadline_is_the_last_line(mod):
     assert len(said) == 2
     assert "§6.13" in said[-1], "the line with a clock on it is not the one logged"
     assert "FECHA TUDO" in said[0]
+
+
+# --- the round order is not the calendar order --------------------------------
+#
+# The line picked `sorted(open_rounds)[:1]` — the LOWEST round number with an
+# open sheet — which is only the next deadline while the calendar runs in
+# order. It does not: this project has already carried a round-2 fixture with
+# no date at all while rounds 3 and 4 were played.
+#
+# A round postponed wholesale has no played fixture, so it survives the filter
+# above, and then sorts first on its number. The line would read "faltam 220
+# dias" for a sheet in April while the one closing in six days went unsaid —
+# and this is the LAST line the routine prints, put there deliberately so it
+# survives the output being truncated.
+
+
+def test_a_round_moved_to_april_does_not_hide_the_one_closing_this_week(mod):
+    """The defect: lowest number wins, and the number is not the order."""
+    soon = datetime.now() + timedelta(days=6)
+    # Four months, not eight. A label carries no year, so `when` reads it into
+    # the nearest one — and a date further out than about six months comes back
+    # as the PAST and is dropped before it ever reaches the ordering. Written
+    # with 220 days this test passed against the broken code, for that reason
+    # and not for the one it claims.
+    far = datetime.now() + timedelta(days=120)
+    said = mod.deadlines(
+        [
+            fixture(6, "a", "b", played=True),
+            # Round 7 lifted out of its slot and replayed months later: nothing
+            # in it has been played, so it is "open", and 7 < 8.
+            fixture(7, "c", "d", kickoff=at(far)),
+            fixture(8, "e", "f", kickoff=at(soon)),
+        ]
+    )
+    sheet = next(line for line in said if "§6.13" in line)
+    assert "jornada 8" in sheet, (
+        "the deadline named the round with the lowest number instead of the "
+        "one that closes first"
+    )
+    assert "jornada 7" not in sheet
+
+
+def test_the_soonest_kickoff_wins_even_from_a_higher_round(mod):
+    """Same fact stated the other way: a high number can be next."""
+    soon = datetime.now() + timedelta(days=2)
+    later = datetime.now() + timedelta(days=90)
+    said = mod.deadlines(
+        [
+            fixture(9, "a", "b", kickoff=at(later)),
+            fixture(30, "c", "d", kickoff=at(soon)),
+        ]
+    )
+    sheet = next(line for line in said if "§6.13" in line)
+    assert "jornada 30" in sheet
+
+
+def test_the_ordinary_calendar_still_names_the_next_round(mod):
+    """The fix must not change the case that was already right."""
+    first = datetime.now() + timedelta(days=3)
+    second = first + timedelta(days=7)
+    said = mod.deadlines(
+        [
+            fixture(3, "a", "b", played=True),
+            fixture(4, "c", "d", kickoff=at(first)),
+            fixture(5, "e", "f", kickoff=at(second)),
+        ]
+    )
+    sheet = next(line for line in said if "§6.13" in line)
+    assert "jornada 4" in sheet
+
+
+def test_no_open_round_says_nothing_rather_than_raising(mod):
+    """Every fixture played, or every remaining one undated — the end of a
+    season, and the state this project was in for round 5 all August."""
+    said = mod.deadlines(
+        [
+            fixture(3, "a", "b", played=True),
+            fixture(4, "c", "d"),  # no kickoff label at all
+        ]
+    )
+    assert not [line for line in said if "§6.13" in line]
