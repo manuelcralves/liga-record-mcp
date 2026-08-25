@@ -2781,33 +2781,68 @@ def main() -> None:
         action="store_true",
         help="omit everything that belongs to other people, for a public host",
     )
+    parser.add_argument(
+        "--both",
+        action="store_true",
+        help="gather once and write both the private and the public pages",
+    )
     args = parser.parse_args()
 
+    if args.both and args.out:
+        raise SystemExit("--both writes two fixed directories; --out means one")
+
+    # GATHERED ONCE. The routine used to run this file twice, and `gather` takes
+    # no argument about `public` — it is the same fetches, the same valuation
+    # and the same Monte Carlo both times, about sixty-seven seconds of it, to
+    # produce identical numbers. Only `visible()`, `render_page(public=)` and
+    # the output directory differ.
+    #
+    # This costs no privacy, which was the thing to check before merging them.
+    # `gather` reads LIGA_RECORD_LEAGUE from the environment unconditionally, so
+    # the public build ALREADY fetched the league and held it in memory; it just
+    # never drew it. The separation was never a barrier, and `needs_league` on
+    # the routine's step is a warning flag, not an environment change. What
+    # keeps other people's results off the public host is `visible(public)`,
+    # `render_page(public=True)` and the output directory — all of which are
+    # per-render and unaffected here.
     data = gather(args.round)
+
     # The private build writes into its own directory, and that whole directory
     # is gitignored. A list of filenames would have to be remembered every time
     # a page is added, and forgetting once put twenty-nine other people's names
     # on a public remote.
-    out_dir = Path(args.out) if args.out else (
-        ROOT / "docs" if args.public else ROOT / "docs" / "private"
-    )
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    written = []
-    for slug, title, blocks in visible(args.public):
-        page = out_dir / f"{slug}.html"
-        page.write_text(
-            render_page(data, slug, title, blocks, public=args.public),
-            encoding="utf-8",
+    if args.both:
+        targets = [(ROOT / "docs" / "private", False), (ROOT / "docs", True)]
+    else:
+        out_dir = Path(args.out) if args.out else (
+            ROOT / "docs" if args.public else ROOT / "docs" / "private"
         )
-        written.append(page.name)
+        targets = [(out_dir, args.public)]
 
     settled = sum(1 for r in data["stored"]["players"].values() if r["actual"] is not None)
+    done = []
+    for out_dir, public in targets:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        written = []
+        for slug, title, blocks in visible(public):
+            page = out_dir / f"{slug}.html"
+            page.write_text(
+                render_page(data, slug, title, blocks, public=public),
+                encoding="utf-8",
+            )
+            written.append(page.name)
+        done.append((out_dir, written))
+
     print(
-        f"wrote {len(written)} pages to {out_dir} — round {args.round}, "
-        f"{settled}/23 settled, {len(data['league'])} in the league"
+        f"round {args.round}, {settled}/23 settled, "
+        f"{len(data['league'])} in the league"
     )
-    print("  " + ", ".join(written))
+    # One line per folder, and the LAST one is what the routine shows in its
+    # summary — so with --both the private folder goes first and the public
+    # line, the one that reaches a public host, is the one left on screen.
+    for out_dir, written in done:
+        where = out_dir.name if out_dir.name != "docs" else "docs (público)"
+        print(f"  {len(written)} em {where}: " + ", ".join(written))
 
 
 if __name__ == "__main__":

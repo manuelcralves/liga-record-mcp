@@ -69,7 +69,7 @@ def test_the_job_records_and_settles(workflow):
 
 def test_only_the_private_page_wants_the_league(routine):
     wanting = {step.slug for step in routine.STEPS if step.needs_league}
-    assert wanting == {"privada"}
+    assert wanting == {"paginas"}
 
 
 def test_the_job_runs_nothing_that_reads_the_private_league(routine, workflow):
@@ -193,3 +193,58 @@ def test_the_subject_covers_every_outcome(workflow):
         "fewer than four branches: one of recorded / settled / both / neither "
         "would fall through to another one's wording"
     )
+
+
+# --- the pages are gathered once ----------------------------------------------
+#
+# `gather()` takes no argument about `public`: the same fetches, the same
+# valuation, the same Monte Carlo. Running the script twice spent about
+# sixty-seven seconds each producing identical numbers, and only `visible()`,
+# `render_page(public=)` and the output directory told the two runs apart.
+#
+# Merging them cost no privacy, which was the thing to check first. `gather`
+# reads LIGA_RECORD_LEAGUE from the environment unconditionally, so the public
+# build already fetched the league and held it in memory — it simply never drew
+# it. `needs_league` is a warning flag, not an environment change. The barrier
+# was never the process; it is per-render, and untouched.
+
+
+def builds_pages(step) -> bool:
+    """`command` is a list of argv parts, so `in` needs the whole element."""
+    return any("build_dashboard.py" in part for part in step.command)
+
+
+def test_the_pages_are_one_step(routine):
+    page_steps = [s for s in routine.STEPS if builds_pages(s)]
+    assert len(page_steps) == 1, (
+        "build_dashboard runs more than once a routine — that is a minute of "
+        "recomputing numbers that come out the same"
+    )
+    assert "--both" in page_steps[0].command
+
+
+def test_the_page_step_still_wants_the_league(routine):
+    """It draws the private pages, so a missing guid is worth warning about."""
+    step = next(s for s in routine.STEPS if builds_pages(s))
+    assert step.needs_league
+
+
+def test_both_and_out_together_are_refused():
+    """--both writes two fixed directories, so --out cannot mean anything."""
+    source = (ROOT / "scripts" / "build_dashboard.py").read_text(encoding="utf-8")
+    assert "--both writes two fixed directories" in source
+
+
+def test_the_public_pages_are_still_a_smaller_set():
+    """The merge must not have quietly widened what the public host gets."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "build_dashboard", ROOT / "scripts" / "build_dashboard.py"
+    )
+    dash = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dash)
+    public = {slug for slug, _, _ in dash.visible(True)}
+    private = {slug for slug, _, _ in dash.visible(False)}
+    assert public < private, "the public build no longer omits anything"
+    assert "ligas" in private - public, "the private league page went public"

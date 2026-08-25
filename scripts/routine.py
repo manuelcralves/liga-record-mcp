@@ -96,8 +96,18 @@ STEPS = [
     # arrives whenever Sp. Braga–Gil Vicente is finally played, which is a date
     # nobody has set — so it has to be waiting rather than remembered.
     Step("adiado", "jogo adiado", ["scripts/watch_postponed.py", "--quiet"]),
-    Step("privada", "página privada", ["scripts/build_dashboard.py"], needs_league=True),
-    Step("publica", "página pública", ["scripts/build_dashboard.py", "--public"]),
+    # ONE BUILD, BOTH FOLDERS. This was two steps, and `gather()` takes no
+    # argument about `public` — so the two cold processes ran the same fetches,
+    # the same valuation and the same Monte Carlo, about sixty-seven seconds
+    # each, to produce numbers that are identical. Only which pages are drawn
+    # and where they land differ. Verified by diffing the two outputs against a
+    # single `--both` run: nothing but the timestamp line.
+    Step(
+        "paginas",
+        "páginas",
+        ["scripts/build_dashboard.py", "--both"],
+        needs_league=True,
+    ),
     # Last, and it changes nothing: it says what the ledger is still waiting
     # for. Everything above records what the site says; this names the part
     # only Manuel knows, which is the part that goes missing.
