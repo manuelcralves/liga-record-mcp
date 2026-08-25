@@ -268,3 +268,50 @@ def test_everyone_is_sorted_so_the_matrix_order_cannot_vary():
     """Set order decided an answer in this project once already."""
     table = [row("Z", position=1), row("A", position=2)]
     assert everyone(table, [("M", "Z"), ("A", "M")]) == ["A", "M", "Z"]
+
+
+# --- the type of the sequence must not change the score -----------------------
+#
+# `predicted[:1] == actual[:1]` compared raw slices while the line under it
+# wrapped both sides in `list()`. Both parameters are declared `Sequence[str]`,
+# so `score(tuple(order), actual)` is a legal call — and it lost sixty points,
+# because `('Sporting',) == ['Sporting']` is false, while the top-four bonus
+# beside it went on paying because it normalised.
+#
+# Latent: every caller today passes a list. The `list()` next door is the
+# evidence that the risk was known and then guarded in one of the two places.
+
+
+@pytest.mark.parametrize(
+    "wrap", [list, tuple], ids=["list", "tuple"]
+)
+def test_a_perfect_entry_scores_the_same_whatever_it_is_made_of(wrap):
+    assert score(wrap(ACTUAL), wrap(ACTUAL)) == score(ACTUAL, ACTUAL)
+
+
+def test_a_tuple_entry_still_collects_the_champion_bonus():
+    """The defect, on its own, in the units it was lost in."""
+    got = score(tuple(ACTUAL), ACTUAL)
+    assert got["champion"] == CHAMPION_BONUS, (
+        "sixty points went missing because the entry was a tuple"
+    )
+
+
+def test_a_tuple_actual_table_works_too():
+    """The other side of the comparison, which nothing guarded either."""
+    assert score(ACTUAL, tuple(ACTUAL))["champion"] == CHAMPION_BONUS
+
+
+def test_a_generator_is_not_silently_half_scored():
+    """`Sequence` excludes generators, but the normalisation makes the failure
+    a clean one rather than a table scored against an exhausted iterator."""
+    got = score(iter(ACTUAL), ACTUAL)
+    assert got["champion"] == CHAMPION_BONUS
+
+
+def test_the_bonuses_still_refuse_a_wrong_order_after_normalising():
+    """The fix must not turn every comparison true."""
+    swapped = tuple([ACTUAL[1], ACTUAL[0]] + ACTUAL[2:])
+    got = score(swapped, ACTUAL)
+    assert got["champion"] == 0
+    assert got["top_four"] == 0

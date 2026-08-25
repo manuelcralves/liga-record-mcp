@@ -259,7 +259,21 @@ def score(predicted: Sequence[str], actual: Sequence[str]) -> dict[str, int]:
     rather than naming a position. The places themselves are already scored by
     the distance table, so reading it the other way would pay twice for the
     same thing.
+
+    NORMALISED ONCE, AT THE TOP. The champion line used to compare raw slices
+    while the line under it wrapped both sides in `list()` — so
+    `score(tuple(order), actual)` quietly dropped sixty points, because
+    `('Sporting',) == ['Sporting']` is false, while the top-four bonus beside it
+    went on paying. Both parameters are declared `Sequence[str]`, so passing a
+    tuple is not a misuse; and the `list()` next door proves the risk was known
+    and then guarded in only one of the two places.
+
+    Converting here rather than at each comparison means the next line added to
+    this function cannot reintroduce it.
     """
+    predicted = list(predicted)
+    actual = list(actual)
+
     where = {club: place for place, club in enumerate(actual)}
     places = 0
     for place, club in enumerate(predicted):
@@ -268,7 +282,7 @@ def score(predicted: Sequence[str], actual: Sequence[str]) -> dict[str, int]:
         places += BY_DISTANCE.get(abs(place - where[club]), TOO_FAR)
 
     champion = CHAMPION_BONUS if predicted[:1] == actual[:1] else 0
-    top_four = TOP_FOUR_BONUS if list(predicted[:TOP_FOUR]) == list(actual[:TOP_FOUR]) else 0
+    top_four = TOP_FOUR_BONUS if predicted[:TOP_FOUR] == actual[:TOP_FOUR] else 0
     down = set(actual[-RELEGATION_PLACES:]) & set(predicted[-RELEGATION_PLACES:])
     return {
         "places": places,
