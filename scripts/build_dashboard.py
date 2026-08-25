@@ -520,7 +520,11 @@ def round_fixtures(round_number: int) -> dict[str, dict]:
 
 
 def judged_on(
-    fresh: dict[str, float], stored: dict, *, kicked_off: bool
+    fresh: dict[str, float],
+    stored: dict,
+    *,
+    kicked_off: bool,
+    no_fixture: frozenset[str] | set[str] = frozenset(),
 ) -> dict[str, float]:
     """Which estimates a round's team sheet should be judged against.
 
@@ -542,6 +546,21 @@ def judged_on(
     The arrival lands with no estimate, `best_eleven` scores him at
     UNUSED_PENALTY so he can never be picked, and if he reaches `described()`
     the unguarded lookup raises KeyError and no page is written at all.
+
+    AND §15.3 SURVIVES THE SWAP. A man whose club has no fixture at all this
+    round is worth zero — `model_sheet` says so, and it is looking at today's
+    calendar. The record was written before the game moved, so it holds the
+    estimate he had when he still had an opponent, and replacing the WHOLE map
+    put that estimate back for exactly the players it does not apply to.
+
+    What that produced: a round where the sheet has kicked off on the other
+    eight games, so `kicked_off` is true, and the "model eleven" is rebuilt
+    with players who cannot score, priced as though they play, and printed
+    beside Manuel's own sheet as what he should have done.
+
+    So the stored estimates are used for the round, and then the zeros are put
+    back on top. Both facts are true at once: what was known before kickoff,
+    and that the game is not being played.
     """
     if not kicked_off:
         return fresh
@@ -550,7 +569,9 @@ def judged_on(
         for i, row in (stored.get("players") or {}).items()
         if row.get("projected") is not None
     }
-    return on_record if on_record.keys() == fresh.keys() else fresh
+    if on_record.keys() != fresh.keys():
+        return fresh
+    return {i: (0.0 if i in no_fixture else v) for i, v in on_record.items()}
 
 
 def model_sheet(stored: dict, round_number: int) -> dict:
@@ -650,7 +671,13 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     kicked_off = any(
         f.round_number == round_number and f.played for f in mcp._market.fixtures()
     )
-    expected = judged_on(expected, stored, kicked_off=kicked_off)
+    expected = judged_on(
+        expected,
+        stored,
+        kicked_off=kicked_off,
+        # Who §15.3 zeroed above, so the record cannot put an opponent back.
+        no_fixture={i for i, week in fixture_of.items() if week is None},
+    )
 
     sheet = best_eleven(rows, expected)
     if sheet is None:

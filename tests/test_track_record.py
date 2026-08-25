@@ -374,3 +374,71 @@ def test_a_round_with_a_filed_eleven_but_no_model_one_is_also_unpaired(dash):
     said = verdict_of(dash, [track_row(4), track_row(5, model=None)])
     assert "Sobre 1 jornada" in said
     assert "Fora desta conta" in said
+
+
+# --- §15.3 has to survive the swap --------------------------------------------
+#
+# `model_sheet` writes 0.0 for a man whose club has no fixture at all this
+# round — it is reading today's calendar, and §15.3 scores those players
+# nothing. `judged_on` then replaced the WHOLE map with the stored one, which
+# was written before the game moved and still holds the estimate he had when he
+# had an opponent. So the zero was undone for exactly the players it applies to.
+#
+# The round it fires on: eight of nine games played, so `kicked_off` is true,
+# and the "model eleven" comes back full of men who cannot score, priced as
+# though they play, printed beside Manuel's sheet as what he should have done.
+#
+# Latent while Record keeps a postponed game in its original round without a
+# date — the club stays in the calendar and is never zeroed. It fires when a
+# game is moved OUT of a round, which is the same trigger as the ledger's
+# no-fixture case.
+
+
+def test_a_zeroed_player_stays_zero_after_the_swap(dash):
+    """The defect, stated as the thing that must not come back."""
+    fresh = {"1": 5.0, "2": 0.0}
+    stored = {"players": {"1": {"projected": 9.0}, "2": {"projected": 7.5}}}
+    got = dash.judged_on(fresh, stored, kicked_off=True, no_fixture={"2"})
+    assert got == {"1": 9.0, "2": 0.0}, (
+        "the record put an opponent back for a player whose game is not being "
+        "played — he would be picked for the model eleven"
+    )
+
+
+def test_the_others_still_get_what_was_on_record(dash):
+    """The zero must not cost everyone else the pre-kickoff estimate."""
+    fresh = {"1": 5.0, "2": 0.0}
+    stored = {"players": {"1": {"projected": 9.0}, "2": {"projected": 7.5}}}
+    got = dash.judged_on(fresh, stored, kicked_off=True, no_fixture={"2"})
+    assert got["1"] == 9.0
+
+
+def test_nobody_zeroed_leaves_the_record_untouched(dash):
+    fresh = {"1": 5.0, "2": 3.0}
+    stored = {"players": {"1": {"projected": 9.0}, "2": {"projected": 1.0}}}
+    assert dash.judged_on(fresh, stored, kicked_off=True) == {"1": 9.0, "2": 1.0}
+
+
+def test_an_open_sheet_is_unaffected_by_the_zero_set(dash):
+    """While the sheet is open the fresh map already carries the zero."""
+    fresh = {"1": 5.0, "2": 0.0}
+    stored = {"players": {"1": {"projected": 9.0}, "2": {"projected": 7.5}}}
+    assert dash.judged_on(fresh, stored, kicked_off=False, no_fixture={"2"}) == fresh
+
+
+def test_a_zeroed_player_cannot_be_picked_for_the_model_eleven(dash):
+    """What the zero is FOR, checked through the thing that consumes it."""
+    fresh = {str(i): 5.0 for i in range(1, 4)}
+    fresh["2"] = 0.0
+    stored = {"players": {i: {"projected": 20.0} for i in fresh}}
+    got = dash.judged_on(fresh, stored, kicked_off=True, no_fixture={"2"})
+    assert got["2"] < min(v for i, v in got.items() if i != "2"), (
+        "the zeroed player is not the cheapest option, so the optimiser can "
+        "still field him"
+    )
+
+
+def test_the_page_passes_the_zeroes_in(dash):
+    """The wiring, which is where this kind of fix usually fails to land."""
+    source = (ROOT / "scripts" / "build_dashboard.py").read_text(encoding="utf-8")
+    assert "no_fixture={i for i, week in fixture_of.items() if week is None}" in source
