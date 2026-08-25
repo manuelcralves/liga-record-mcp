@@ -442,3 +442,92 @@ def test_the_page_passes_the_zeroes_in(dash):
     """The wiring, which is where this kind of fix usually fails to land."""
     source = (ROOT / "scripts" / "build_dashboard.py").read_text(encoding="utf-8")
     assert "no_fixture={i for i, week in fixture_of.items() if week is None}" in source
+
+
+# --- the advice is recorded, not re-derived -----------------------------------
+#
+# The ledger kept Manuel's `filed` eleven from the start and never kept its own.
+# The model's was derived on demand from the projections beside it, which sounds
+# equivalent and is not: the derivation runs today's `model_sheet`, which reads
+# today's §15.3 zeros and today's injury file. So "the advice for round 3" could
+# quietly change months after round 3, with nothing to show it had.
+#
+# Measured, and it is why this exists: the eleven the 19 August estimator
+# proposed for round 3 differs from the one today's estimator proposes for the
+# same round by two players — Jose Fontán and Fran Navarro out, Finn van Breemen
+# and Santi García in. The armband held. Nothing recorded any of it.
+
+
+@pytest.fixture(scope="module")
+def recorder():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "record_projection", ROOT / "scripts" / "record_projection.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def a_round(n=23):
+    """A §6.6 squad's worth of rows in the shape the ledger stores."""
+    shape = [("GK", 3), ("DEF", 8), ("MID", 8), ("FWD", 4)]
+    rows, i = {}, 0
+    for position, count in shape:
+        for _ in range(count):
+            i += 1
+            rows[str(i)] = {
+                "name": f"p{i}",
+                "position": position,
+                "value": 1_000_000,
+                "projected": 2.0,
+                "actual": None,
+            }
+    return rows
+
+
+def test_the_advice_is_an_eleven_a_bench_and_an_armband(recorder):
+    found = recorder.advised_sheet(a_round())
+    assert found is not None
+    assert len(found["starters"]) == 11
+    assert len(found["bench"]) == 4
+    assert found["captain"] in found["starters"]
+    assert found["formation"]
+
+
+def test_it_follows_the_projections_on_file_and_nothing_else(recorder):
+    """Frozen input, frozen answer — that is the whole point of recording it."""
+    rows = a_round()
+    rows["23"]["projected"] = 40.0            # a forward nobody could leave out
+    found = recorder.advised_sheet(rows)
+    assert "23" in found["starters"]
+    assert found["captain"] == "23"
+
+
+def test_the_same_rows_always_give_the_same_sheet(recorder):
+    rows = a_round()
+    assert recorder.advised_sheet(rows) == recorder.advised_sheet(dict(rows))
+
+
+def test_a_squad_that_cannot_be_fielded_returns_nothing_rather_than_raising(recorder):
+    assert recorder.advised_sheet({}) is None
+
+
+def test_the_recorded_round_carries_it():
+    """Against the real file: round 3's advice is on record, not derivable."""
+    import json
+
+    log = json.loads(
+        (ROOT / "data" / "projections.json").read_text(encoding="utf-8")
+    )
+    three = log["rounds"].get("3")
+    if three is None:
+        pytest.skip("round 3 is no longer on file")
+    assert three.get("advised"), "the round records his sheet but not the model's"
+    assert three["advised"]["captain"] in three["advised"]["starters"]
+
+
+def test_the_snapshot_writes_it():
+    source = (ROOT / "scripts" / "record_projection.py").read_text(encoding="utf-8")
+    assert '"advised": advised_sheet(rows),' in source

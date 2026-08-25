@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp.advice import valuation  # noqa: E402
+from liga_record_mcp.optimise import best_eleven  # noqa: E402
 from liga_record_mcp.models import Position  # noqa: E402
 from liga_record_mcp.source import (  # noqa: E402
     LigaRecordClient,
@@ -246,6 +247,37 @@ def snapshot(market, history, squad, round_number):
 
     return rows
 
+
+def advised_sheet(rows: dict) -> dict | None:
+    """The eleven the model would field, recorded rather than reconstructed.
+
+    THE LEDGER KEPT MANUEL'S SHEET AND NOT ITS OWN ADVICE. His `filed` eleven
+    was on record from the start; the model's was derived on demand from the
+    projections beside it, which sounds equivalent and is not. The derivation
+    runs today's `model_sheet`, and that reads today's §15.3 zeros and today's
+    injury file — so the "advice for round 3" could quietly change months after
+    round 3, and there would be no way to tell that it had.
+
+    Measured, and this is why it matters: the eleven the estimator of 19 August
+    proposed for round 3 differs from the one today's estimator proposes for
+    the same round by two players. The armband held. Nothing recorded that.
+
+    Built from this round's own projections, which are frozen the moment they
+    are written — so this is the advice as it stood, permanently.
+    """
+    shaped = [
+        {"id": i, "position": Position(row["position"]), "value": row["value"]}
+        for i, row in rows.items()
+    ]
+    sheet = best_eleven(shaped, {i: row["projected"] for i, row in rows.items()})
+    if sheet is None:
+        return None
+    return {
+        "starters": list(sheet["starters"]),
+        "bench": list(sheet["bench"]),
+        "captain": sheet["captain"],
+        "formation": sheet.get("formation"),
+    }
 
 def coach_snapshot(history, counts, round_number):
     """The chosen coach, with what is expected of him this round.
@@ -597,6 +629,11 @@ def main() -> None:
             if picked is not None
             else None
         ),
+        # AND THE ADVICE ITSELF, beside the sheet he entered. Both are now
+        # facts on file rather than one fact and one derivation, so the
+        # comparison on the track-record page reads the same in May as it did
+        # in August.
+        "advised": advised_sheet(rows),
         "players": rows,
         "coach": coach_snapshot(
             history, matches_played(market.fixtures()), snapshot_of_squad.round_number
