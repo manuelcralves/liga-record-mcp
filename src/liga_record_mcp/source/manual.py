@@ -242,3 +242,46 @@ def load_final_entry(path: str | Path) -> dict:
         "locked_round": raw.get("jornada_entrada"),
         "chips": chips,
     }
+
+
+def load_unavailable(path: str | Path, round_number: int) -> dict[str, str]:
+    """Who cannot play a given round, and why — hand-maintained.
+
+    THE ONE THING MANUEL KNOWS THAT THE MODEL DOES NOT. Cards are counted, so
+    suspensions are seen without help; injuries are not published by the site —
+    a player's payload carries fifteen fields and none is availability — and
+    this project does not read the press.
+
+    Measured worth, playing a full season out from matchday 6 with his squad:
+    picking the XI blind scores 1246, knowing who is out scores 1306, and adding
+    transfers on top scores 1326. Knowing who is injured is three times the
+    whole transfer channel.
+
+    THE ROUND IS CHECKED, not assumed. A file left over from last week would
+    bench a fit player, and the mistake is invisible — he simply is not picked.
+    A file naming a different round returns nothing rather than the wrong
+    thing, because a stale answer here is worse than no answer.
+    """
+    file = Path(path)
+    if not file.is_file():
+        return {}
+    try:
+        raw = yaml.safe_load(file.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise SquadSourceError(f"{file} is not valid YAML: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise SquadSourceError(f"{file} is not a mapping")
+
+    named = raw.get("jornada")
+    if named is not None and int(named) != int(round_number):
+        return {}
+
+    out: dict[str, str] = {}
+    for entry in raw.get("fora") or ():
+        if not isinstance(entry, dict):
+            raise SquadSourceError(f"{file}: every entry under `fora` is a mapping")
+        player_id = entry.get("id")
+        if player_id is None:
+            raise SquadSourceError(f"{file}: an entry under `fora` has no `id`")
+        out[str(player_id)] = str(entry.get("razao") or "sem razão dada")
+    return out

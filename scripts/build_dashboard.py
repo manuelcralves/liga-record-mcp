@@ -49,6 +49,7 @@ from liga_record_mcp.source import (  # noqa: E402
     load_appearances,
     load_coaches,
     load_final_entry,
+    load_unavailable,
 )
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
@@ -85,6 +86,11 @@ from liga_record_mcp.stats import (  # noqa: E402
 LOG_PATH = ROOT / "data" / "projections.json"
 #: The Final Table entry as submitted, plus every chip played since.
 ENTRY_PATH = ROOT / "data" / "tabela-final.yaml"
+#: Who cannot play, hand-maintained — the site publishes no availability.
+UNAVAILABLE_PATH = ROOT / "data" / "indisponiveis.yaml"
+#: How far below a fit player someone known to be out is ranked. Large enough
+#: that no fit man is ever passed over, small enough to stay a number.
+OUT_OF_THE_RECKONING = 1000.0
 #: Seasons played out for the Final Table. Two thousand already moves the
 #: order by nothing; four thousand costs two seconds.
 FINAL_TABLE_DRAWS = 4000
@@ -678,6 +684,25 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         # Who §15.3 zeroed above, so the record cannot put an opponent back.
         no_fixture={i for i, week in fixture_of.items() if week is None},
     )
+
+    # WHO IS KNOWN TO BE OUT, which is the one thing Manuel can tell the model
+    # that it cannot work out for itself. Cards it counts; injuries the site
+    # does not publish and this project does not read the press.
+    #
+    # Ranked below every fit player rather than removed, so a squad whose three
+    # keepers are all out can still field a legal eleven instead of refusing.
+    # And BELOW the -1 of §10.3(i) too — a man who is out and a man who merely
+    # might not start both collect -1, and only one of them is certain.
+    #
+    # The estimate in the ledger stays at -1, which is what he actually
+    # collects. This number is a selection device, not a forecast, and putting
+    # it on file would make the error -999 and ruin the accuracy figures.
+    unavailable = load_unavailable(UNAVAILABLE_PATH, round_number)
+    if unavailable:
+        expected = {
+            i: (v - OUT_OF_THE_RECKONING if i in unavailable else v)
+            for i, v in expected.items()
+        }
 
     sheet = best_eleven(rows, expected)
     if sheet is None:

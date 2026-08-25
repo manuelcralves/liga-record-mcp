@@ -33,6 +33,7 @@ from liga_record_mcp.models import Position  # noqa: E402
 from liga_record_mcp.source import (  # noqa: E402
     LigaRecordClient,
     load_appearances,
+    load_unavailable,
     ManualSquadSource,
     OpenFootballClient,
     load_coaches,
@@ -55,6 +56,8 @@ from liga_record_mcp.source.last_season import archive_records  # noqa: E402
 LOG_PATH = ROOT / "data" / "projections.json"
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
 COACHES_PATH = ROOT / "data" / "coaches.yaml"
+#: Who cannot play, hand-maintained — the site does not publish it.
+UNAVAILABLE_PATH = ROOT / "data" / "indisponiveis.yaml"
 
 #: The coach on the sheet. A coach scores every round (§6.15, §6.17) and the
 #: eighteen spanned 14 points to -2 after two, so leaving him out of the record
@@ -129,6 +132,13 @@ def snapshot(market, history, squad, round_number):
         ),
     )
 
+    # Who is known to be out this round, from the one file the site cannot
+    # fill. Worth more than the transfer channel: playing a season out from
+    # matchday 6, picking the XI blind scores 1246 and knowing who is out 1306.
+    unavailable = load_unavailable(UNAVAILABLE_PATH, round_number)
+    if unavailable:
+        print(f"  {len(unavailable)} fora da jornada {round_number}, por ficheiro")
+
     rows = {}
     for player in squad.players:
         # The player's own estimate first, because none of it depends on who he
@@ -198,6 +208,21 @@ def snapshot(market, history, squad, round_number):
             entry["returns"], player.position, defensive, attacking
         ) + (1 - entry["playing"]) * float(UNUSED_PENALTY)
 
+        # KNOWN NOT TO BE PLAYING, which the model cannot see for itself. Cards
+        # it counts; injuries the site does not publish — a player's payload
+        # carries fifteen fields and none is availability — and this project
+        # does not read the press. So the estimate becomes what §10.3(i) pays a
+        # man who does not play, minus one, rather than a guess about a game he
+        # is not in.
+        #
+        # Minus one and not something huge: this is an ESTIMATE, scored against
+        # what he really collects. Recording -1000 would make the error -999 and
+        # poison every accuracy figure the ledger produces. Keeping him out of
+        # the eleven is a different job, done where the eleven is chosen.
+        why = unavailable.get(player.id)
+        if why is not None:
+            adjusted = float(UNUSED_PENALTY)
+
         rows[player.id] = {
             "name": player.name,
             "position": player.position.value,
@@ -216,6 +241,7 @@ def snapshot(market, history, squad, round_number):
             "projected": round(adjusted, 2),
             "points_before": player.points_total,
             "actual": None,
+            **({"unavailable": why} if why is not None else {}),
         }
 
     return rows

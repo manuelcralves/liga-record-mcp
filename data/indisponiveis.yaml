@@ -1,0 +1,36 @@
+# Quem não joga esta jornada, e porquê.
+#
+# A ÚNICA COISA QUE O MANUEL SABE E O MODELO NÃO. O modelo conta cartões, por
+# isso vê as suspensões sozinho. Lesões não: o site não as publica — o payload
+# de um jogador tem quinze campos e nenhum é disponibilidade — e este projeto
+# não lê a imprensa. Portanto vem daqui, à mão, como o plantel e os treinadores.
+#
+# VALE MAIS QUE AS TRANSFERÊNCIAS. Medido a jogar uma época inteira do princípio
+# com o plantel do Melro: escolher o onze às cegas dá 1246 pontos; saber quem
+# está fora dá 1306; acrescentar as transferências por cima dá 1326. Os sessenta
+# pontos de saber quem está lesionado são o triplo do que rende o canal das
+# transferências inteiro.
+#
+# COMO FUNCIONA. Um jogador aqui é ordenado abaixo de todos os aptos, não
+# apagado — assim um plantel com os três guarda-redes fora ainda consegue
+# apresentar um onze legal em vez de recusar.
+#
+# A JORNADA IMPORTA. Isto aplica-se à jornada nomeada abaixo e a mais nenhuma.
+# Uma lesão sabida antes do apito entra na projeção registada, que é o modelo do
+# dia a estar certo; escrever aqui depois do jogo seria julgar o passado com
+# informação que não existia, e o `record_projection` recusa-se a registar uma
+# jornada já começada precisamente por isso.
+#
+# Esvazia a lista quando a jornada mudar.
+
+jornada: 4
+
+fora: []
+
+# Exemplo:
+#
+# fora:
+#   - id: "42398"
+#     nome: Héctor Hernández
+#     razao: lesão muscular
+#     fonte: Record, 26/08
