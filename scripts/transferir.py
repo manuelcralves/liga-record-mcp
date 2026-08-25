@@ -289,17 +289,18 @@ def main() -> None:
             )
         said.append(f"  formação {sheet.formation}")
 
-    print()
-    print(f"JORNADA {round_number}")
-    print("\n".join(said))
-
-    if args.ensaio:
-        print()
-        print("  ensaio — nada foi escrito")
-        return
-
-    SQUAD_PATH.write_text(text, encoding="utf-8")
-
+    # THE LEDGER REFUSES BEFORE ANYTHING IS WRITTEN, not after.
+    #
+    # This ran after `SQUAD_PATH.write_text` and printed "o squad.yaml foi
+    # escrito, mas o ledger recusou" — leaving the two files disagreeing about
+    # what Manuel did, which is the exact failure this script exists to
+    # prevent. Not hypothetical either: the scheduled job records rounds
+    # through `settle_decision`, so a round can already be on file when this
+    # runs.
+    #
+    # `record_decision` only mutates `store` in memory — `save_decisions` is
+    # what touches disk — so running it up here costs nothing and turns a
+    # half-applied write into an ordinary refusal, one `--ensaio` reports too.
     store = load_decisions(DECISIONS_PATH)
     try:
         record_decision(
@@ -312,11 +313,26 @@ def main() -> None:
             captain=args.capitao,
             note=args.nota,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — any refusal is a refusal
+        raise Refused(
+            f"o ledger não aceita a jornada {round_number}: {exc}\n"
+            "  (uma decisão já registada não se reescreve — nada foi escrito)"
+        ) from exc
+
+    print()
+    print(f"JORNADA {round_number}")
+    print("\n".join(said))
+
+    if args.ensaio:
         print()
-        print(f"  o squad.yaml foi escrito, mas o ledger recusou: {exc}")
-        print("  (isso é de propósito — uma decisão já registada não se reescreve)")
+        print("  ensaio — nada foi escrito")
         return
+
+    # Both writes, after every refusal has had its chance. Still two calls, and
+    # a disk failure between them would desync the pair — but that window is
+    # now a few microseconds of validated work instead of the whole ledger
+    # check, and closing it properly needs a transaction neither file has.
+    SQUAD_PATH.write_text(text, encoding="utf-8")
     save_decisions(DECISIONS_PATH, store)
 
     print()
