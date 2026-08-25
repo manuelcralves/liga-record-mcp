@@ -44,7 +44,7 @@ from .live import (
     parse_market_player,
     parse_standing,
 )
-from .manual import ManualSquadSource, load_coaches
+from .manual import ManualSquadSource, load_coaches, load_final_entry
 
 __all__ = [
     "CLUB_NAMES",
@@ -69,6 +69,7 @@ __all__ = [
     "load_decisions",
     "load_appearances",
     "load_coaches",
+    "load_final_entry",
     "record_decision",
     "record_round",
     "record_season_choice",

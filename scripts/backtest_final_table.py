@@ -44,8 +44,8 @@ from liga_record_mcp.final_table import (  # noqa: E402
     LAST_CHIP_ROUND,
     WEEKLY_REACH,
     WORTH_MOVING,
-    best_chip,
     best_order,
+    chip_plan,
     distribution,
     score,
     strengths,
@@ -128,24 +128,28 @@ def play_season(
         remaining = [(f.home, f.away) for f in season if f.round_number >= matchday]
         table = table_from(played, clubs)
         strength = strengths(archive, table, recent_weight=weight)
-        spread = distribution(table, remaining, strength, draws=draws, seed=seed)
+        # A DIFFERENT STREAM EVERY MATCHDAY. Restarting the same one each week
+        # made twenty-five chip decisions against twenty-five copies of the
+        # same sample, so Monte Carlo error stopped cancelling across a season
+        # and accumulated common-mode instead — inflating exactly the spread
+        # that WORTH_MOVING was chosen from.
+        spread = distribution(
+            table, remaining, strength, draws=draws, seed=seed * 1000 + matchday
+        )
 
         if order is None:
             order = best_order(spread, clubs=clubs)
             continue
 
-        # The ordinary chip, and at three matchdays a bonus one on top of it.
-        reaches = [WEEKLY_REACH]
-        if matchday in BONUS_ROUNDS:
-            reaches.append(BONUS_REACH)
-        for reach in reaches:
-            order, who, distance = best_chip(
-                order, spread, reach=reach, threshold=threshold
-            )
-            if who is not None:
+        # The ordinary chip, and at three matchdays a bonus one on top of it —
+        # from `chip_plan`, which is what production plays. A backtest that
+        # carries its own copy of the policy measures a policy nobody runs.
+        order, plays = chip_plan(order, spread, matchday, threshold=threshold)
+        for play in plays:
+            if play["club"] is not None:
                 used += 1
-                travelled += distance
-                entries.append((matchday, who, distance))
+                travelled += play["places"]
+                entries.append((matchday, play["club"], play["places"]))
 
     return {"order": order, "chips": used, "places": travelled, "log": entries}
 

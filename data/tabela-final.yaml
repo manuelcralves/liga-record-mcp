@@ -1,0 +1,35 @@
+# A entrada da Tabela Final do zerozero — outro jogo, o mesmo prazo.
+#
+# ISTO É ESTADO, NÃO UMA RECOMENDAÇÃO. A entrada escreve-se uma vez, na jornada
+# 5, e depois vinte e cinco semanas de chips mexem-na. A ordem em que está hoje
+# não se pode recalcular do modelo de hoje — só se pode repetir a partir do que
+# foi mesmo submetido. Recalcular mostraria uma ordem que o Manuel nunca
+# entregou, e avaliaria o chip da semana contra uma posição em que ele não está.
+#
+# COMO SE PREENCHE. Quando a entrada for entregue no zerozero, copia-se para
+# `entrada` a ordem exata dos dezoito, do 1.º ao 18.º. Depois, cada chip jogado
+# junta-se a `chips` com a jornada, o clube e o lugar para onde foi — uma linha
+# por chip, na ordem em que foram jogados, porque o segundo chip de uma semana
+# é avaliado contra a ordem que o primeiro deixou.
+#
+# Os nomes dos clubes têm de ser os que o resto do projeto usa (os do Record),
+# não os do zerozero, senão a ordem não casa com as probabilidades.
+
+jornada_entrada: 5
+
+# Ainda por entregar — o prazo é a jornada 5.
+entrada: null
+
+chips: []
+# Exemplo, depois de entregar:
+#
+# entrada:
+#   - Sporting
+#   - Benfica
+#   ...
+#
+# chips:
+#   - jornada: 6
+#     clube: Gil Vicente
+#     para: 9
+#     nota: subiu 3, o chip semanal

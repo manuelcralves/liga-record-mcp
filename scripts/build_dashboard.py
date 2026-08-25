@@ -44,13 +44,21 @@ from liga_record_mcp.optimise import (  # noqa: E402
     improve_squad,
     squad_value,
 )
-from liga_record_mcp.source import load_coaches, ManualSquadSource, load_appearances  # noqa: E402
+from liga_record_mcp.source import (  # noqa: E402
+    ManualSquadSource,
+    load_appearances,
+    load_coaches,
+    load_final_entry,
+)
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
 from liga_record_mcp.final_table import (  # noqa: E402
     RELEGATION_PLACES,
     TOP_FOUR,
+    WORTH_MOVING,
+    apply_chips,
     best_order,
+    chip_plan,
     distribution,
     strengths,
     value_of,
@@ -75,6 +83,8 @@ from liga_record_mcp.stats import (  # noqa: E402
 )
 
 LOG_PATH = ROOT / "data" / "projections.json"
+#: The Final Table entry as submitted, plus every chip played since.
+ENTRY_PATH = ROOT / "data" / "tabela-final.yaml"
 #: Seasons played out for the Final Table. Two thousand already moves the
 #: order by nothing; four thousand costs two seconds.
 FINAL_TABLE_DRAWS = 4000
@@ -1795,7 +1805,25 @@ def final_table(round_number: int) -> dict:
     strength = strengths(OpenFootballClient(timeout=60.0).club_records(), table)
     spread = distribution(table, remaining, strength, draws=FINAL_TABLE_DRAWS)
     clubs = [row["club"] for row in table]
-    order = best_order(spread, clubs=clubs)
+    proposed = best_order(spread, clubs=clubs)
+
+    # WHAT MANUEL IS ACTUALLY IN, which is not what the model would write today.
+    # Once the entry is submitted it is fixed, and only chips move it — so the
+    # order priced here has to be replayed from the file, never recomputed.
+    # Recomputing would show him an order he never entered and price this
+    # week's chip against a position he is not in.
+    filed = load_final_entry(ENTRY_PATH)
+    entry = filed["entry"]
+    mismatch = None
+    if entry and set(entry) != set(clubs):
+        mismatch = sorted(set(entry) ^ set(clubs))
+        entry = None
+    order = apply_chips(entry, filed["chips"]) if entry else proposed
+
+    # The chips this matchday allows, played against today's distribution.
+    # Before the lock `reaches_at` returns nothing and this is empty, which is
+    # the correct answer rather than a missing one.
+    _, plays = chip_plan(order, spread, round_number)
     size = len(clubs)
     now = {row["club"]: row["position"] for row in table}
 
@@ -1819,7 +1847,73 @@ def final_table(round_number: int) -> dict:
         "remaining": len(remaining),
         "played": table[0]["played"],
         "expected": sum(r["worth"] for r in rows),
+        "filed": bool(entry),
+        "mismatch": mismatch,
+        "locked_round": filed["locked_round"],
+        "played_chips": len(filed["chips"]),
+        "chips": plays,
     }
+
+
+def chip_advice(found: dict) -> str:
+    """What to do with this week's chips, or why there is nothing to do.
+
+    THE REASON THIS SECTION EXISTS. For a while the page explained the chip
+    rules in full and then never named a chip. By the model's own backtest the
+    entry left alone is worth about 104 points and the entry with the chips
+    played about 382 — so roughly three quarters of the model lived in a code
+    path nothing outside the backtest called.
+
+    A week where nothing clears the threshold is still an answer, and it is
+    printed. Silence would read as "the page is broken", and a chip is lost if
+    unused, so "spend nothing" has to be a decision Manuel sees taken.
+    """
+    if not found.get("filed"):
+        locked = found.get("locked_round") or FIRST_SCORING_MATCHDAY
+        return f"""      <p class="callout"><strong>A entrada ainda não está entregue.</strong>
+      A ordem acima é a proposta do modelo. Assim que a entregares no zerozero,
+      copia-a para <code>data/tabela-final.yaml</code> — a partir da jornada
+      {locked} ela fica fixa e só os chips a mexem, e esta página passa a
+      avaliar os chips contra o que entregaste em vez do que o modelo diria
+      hoje.</p>"""
+
+    lines = []
+    if found.get("mismatch"):
+        lines.append(
+            f"""      <p class="callout warn"><strong>A entrada não bate com a
+      liga.</strong> {esc(", ".join(found["mismatch"]))} — a entrada foi
+      ignorada e o que está acima é a proposta do modelo. Corrige os nomes em
+      <code>data/tabela-final.yaml</code>.</p>"""
+        )
+
+    plays = found.get("chips") or []
+    if not plays:
+        lines.append(
+            """      <p class="callout"><strong>Não há chip esta jornada.</strong>
+      Os chips correm da jornada seguinte ao fecho até à 29.ª, e depois disso as
+      últimas seis jornadas jogam-se sem nada a mexer.</p>"""
+        )
+        return chr(10).join(lines)
+
+    for play in plays:
+        which = "chip bónus (cinco lugares)" if play["bonus"] else "chip semanal (três lugares)"
+        if play["club"] is None:
+            lines.append(
+                f"""      <p class="callout"><strong>{which}: não jogues.</strong>
+      Nenhuma mudança ao alcance vale mais do que o limiar de
+      <span class="num">{WORTH_MOVING:.0f}</span> pontos esperados. O chip
+      perde-se, e mesmo assim gastá-lo custava mais no desempate do que rendia
+      na tabela.</p>"""
+            )
+            continue
+        way = "sobe" if play["to"] < play["from"] else "desce"
+        lines.append(
+            f"""      <p class="callout do"><strong>{which}:
+      {esc(play["club"])} {way} do {play["from"]}.º para o
+      {play["to"]}.º</strong> — {play["places"]} lugares, e vale
+      <span class="num">{play["gain"]:+.1f}</span> pontos esperados.</p>"""
+        )
+    return chr(10).join(lines)
 
 
 def final_section(data: dict) -> str:
@@ -1875,6 +1969,8 @@ def final_section(data: dict) -> str:
       <strong>{found['expected']:.0f}</strong> pontos, dos lugares e dos bónus
       que dependem de um clube só. O bónus do top 4 exige os quatro certos ao
       mesmo tempo e não está nessa conta.</p>
+
+{chip_advice(found)}
 
       <p class="footnote"><strong>O que isto não te pode dizer.</strong> Só
       {found['played']} jornadas foram disputadas, portanto isto assenta quase

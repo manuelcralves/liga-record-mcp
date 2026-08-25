@@ -189,3 +189,56 @@ class ManualSquadSource:
         if declared is not None:
             return _as_datetime(declared)
         return datetime.fromtimestamp(self.path.stat().st_mtime, tz=timezone.utc)
+
+
+def load_final_entry(path: str | Path) -> dict:
+    """The Final Table entry as submitted, and every chip played since.
+
+    Hand-maintained, like the squad and the coaches, and for a stronger reason:
+    zerozero is not read by this project at all. The entry exists only where
+    Manuel typed it, so the file IS the record of it.
+
+    Returns `entry` (None until the lock), `locked_round`, and `chips` in the
+    order they were played. A missing file is not an error — it means the entry
+    has not been written yet, which is the state for most of a season's start.
+
+    The chips are validated here rather than where they are applied: a chip
+    naming a club that is not in the entry, or a place outside it, is a typo
+    that would silently do nothing at the far end.
+    """
+    file = Path(path)
+    if not file.is_file():
+        return {"entry": None, "locked_round": None, "chips": []}
+    try:
+        raw = yaml.safe_load(file.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise SquadSourceError(f"{file} is not valid YAML: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise SquadSourceError(f"{file} is not a mapping")
+
+    entry = raw.get("entrada")
+    if entry is not None:
+        if not isinstance(entry, list) or not all(isinstance(c, str) for c in entry):
+            raise SquadSourceError(f"{file}: `entrada` must be a list of club names")
+        if len(set(entry)) != len(entry):
+            raise SquadSourceError(f"{file}: `entrada` repeats a club")
+
+    chips = raw.get("chips") or []
+    if not isinstance(chips, list):
+        raise SquadSourceError(f"{file}: `chips` must be a list")
+    for chip in chips:
+        if not isinstance(chip, dict):
+            raise SquadSourceError(f"{file}: every chip must be a mapping")
+        club, to = chip.get("clube"), chip.get("para")
+        if club is None or to is None:
+            raise SquadSourceError(f"{file}: a chip is missing `clube` or `para`")
+        if entry is not None and club not in entry:
+            raise SquadSourceError(f"{file}: chip names {club!r}, not in `entrada`")
+        if entry is not None and not 1 <= int(to) <= len(entry):
+            raise SquadSourceError(f"{file}: chip sends {club!r} to place {to}")
+
+    return {
+        "entry": entry,
+        "locked_round": raw.get("jornada_entrada"),
+        "chips": chips,
+    }

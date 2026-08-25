@@ -31,8 +31,10 @@ from __future__ import annotations
 
 import math
 import random
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
+
+from .models import FIRST_SCORING_MATCHDAY
 
 #: Points for being this many places out, and beyond that a flat penalty.
 BY_DISTANCE = {0: 25, 1: 5, 2: 2, 3: 0}
@@ -429,27 +431,51 @@ LAST_CHIP_ROUND = 29
 
 #: Expected points a move must be worth before it is taken.
 #:
-#: MEASURED, and the measurement says something other than what it was looking
-#: for. Playing 2025/26 out from the matchday-5 lock, four Monte Carlo seeds
-#: per setting:
+#: MEASURED TWICE, because the first measurement was wrong in a way that
+#: mattered and the second contradicts the correction as well as the original.
 #:
-#:      threshold   seed 0   1     2     3    mean   chips
-#:      0.5           395   452   412   452    428     26
-#:      7             439   451   371   422    421     12
-#:      20            387   427   435   370    405      3
+#: The first table played each season with one Monte Carlo stream restarted at
+#: every matchday — twenty-five chip decisions against twenty-five copies of
+#: one sample. The error stopped cancelling across a season and accumulated
+#: common-mode instead, inflating exactly the spread the constant was read off:
+#: the argument was "the settings are within the noise, take the cheap one",
+#: and the noise was manufactured. Varying the stream per matchday and drawing
+#: once, greedy appeared to win by fifty. That was one draw, and it does not
+#: survive either.
 #:
-#: The spread WITHIN a setting is far wider than the gap between settings. So
-#: the threshold does not demonstrably change the score — and it halves or
-#: quarters the chips spent getting there.
+#: `scripts/sweep_worth_moving.py`, four seasons x twelve seeds x 2500 draws,
+#: every threshold scored against the SAME distributions so the comparison is
+#: paired and the hundred-point season-to-season variance differences away.
+#: n = 48 per setting:
 #:
-#: That decides it, because the tiebreak is fewest chips and then fewest places
-#: moved. When two settings score the same and one uses twelve chips against
-#: twenty-six, the cheap one wins every tie it reaches. A greedy policy burns
-#: chips on marginal moves it later has to undo.
+#:      threshold   mean   chips   places    vs 7.0   std err
+#:      0.0          391    26.9     58.6      -2.6      13.0
+#:      0.5          392    26.8     58.4      -2.2      13.0
+#:      2.0          392    24.1     53.7      -1.9      13.0
+#:      4.0          402    18.9     44.5      +8.5      12.3
+#:      7.0          394    12.6     28.7       0.0         -
+#:      10.0         394     9.0     20.6      +0.5       6.6
+#:      15.0         366     5.6     12.7     -27.8       7.9
+#:      20.0         308     3.7      8.1     -85.7      11.2
 #:
-#: Seven, not twenty, because three chips a season leaves nothing in hand for a
-#: club that collapses in April — and the difference between 421 and 405 is
-#: inside the noise in the other direction too.
+#: ANYTHING FROM 0 TO 10 IS THE SAME. Not "close" — 4.0's +8.5 is two thirds of
+#: a standard error, and greedy, which a single draw had winning by fifty, comes
+#: out 2.6 BEHIND. Above about fifteen the policy is properly worse, and by a
+#: margin far outside the error: at twenty it plays under four chips a season
+#: and gives up eighty-six points for the privilege.
+#:
+#: So the choice inside [0, 10] is not a scoring choice, and the tiebreak decides
+#: it: fewest chips, then fewest places moved. Seven spends 12.6 chips where
+#: greedy spends 26.9 for the same points. That is the original argument, and it
+#: survives — but NOT its stated reason. It claimed a lower threshold "burns
+#: chips", as though a chip kept were a chip banked; chips do not bank, the
+#: block above says each is lost if unused. Saving one buys nothing. What a
+#: threshold actually does is refuse to act on a difference that is sampling
+#: error and then spend next week's chip undoing the move, which is why the
+#: floor of the safe band moves with the number of seasons drawn.
+#:
+#: Seven, unchanged — chosen this time because it sits in the middle of the band
+#: that cannot be told apart, not at an edge where the next measurement moves it.
 WORTH_MOVING = 7.0
 
 
@@ -498,3 +524,87 @@ def best_chip(
             if gain > threshold and gain > expected(best, spread) - here:
                 best, who, distance = candidate, club, abs(to - place)
     return best, who, distance
+
+
+def reaches_at(matchday: int) -> list[int]:
+    """The chips playable at a matchday, in the order they should be played.
+
+    None before the entry locks — there is nothing to correct yet, because the
+    entry is still being written. One a week after that until matchday 29, and
+    at three of those weeks a bonus chip on top, which stacks with the ordinary
+    one. Nothing after 29: the last six rounds play out untouchable.
+
+    The weekly chip is listed first deliberately. Two chips in one week are two
+    sequential decisions, not one combined move, and the second is priced
+    against the order the first leaves behind.
+    """
+    if matchday <= FIRST_SCORING_MATCHDAY or matchday > LAST_CHIP_ROUND:
+        return []
+    reaches = [WEEKLY_REACH]
+    if matchday in BONUS_ROUNDS:
+        reaches.append(BONUS_REACH)
+    return reaches
+
+
+def chip_plan(
+    order: Sequence[str],
+    spread: Mapping[str, list[float]],
+    matchday: int,
+    *,
+    threshold: float = WORTH_MOVING,
+) -> tuple[list[str], list[dict]]:
+    """Every chip available this matchday, played against the distribution.
+
+    THE POLICY LIVES HERE so that the thing measured is the thing run. The
+    backtest used to carry its own copy of this loop, which meant the score it
+    reported belonged to a policy nothing in production executed — and for a
+    while nothing in production executed any policy at all: `best_chip` was
+    reachable only from the backtest, while the chips are worth roughly 280 of
+    the model's 380 points.
+
+    Returns the order after playing them and one entry per chip, including the
+    chips deliberately not spent — a week where nothing clears the threshold is
+    a decision and the page should say so rather than fall silent.
+    """
+    current = list(order)
+    plays: list[dict] = []
+    for reach in reaches_at(matchday):
+        before = current
+        current, who, distance = best_chip(
+            current, spread, reach=reach, threshold=threshold
+        )
+        gain = expected(current, spread) - expected(before, spread)
+        plays.append(
+            {
+                "reach": reach,
+                "bonus": reach != WEEKLY_REACH,
+                "club": who,
+                "from": before.index(who) + 1 if who else None,
+                "to": current.index(who) + 1 if who else None,
+                "places": distance,
+                "gain": gain,
+            }
+        )
+    return current, plays
+
+
+def apply_chips(entry: Sequence[str], chips: Iterable[Mapping]) -> list[str]:
+    """The order as it stands now: the submitted entry with the chips played.
+
+    THE ENTRY IS STATE. It is written once, at the lock, and then twenty-five
+    weeks of chips move it — so the current order cannot be recomputed from
+    today's model, only replayed from what was actually submitted. Recomputing
+    it would quietly show Manuel an order he never entered, and price next
+    week's chip against a position he is not in.
+
+    Each chip names a club and the place it was moved to, one-based to match
+    what the site shows.
+    """
+    order = list(entry)
+    for chip in chips:
+        club = chip.get("clube") or chip.get("club")
+        to = chip.get("para") or chip.get("to")
+        if club is None or to is None or club not in order:
+            continue
+        order = moved(order, club, int(to) - 1)
+    return order
