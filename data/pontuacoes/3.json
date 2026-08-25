@@ -1,0 +1,35 @@
+{
+ "_": "Pontuações oficiais da 3.ª ronda, do email semanal ligarecord@record.pt de 25/08/2026 02:55. O email é a única fonte que diz de que jornada os pontos são: a API serve `points_round` da jornada ANTERIOR durante dias. Chaves são nome|clube porque há homónimos entre clubes (dois Diogo Costa, dois Samu, dois Robinho, dois Pedro Santos).",
+ "ronda": 3,
+ "recebido": "2026-08-25T02:55:00+01:00",
+ "fonte": "email Liga Record - Pontuações",
+ "jogadores": {
+  "Diogo Costa|FC Porto": 6,
+  "Alfonso Pastor|Marítimo": -2,
+  "Lucão|Gil Vicente": 6,
+  "Nehuén Pérez|FC Porto": 4,
+  "Jose Fontán|Arouca": 1,
+  "Zaidu|FC Porto": 5,
+  "Léo Santos|Nacional": 2,
+  "Javi Sánchez|Arouca": 1,
+  "Tiago Esgaio|Arouca": 0,
+  "Finn van Breemen|Famalicão": 2,
+  "Buatu|Gil Vicente": 5,
+  "Zalazar|Sporting": 3,
+  "Raphael Guzzo|Marítimo": 2,
+  "Issa Doumbia|Sporting": 4,
+  "Samu|V. Guimarães": 2,
+  "Danilovic|Marítimo": 2,
+  "Santi García|Gil Vicente": 5,
+  "Gorby|Sp. Braga": 0,
+  "Cáseres|Gil Vicente": 4,
+  "Pavlidis|Benfica": 0,
+  "Fran Navarro|Sp. Braga": 0,
+  "Begraoui|Estoril": 2,
+  "Héctor Hernández|Gil Vicente": 7
+ },
+ "treinadores": {
+  "Farioli|FC Porto": 7
+ },
+ "adiados": ["Benfica", "Sp. Braga", "Moreirense", "E. Amadora"]
+}

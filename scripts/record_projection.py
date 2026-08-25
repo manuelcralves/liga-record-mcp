@@ -243,6 +243,62 @@ def settle_wrote_anything(
     return (not pending) != was_fully_settled
 
 
+#: Where the weekly email's figures are kept, one file per round. The email is
+#: the only source that says which round its numbers belong to, so when a file
+#: is here it outranks the API.
+OFFICIAL_DIR = ROOT / "data" / "pontuacoes"
+
+
+def official_scores(round_number: str) -> dict | None:
+    """The round's points as Liga Record emailed them, if they have been filed.
+
+    WHY THIS OUTRANKS THE LIVE API. `points_round` from the site means "the most
+    recently scored round", and the site serves it for days before folding it
+    into `points_total` — so between two rounds it is the PREVIOUS round's
+    figures under the current round's name. Nothing in the payload says which.
+    The email says, in its subject line, and it arrives before the API updates.
+
+    A club in `adiados` has not played the round at all. Its players sit at 0 in
+    the email for the same reason they sit at 0 on the site — nothing has been
+    assigned yet — and settling that 0 would enter a fabricated score, so those
+    clubs stay pending here exactly as they do on the API path.
+    """
+    path = OFFICIAL_DIR / f"{round_number}.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def round_is_published(rows: dict, live: dict) -> bool:
+    """Whether the site has actually added this round to the running totals.
+
+    THE BUG THIS EXISTS FOR. `points_round` is "the latest scored round", not
+    "the round you asked about", and the site publishes it days before it folds
+    it into `points_total`. On 25 August the API served round 2's figures under
+    `points_round` while round 3 had already been played and was sitting in
+    Manuel's weekly email. The settle step read that field and wrote round 2's
+    points into round 3's ledger for twenty players — Nehuén Pérez entered as 9
+    when he had scored 4 — and then reported a mean error against them as if it
+    measured anything.
+
+    HOW IT IS CAUGHT. Every row carries `points_before`, the running total at
+    the moment the projection was filed. When a round is published every
+    player's total moves by that round's points. So if NOT ONE total has moved
+    since the snapshot, the round is not on the site yet, whatever
+    `points_round` claims. That is a property of the round, not of a player: a
+    player can genuinely score 0, but a whole squad cannot leave every total
+    untouched through a round that was actually scored.
+
+    The coach has always been settled this way — by difference, refusing when
+    the total still reads `points_before`. The players simply never were.
+    """
+    return any(
+        found.points_total != row["points_before"]
+        for player_id, row in rows.items()
+        if (found := live.get(player_id)) is not None
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -273,6 +329,21 @@ def main() -> None:
         playing = clubs_playing_in(market.fixtures(), int(key))
         live = {m.id: m for pos in Position for m in market.search(pos)}
 
+        official = official_scores(key)
+        if official:
+            print(
+                f"  a usar as pontuacoes oficiais do email "
+                f"({official['fonte']}, {official['recebido'][:16]})"
+            )
+
+        published = official is not None or round_is_published(stored["players"], live)
+        if not published:
+            print(
+                f"  a jornada {key} ainda nao esta somada aos totais do site — "
+                "o points_round que ele serve e da jornada anterior. Nada foi "
+                "liquidado."
+            )
+
         settled, pending, already = 0, [], 0
         for player_id, row in stored["players"].items():
             if row.get("actual") is not None:
@@ -281,11 +352,42 @@ def main() -> None:
             found = live.get(player_id)
             if found is None:
                 continue
-            if row["club"] not in playing:
+            # The calendar decides this only when the email does not. Record's
+            # results feed had no score for Sporting-Alverca on 25 August, two
+            # days after it was played and scored — reading it would have held
+            # Zalazar and Doumbia pending against an email that had already
+            # paid them. `adiados` below is the email's own list, and it comes
+            # from the same source as the points.
+            if not official and row["club"] not in playing:
                 pending.append(row["name"])
                 continue
-            row["actual"] = found.points_round
-            row["error"] = round(found.points_round - row["projected"], 2)
+            if not published:
+                pending.append(row["name"])
+                continue
+
+            if official:
+                if row["club"] in official.get("adiados", ()):
+                    pending.append(row["name"])
+                    continue
+                scored = official["jogadores"].get(f"{row['name']}|{row['club']}")
+                if scored is None:
+                    print(f"  {row['name']} ({row['club']}) nao vem no email da ronda")
+                    pending.append(row["name"])
+                    continue
+            else:
+                # The round is published, so this player's total must have moved
+                # by exactly this round's points. When it has not, the two fields
+                # disagree about which round they describe and neither can be
+                # trusted for this row — a club scored late, or the snapshot was
+                # taken after kickoff. Wait rather than pick one.
+                gained = found.points_total - row["points_before"]
+                if gained != found.points_round:
+                    pending.append(row["name"])
+                    continue
+                scored = found.points_round
+
+            row["actual"] = scored
+            row["error"] = round(scored - row["projected"], 2)
             settled += 1
 
         coach = stored.get("coach")
@@ -297,6 +399,19 @@ def main() -> None:
                 )
                 if current is None:
                     print(f"  coach {coach['name']} is no longer in the coach file")
+                elif official and (
+                    scored := official.get("treinadores", {}).get(
+                        f"{coach['name']}|{coach['club']}"
+                    )
+                ) is not None:
+                    coach_settled = True
+                    coach["actual"] = scored
+                    coach["error"] = round(scored - coach["projected_rate"], 2)
+                    print(
+                        f"  coach {coach['name']}: {coach['actual']:+} "
+                        f"(projected {coach['projected_rate']}, "
+                        f"error {coach['error']:+.2f})"
+                    )
                 elif current.points_total == coach["points_before"]:
                     print(
                         f"  coach {coach['name']}: the file still reads "
@@ -328,7 +443,13 @@ def main() -> None:
         print(f"round {key}: {settled} newly settled, {already} already on file")
         if pending:
             print(f"  still pending ({len(pending)}): {', '.join(sorted(pending))}")
-            print("  their clubs have not played this round — run again afterwards")
+            if published:
+                print("  their clubs have not played this round — run again afterwards")
+            else:
+                print(
+                    "  a espera de que o site publique a jornada — corre outra vez "
+                    "quando os totais subirem"
+                )
 
         errors = [
             r["error"] for r in stored["players"].values() if r.get("error") is not None
