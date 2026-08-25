@@ -219,13 +219,17 @@ def correlation(pairs):
 #: legible by block: dropping `defensive` alone tells you nothing when
 #: `attacking` is still there to carry it.
 #:
-#: The indices follow `features_for` exactly, and a test holds them to it —
-#: this list silently drifting out of step with that function would produce
-#: an ablation table that looks fine and describes nothing.
-#: How many columns `features_for` produces. Derived rather than typed, so a
-#: feature added there cannot silently fall outside every block.
-FEATURE_COUNT = 22
-
+#: THE COMMENT THAT USED TO SIT HERE CLAIMED TWO THINGS, and both were false.
+#: It said the indices were held to `features_for` by a test — no test
+#: mentioned `BLOCKS` or `FEATURE_COUNT` — and that the count was derived
+#: rather than typed, when it was the literal 22. Add a twenty-third column to
+#: `features_for` and it falls outside every block: the ablation table prints
+#: in full and describes a different model. Which is exactly the failure the
+#: comment said it prevented.
+#:
+#: Both promises are now kept rather than withdrawn, because the risk is real.
+#: The count is derived below, the partition is checked at import, and
+#: `tests/test_ridge_blocks.py` measures a real `features_for` row against it.
 BLOCKS = {
     "our own answer": (0,),
     "the split": (1, 2),
@@ -238,6 +242,22 @@ BLOCKS = {
     "recent points": (14, 15, 16, 17),
     "position": (18, 19, 20, 21),
 }
+
+#: How many columns `features_for` produces — derived from BLOCKS, not typed.
+FEATURE_COUNT = 1 + max(i for indices in BLOCKS.values() for i in indices)
+
+# EVERY COLUMN IN EXACTLY ONE BLOCK. A gap means a feature is measured by no
+# block and the ablation table quietly describes a model with one fewer input;
+# an overlap means a block's loss is charged twice. Checked here rather than in
+# a test alone, so an ablation run cannot start against a broken map.
+_covered = sorted(i for indices in BLOCKS.values() for i in indices)
+if _covered != list(range(FEATURE_COUNT)):
+    missing = sorted(set(range(FEATURE_COUNT)) - set(_covered))
+    twice = sorted({i for i in _covered if _covered.count(i) > 1})
+    raise SystemExit(
+        f"BLOCKS does not partition the feature row: missing {missing}, "
+        f"repeated {twice}"
+    )
 
 
 def ablate(points, minutes, cells, table, cards, base_within):
