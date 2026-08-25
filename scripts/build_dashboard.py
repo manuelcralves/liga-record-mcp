@@ -2774,7 +2774,16 @@ def render_page(data: dict, slug: str, title: str, blocks, public: bool = False)
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--round", type=int, default=3)
+    # DEFAULTS TO THE ROUND IN squad.yaml, not to a number typed here. It was
+    # `default=3`, and `record_projection` has always read the file — so the
+    # week Manuel moved the sheet to round 4 the ledger would record round 4
+    # while every page went on drawing round 3, with no error anywhere. One
+    # source for "which round are we on", and it is the file he edits.
+    parser.add_argument(
+        "--round",
+        type=int,
+        default=ManualSquadSource(SQUAD_PATH).load().round_number,
+    )
     parser.add_argument("--out")
     parser.add_argument(
         "--public",

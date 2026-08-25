@@ -98,6 +98,40 @@ def in_words(moment: datetime) -> str:
     return f"faltam {max(1, seconds // 60)} minutos"
 
 
+def still_open(fixtures) -> dict[int, "datetime"]:
+    """Rounds whose team sheet has not shut yet, and when each one shuts.
+
+    A ROUND'S SHEET IS OPEN UNTIL ITS FIRST MATCH, so any round with a result
+    already in it is closed — however many of its fixtures are still to come.
+    The naive reading, "the lowest round with an unplayed fixture", points at
+    round 2, whose sheet shut on 20 August and whose one remaining match was
+    postponed to a date nobody has set. That is a deadline that has passed
+    presented as one to act on.
+
+    Lives here, in one function, because two callers now need the same answer
+    and disagreeing about which round is open is how a decision gets filed
+    against a round that has already been played.
+    """
+    played_in = {f.round_number for f in fixtures if f.played}
+    found: dict[int, datetime] = {}
+    for fixture in fixtures:
+        if fixture.round_number in played_in:
+            continue
+        moment = when(fixture.kickoff)
+        if moment is None or moment < datetime.now():
+            continue
+        first = found.get(fixture.round_number)
+        if first is None or moment < first:
+            found[fixture.round_number] = moment
+    return found
+
+
+def next_open(fixtures) -> int | None:
+    """The round being decided right now — the open one that shuts soonest."""
+    found = still_open(fixtures)
+    return min(found, key=found.get) if found else None
+
+
 def deadlines(fixtures) -> list[str]:
     """What is about to close, and what closes for good.
 
@@ -115,17 +149,7 @@ def deadlines(fixtures) -> list[str]:
     # round 2, whose sheet shut on 20 August and whose one remaining match was
     # postponed to a date nobody has set. That is a deadline that has passed
     # presented as one to act on.
-    played_in = {f.round_number for f in fixtures if f.played}
-    open_rounds = {}
-    for fixture in fixtures:
-        if fixture.round_number in played_in:
-            continue
-        moment = when(fixture.kickoff)
-        if moment is None or moment < datetime.now():
-            continue
-        first = open_rounds.get(fixture.round_number)
-        if first is None or moment < first:
-            open_rounds[fixture.round_number] = moment
+    open_rounds = still_open(fixtures)
 
     # BY KICKOFF, NOT BY NUMBER. This was `sorted(open_rounds)[:1]`, which
     # assumes round order is calendar order — and the comments in this very

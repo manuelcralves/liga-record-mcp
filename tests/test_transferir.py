@@ -280,8 +280,13 @@ LEGAL = legal_squad()
 EMPTY = json.dumps(empty_store())
 
 
-def drive(mod, tmp_path, monkeypatch, argv, *, decisions=EMPTY):
-    """Run main() against throwaway files, and hand back the squad text after."""
+def drive(mod, tmp_path, monkeypatch, argv, *, decisions=EMPTY, open_round=3):
+    """Run main() against throwaway files, and hand back the squad text after.
+
+    `open_round` stands in for the calendar. The real `next_open` reads the
+    live site, which a test must not do, and it decides which round a decision
+    is filed under — so it has to be controllable rather than incidental.
+    """
     squad = tmp_path / "squad.yaml"
     squad.write_text(LEGAL, encoding="utf-8")
     ledger = tmp_path / "decisions.json"
@@ -289,6 +294,10 @@ def drive(mod, tmp_path, monkeypatch, argv, *, decisions=EMPTY):
 
     monkeypatch.setattr(mod, "SQUAD_PATH", squad)
     monkeypatch.setattr(mod, "DECISIONS_PATH", ledger)
+    monkeypatch.setattr(mod, "next_open", lambda fixtures: open_round)
+    monkeypatch.setattr(
+        mod, "LigaRecordClient", lambda **kw: type("M", (), {"fixtures": lambda s: []})()
+    )
     monkeypatch.setattr("sys.argv", ["transferir.py", *argv])
 
     caught = None
@@ -502,3 +511,83 @@ def test_a_transfer_does_not_eat_the_blank_line_between_entries(mod):
         "the arrival is touching the next entry; the separating blank line was "
         "eaten with his block"
     )
+
+
+# --- which round the decision belongs to --------------------------------------
+#
+# `round:` in squad.yaml documents the round of the sheet ENTERED — the one
+# `record_projection` snapshots — and by the time a transfer is being made it
+# has usually been played. A swap made the week after round 3 is a decision for
+# round 4; filed as round 3 it lands against a round already settled.
+#
+# And the ledger does not overwrite by design, so a decision filed in the wrong
+# week is filed there for good. There is no second attempt to get it right.
+
+
+def test_a_stale_round_in_the_file_refuses_rather_than_files_the_wrong_week(
+    mod, tmp_path, monkeypatch
+):
+    """The defect: the file still says 3, the calendar says 4."""
+    caught, after, ledger = drive(
+        mod, tmp_path, monkeypatch, ["--capitao", "GK0 Silva"], open_round=4
+    )
+    assert caught is not None
+    assert "jornada 4" in str(caught)
+    assert after == LEGAL, "the squad was written against a round nobody agreed on"
+    assert ledger == EMPTY
+
+
+def test_the_refusal_offers_both_readings(mod, tmp_path, monkeypatch):
+    """Correcting a still-open round is a real thing to want, so it is offered
+    rather than assumed away."""
+    caught, _, _ = drive(
+        mod, tmp_path, monkeypatch, ["--capitao", "GK0 Silva"], open_round=4
+    )
+    assert "--jornada 4" in str(caught)
+    assert "--jornada 3" in str(caught)
+
+
+def test_an_explicit_round_is_obeyed_without_consulting_the_calendar(
+    mod, tmp_path, monkeypatch
+):
+    """He said which week he means; the calendar has no standing to argue."""
+    caught, after, ledger = drive(
+        mod,
+        tmp_path,
+        monkeypatch,
+        ["--capitao", "GK0 Silva", "--jornada", "9"],
+        open_round=4,
+    )
+    assert caught is None, f"an explicit --jornada was refused: {caught}"
+    assert '"9"' in ledger, "the decision was filed under a different round"
+
+
+def test_the_file_and_the_calendar_agreeing_needs_no_flag(mod, tmp_path, monkeypatch):
+    """The ordinary case: the sheet in the file is for the round that is open."""
+    caught, _, ledger = drive(
+        mod, tmp_path, monkeypatch, ["--capitao", "GK0 Silva"], open_round=3
+    )
+    assert caught is None
+    assert '"3"' in ledger
+
+
+def test_no_open_round_asks_instead_of_guessing(mod, tmp_path, monkeypatch):
+    """Between seasons, or with every remaining fixture undated — which is the
+    state this project was in for round 5 through all of August."""
+    caught, after, _ = drive(
+        mod, tmp_path, monkeypatch, ["--capitao", "GK0 Silva"], open_round=None
+    )
+    assert caught is not None
+    assert "--jornada" in str(caught)
+    assert after == LEGAL
+
+
+def test_one_definition_of_an_open_round():
+    """`transferir` and the deadline line must not disagree about which round is
+    open — that disagreement is how a decision gets filed against a played
+    round while the page says the sheet is still open."""
+    source = (ROOT / "scripts" / "transferir.py").read_text(encoding="utf-8")
+    assert "from pending_decisions import next_open" in source
+    other = (ROOT / "scripts" / "pending_decisions.py").read_text(encoding="utf-8")
+    assert "def still_open(" in other and "def next_open(" in other
+    assert other.count("played_in = {") == 1, "the open-round rule was copied again"

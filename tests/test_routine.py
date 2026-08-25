@@ -248,3 +248,29 @@ def test_the_public_pages_are_still_a_smaller_set():
     private = {slug for slug, _, _ in dash.visible(False)}
     assert public < private, "the public build no longer omits anything"
     assert "ligas" in private - public, "the private league page went public"
+
+
+# --- one source for "which round are we on" -----------------------------------
+#
+# `record_projection` has always read `round:` from squad.yaml. The page build
+# had `default=3` typed into its argument parser and never looked at the file,
+# so the week the sheet moved to round 4 the ledger would record round 4 while
+# every page went on drawing round 3 — no error, no warning, two halves of the
+# system on different weeks.
+
+
+def test_the_page_round_comes_from_the_squad_file_not_a_literal():
+    source = (ROOT / "scripts" / "build_dashboard.py").read_text(encoding="utf-8")
+    code = [l for l in source.splitlines() if not l.lstrip().startswith("#")]
+    assert not [l for l in code if "default=3" in l], (
+        "the page round is a typed number again"
+    )
+    assert "ManualSquadSource(SQUAD_PATH).load().round_number" in source
+
+
+def test_the_ledger_and_the_pages_agree_on_the_round():
+    """Both read the same field of the same file."""
+    ledger = (ROOT / "scripts" / "record_projection.py").read_text(encoding="utf-8")
+    pages = (ROOT / "scripts" / "build_dashboard.py").read_text(encoding="utf-8")
+    assert "round_number" in ledger and "SQUAD_PATH" in ledger
+    assert "SQUAD_PATH" in pages

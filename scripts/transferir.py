@@ -40,7 +40,7 @@ import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "src")]
+sys.path[:0] = [str(ROOT / "src"), str(ROOT / "scripts")]
 
 from liga_record_mcp.models import Position  # noqa: E402
 from liga_record_mcp.rules import validate_selection, validate_squad  # noqa: E402
@@ -50,6 +50,7 @@ from liga_record_mcp.source.decisions import (  # noqa: E402
     record_decision,
     save_decisions,
 )
+from pending_decisions import next_open  # noqa: E402
 
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
 DECISIONS_PATH = ROOT / "data" / "decisions.json"
@@ -210,7 +211,36 @@ def main() -> None:
     text = SQUAD_PATH.read_text(encoding="utf-8")
     said: list[str] = []
 
-    round_number = args.jornada or snapshot.round_number
+    # WHICH ROUND THIS DECISION IS FOR, which is not the one in the file.
+    #
+    # `round:` in squad.yaml documents the round of the sheet ENTERED — the one
+    # `record_projection` snapshots, and by the time a transfer is being made it
+    # has usually been played. A swap made the week after round 3 is a decision
+    # for round 4, and filing it as round 3 puts it against a round already
+    # settled, where the ledger will refuse it or, worse, accept it and file the
+    # wrong week for good. The ledger does not overwrite by design.
+    #
+    # So the calendar decides, by the same rule the deadline line uses: the open
+    # round that shuts soonest. It refuses rather than guesses when the file
+    # disagrees, because both readings are plausible — he may be correcting the
+    # sheet for a round still open — and picking one silently is how a decision
+    # ends up in the wrong week with nobody able to tell afterwards.
+    round_number = args.jornada
+    if round_number is None:
+        open_now = next_open(LigaRecordClient(timeout=60.0).fixtures())
+        if open_now is None:
+            raise Refused(
+                "nenhuma jornada tem a folha aberta — diz qual com --jornada N"
+            )
+        if open_now != snapshot.round_number:
+            raise Refused(
+                f"o squad.yaml diz `round: {snapshot.round_number}` mas a folha "
+                f"aberta é a da jornada {open_now}.\n"
+                f"  Se a decisão é para a {open_now}: --jornada {open_now}\n"
+                f"  Se estás a corrigir a {snapshot.round_number}: "
+                f"--jornada {snapshot.round_number}"
+            )
+        round_number = open_now
     out_player = in_player = None
 
     if args.sai:
