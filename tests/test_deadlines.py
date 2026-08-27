@@ -288,3 +288,93 @@ def test_no_open_round_says_nothing_rather_than_raising(mod):
         ]
     )
     assert not [line for line in said if "§6.13" in line]
+
+
+# --- the one deadline with no second chance -----------------------------------
+#
+# Miss a team sheet and a round is lost. Miss matchday 5 and the squad is fixed
+# for the season, the top-scorer bet with it, and unlimited transfers become one
+# a round — the gap between a good squad and a careless one runs to several
+# hundred points.
+#
+# And nobody can plan around it: Record had published no date for matchday 5 as
+# late as 26 August, four days after matchday 3 was played. It appears when it
+# appears, and if that week is one Manuel is not running the routine, the first
+# he hears of it is when it has gone.
+#
+# A step that PRINTS a warning changes nothing — the Actions log is a page
+# nobody opens. A step that FAILS sends an email, which is the only push this
+# repository has. So `--alerta` exits non-zero on purpose, and these say exactly
+# when.
+
+
+def lock_fixtures(kickoff, mod):
+    """Matchday 5, dated or not, with an earlier round already played."""
+    return [
+        fixture(3, "a", "b", played=True),
+        fixture(mod.FIRST_SCORING_MATCHDAY, "c", "d", kickoff=kickoff),
+    ]
+
+
+def test_no_date_is_not_an_alarm(mod):
+    """The state all August: the lock exists and nobody has scheduled it."""
+    near, said = mod.lock_is_near(lock_fixtures(None, mod), 7)
+    assert near is False
+    assert "ainda nao tem data" in said
+
+
+def test_a_distant_date_is_not_an_alarm(mod):
+    far = datetime.now() + timedelta(days=30)
+    near, said = mod.lock_is_near(lock_fixtures(at(far), mod), 7)
+    assert near is False
+    assert "faltam" in said
+
+
+def test_a_date_inside_the_window_is(mod):
+    """The whole point: it fires, and says what to do about it."""
+    soon = datetime.now() + timedelta(days=3)
+    near, said = mod.lock_is_near(lock_fixtures(at(soon), mod), 7)
+    assert near is True
+    assert "FECHA TUDO" in said
+    assert "ilimitadas" in said
+    assert "rotina-diaria" in said, "it fires without saying what to run"
+
+
+def test_a_deadline_already_gone_stops_shouting(mod):
+    """Failing every run for the rest of the season teaches him to ignore it."""
+    past = datetime.now() - timedelta(days=2)
+    near, said = mod.lock_is_near(lock_fixtures(at(past), mod), 7)
+    assert near is False
+    assert "ja passou" in said
+
+
+def test_it_measures_from_the_sheet_shutting_not_the_kickoff(mod):
+    """§6.13 shuts fifteen minutes before the first match, and that is the
+    moment that matters — the difference decides the edge of the window."""
+    edge = datetime.now() + timedelta(days=7) + mod.SHEET_CLOSES_BEFORE
+    assert mod.lock_is_near(lock_fixtures(at(edge - timedelta(hours=1)), mod), 7)[0]
+    assert not mod.lock_is_near(lock_fixtures(at(edge + timedelta(hours=2)), mod), 7)[0]
+
+
+def test_the_earliest_match_of_the_round_is_the_one_that_counts(mod):
+    """A round spread over four days shuts on the first of them."""
+    first = datetime.now() + timedelta(days=2)
+    later = first + timedelta(days=3)
+    fixtures = [
+        fixture(3, "a", "b", played=True),
+        fixture(mod.FIRST_SCORING_MATCHDAY, "c", "d", kickoff=at(later)),
+        fixture(mod.FIRST_SCORING_MATCHDAY, "e", "f", kickoff=at(first)),
+    ]
+    near, said = mod.lock_is_near(fixtures, 3)
+    assert near is True
+
+
+def test_the_scheduled_job_runs_it():
+    """A check nobody calls is a check that does not exist."""
+    workflow = (
+        ROOT / ".github" / "workflows" / "registar-previsoes.yml"
+    ).read_text(encoding="utf-8")
+    assert "--alerta" in workflow
+    assert "if: always()" in workflow, (
+        "the warning is skipped on exactly the days something else went wrong"
+    )

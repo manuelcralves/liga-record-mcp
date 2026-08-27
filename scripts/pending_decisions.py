@@ -194,10 +194,75 @@ def deadlines(fixtures) -> list[str]:
     return ([lock_line] if lock_line else []) + said
 
 
+def lock_is_near(fixtures, within_days: int) -> tuple[bool, str]:
+    """Whether the matchday-5 lock is dated and close, and what to say about it.
+
+    THE ONLY DEADLINE THAT CANNOT BE RECOVERED. Miss a team sheet and you lose
+    a round; miss this and the squad is fixed for the season, the top-scorer bet
+    is fixed, and unlimited transfers become one a round. Measured, the gap
+    between a good squad and a careless one runs to several hundred points.
+
+    It is also the one nobody can plan around: Record had published no date for
+    matchday 5 as late as 26 August, four days after matchday 3 was played. So
+    the date appears when it appears, and if it appears in a week Manuel is not
+    running the routine, the first he hears of it is when it has gone.
+    """
+    starts = [
+        moment
+        for moment in (
+            when(f.kickoff)
+            for f in fixtures
+            if f.round_number == FIRST_SCORING_MATCHDAY
+        )
+        if moment is not None
+    ]
+    if not starts:
+        return False, (
+            f"a jornada {FIRST_SCORING_MATCHDAY} ainda nao tem data — "
+            "nada a avisar"
+        )
+    first = min(starts)
+    shuts = first - SHEET_CLOSES_BEFORE
+    days = (shuts - datetime.now()).total_seconds() / 86400
+    if days < 0:
+        return False, f"o prazo da jornada {FIRST_SCORING_MATCHDAY} ja passou"
+    if days > within_days:
+        return False, (
+            f"a jornada {FIRST_SCORING_MATCHDAY} fecha {shuts:%d/%m as %H:%M}, "
+            f"faltam {days:.0f} dias — ainda nao e para avisar"
+        )
+    return True, (
+        f"O PRAZO QUE FECHA TUDO: a jornada {FIRST_SCORING_MATCHDAY} fecha "
+        f"{shuts:%d/%m as %H:%M}, {in_words(shuts)}.\n"
+        "Ate la as transferencias sao ilimitadas e o plantel inteiro pode "
+        "ser reconstruido de uma vez.\n"
+        "Depois disso e uma por jornada, o plantel fica fechado e o melhor "
+        "marcador tambem.\n"
+        "Corre  scripts/rotina-diaria.bat  e ve a proposta em docs/private."
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--decisions", type=Path, default=DECISIONS_PATH)
+    parser.add_argument(
+        "--alerta",
+        type=int,
+        metavar="DIAS",
+        help="sair com erro se o prazo da jornada 5 estiver a menos de DIAS. "
+             "Um trabalho que falha manda email; um que passa nao manda nada, "
+             "e este e o unico prazo da epoca que nao tem segunda hipotese.",
+    )
     args = parser.parse_args()
+
+    if args.alerta is not None:
+        try:
+            fixtures = LigaRecordClient(timeout=40.0).fixtures()
+        except SiteError as exc:
+            raise SystemExit(f"could not read the calendar: {exc}")
+        near, said = lock_is_near(fixtures, args.alerta)
+        print(said)
+        raise SystemExit(1 if near else 0)
 
     store = load_decisions(args.decisions)
     recorded = {int(r) for r in (store.get("rounds") or {})}

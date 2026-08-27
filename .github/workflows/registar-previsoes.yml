@@ -128,3 +128,28 @@ jobs:
           # is worse than one that needs a minute of attention.
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push
+
+      # THE ONE DEADLINE WITH NO SECOND CHANCE, and the only channel that
+      # actually reaches him.
+      #
+      # Miss a team sheet and a round is lost. Miss matchday 5 and the squad is
+      # fixed for the season, the top-scorer bet with it, and unlimited
+      # transfers become one a round — measured, the gap between a good squad
+      # and a careless one runs to several hundred points.
+      #
+      # It is also the one nobody can plan around: Record had published no date
+      # for matchday 5 as late as 26 August, four days after matchday 3 was
+      # played. It appears when it appears.
+      #
+      # A step that PRINTS the warning changes nothing — the log is a page
+      # nobody opens. A step that FAILS sends an email, which is the only push
+      # this repository has. So this deliberately fails while the deadline is
+      # inside a week, and it sits last so the ledger is already committed and
+      # pushed by the time it does: the red tick means "act", never "the job
+      # broke".
+      #
+      # `if: always()` because the whole point is that it runs on the day
+      # something above it went wrong too.
+      - name: Avisar do prazo que fecha tudo
+        if: always()
+        run: python scripts/pending_decisions.py --alerta 7
