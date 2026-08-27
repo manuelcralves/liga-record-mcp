@@ -242,6 +242,9 @@ players:
 #
 # Read back from the site by hand, because reading a team sheet needs a login
 # this project deliberately does not hold — the server advises, Manuel clicks.
+# Entregue no site para a jornada 4 e CONFERIDA lá pelo Manuel a 26/08/2026.
+# A folha do site não se pode ler daqui — precisa de sessão iniciada, que este
+# projeto não tem de propósito — por isso a confirmação é dele e fica dita.
 selection:
   starters:
     - "38800"    # Diogo Costa      GR   FC Porto
