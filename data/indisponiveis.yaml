@@ -25,7 +25,11 @@
 
 jornada: 4
 
-fora: []
+fora:
+  - id: "42937"
+    nome: Santi García
+    razao: lesionado
+    fonte: email ALERTA do Record, boletim clinico da 4.a ronda, 27/08 23:58
 
 # Exemplo:
 #
