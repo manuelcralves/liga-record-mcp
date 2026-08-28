@@ -698,13 +698,31 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # collects. This number is a selection device, not a forecast, and putting
     # it on file would make the error -999 and ruin the accuracy figures.
     unavailable = load_unavailable(UNAVAILABLE_PATH, round_number)
+
+    # TWO MAPS, BECAUSE THEY ANSWER DIFFERENT QUESTIONS. `ranking` is what the
+    # optimiser sorts on and carries the penalty; `expected` stays the honest
+    # estimate and is what the page prints.
+    #
+    # They were one map, and the -1000 reached the screen: the page showed
+    # "Santi García — -996.94" beside his fixture, which is not a forecast of
+    # anything. A number nobody can act on teaches the reader to distrust the
+    # ones beside it.
+    #
+    # What he is actually worth is what §10.3(i) pays a man who does not play,
+    # and that is the same -1 the rest of this file uses.
     if unavailable:
         expected = {
+            i: (float(UNUSED_PENALTY) if i in unavailable else v)
+            for i, v in expected.items()
+        }
+        ranking = {
             i: (v - OUT_OF_THE_RECKONING if i in unavailable else v)
             for i, v in expected.items()
         }
+    else:
+        ranking = expected
 
-    sheet = best_eleven(rows, expected)
+    sheet = best_eleven(rows, ranking)
     if sheet is None:
         return {}
 
@@ -721,6 +739,9 @@ def model_sheet(stored: dict, round_number: int) -> dict:
             "position": person.position.value,
             "club": person.club,
             "expected": expected[player_id],
+            # Named, so the page can say why a man worth -1 is worth -1 rather
+            # than leaving the reader to guess at a bad week.
+            "unavailable": unavailable.get(player_id),
             "season": entry["expected"],
             "playing": entry["playing"],
             "returns": entry["returns"],
@@ -1499,7 +1520,19 @@ def versus_section(data: dict) -> str:
                     + ('<span class="cap">C</span>' if is_cap else "")
                     + '<span class="sub">' + esc(entry["club"])
                     + ("" if entry["opponent"] is None else " · v " + esc(entry["opponent"]))
-                    + "</span></td>" + chr(10)
+                    + "</span>"
+                    # WHY he is worth -1. Without this the page shows a number
+                    # nobody can act on beside a fixture that looks fine, and
+                    # the reader is left to guess between a hard week and a man
+                    # who is not playing at all.
+                    + (
+                        ""
+                        if not entry.get("unavailable")
+                        else '<span class="pending">'
+                        + esc(str(entry["unavailable"]))
+                        + "</span>"
+                    )
+                    + "</td>" + chr(10)
                     + '              <td class="fig strong">'
                     + f"{entry['expected']:.2f}" + "</td>" + chr(10)
                     + "            </tr>"

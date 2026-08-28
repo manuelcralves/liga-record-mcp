@@ -31,6 +31,7 @@ from liga_record_mcp.models import (  # noqa: E402
     HOLIDAY_ROUNDS,
 )
 from liga_record_mcp.source import (  # noqa: E402
+    ManualSquadSource,
     LigaRecordClient,
     SiteError,
     holidays_used,
@@ -38,6 +39,8 @@ from liga_record_mcp.source import (  # noqa: E402
 )
 from liga_record_mcp.stats import last_scored_round  # noqa: E402
 
+UNAVAILABLE_PATH = ROOT / "data" / "indisponiveis.yaml"
+SQUAD_PATH = ROOT / "data" / "squad.yaml"
 DECISIONS_PATH = ROOT / "data" / "decisions.json"
 
 
@@ -194,6 +197,37 @@ def deadlines(fixtures) -> list[str]:
     return ([lock_line] if lock_line else []) + said
 
 
+def stale_injuries(path, round_number: int) -> str | None:
+    """Whether the injury list is for a round nobody is playing any more.
+
+    THE FILE EXPIRES ON PURPOSE, and that is the right default: a man out for
+    one round is fit the next, and a list that carried forward would bench him
+    silently — he simply would not be picked, with no error anywhere to say
+    why. So `load_unavailable` ignores a file whose `jornada` is not this one.
+
+    The cost of that default is the other silence: names sitting in the file
+    doing nothing, while Manuel believes the model knows about them. A man out
+    for three rounds needs the number bumped each week, and nothing would say
+    so.
+    """
+    import yaml
+
+    file = Path(path)
+    if not file.is_file():
+        return None
+    raw = yaml.safe_load(file.read_text(encoding="utf-8")) or {}
+    named, out = raw.get("jornada"), raw.get("fora") or []
+    if not out or named is None or int(named) == int(round_number):
+        return None
+    quem = ", ".join(str(e.get("nome") or e.get("id")) for e in out if isinstance(e, dict))
+    return (
+        f"  o data/indisponiveis.yaml diz `jornada: {named}` e estamos na "
+        f"{round_number} — {quem} nao esta a ser tido em conta.\n"
+        f"  Se ainda esta fora, poe `jornada: {round_number}`. Se ja "
+        "recuperou, apaga a linha."
+    )
+
+
 def lock_is_near(fixtures, within_days: int) -> tuple[bool, str]:
     """Whether the matchday-5 lock is dated and close, and what to say about it.
 
@@ -308,6 +342,16 @@ def main() -> None:
     # not open the page. Everything above describes work that can be done
     # whenever; a deadline is the only thing here that stops being true, and
     # the nearest one goes last so it is the line that survives.
+    # A list left over from last week does nothing, and does it silently: the
+    # file names a round and stops applying when that round passes, which is
+    # the right default — a man out for one round is fit the next. The cost is
+    # that a man out for THREE needs the number bumped every week, and without
+    # this nothing would say so.
+    stale = stale_injuries(UNAVAILABLE_PATH, ManualSquadSource(SQUAD_PATH).load().round_number)
+    if stale:
+        print()
+        print(stale)
+
     said = deadlines(fixtures)
     if said:
         print()

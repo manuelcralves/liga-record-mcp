@@ -213,3 +213,98 @@ def test_nobody_out_leaves_the_sheet_exactly_as_it_was(page):
     star = rows[-1]["id"]
     found = estimates(rows, star=star)
     assert best_eleven(rows, found) == best_eleven(rows, dict(found))
+
+
+# --- the list expires, and says so when it has --------------------------------
+#
+# The file names a round and stops applying when that round passes. That is the
+# right default and it answers Manuel's question directly: a man out for one
+# round is fit the next, and nothing has to be deleted by hand. A list that
+# carried forward would bench a fit player silently — he would simply not be
+# picked, with no error anywhere to say why.
+#
+# The cost of that default is the other silence. A man out for three rounds
+# needs the number bumped every week, and names sitting in an expired file do
+# nothing while Manuel believes the model knows about them.
+
+
+@pytest.fixture(scope="module")
+def pending():
+    spec = importlib.util.spec_from_file_location(
+        "pending_decisions", ROOT / "scripts" / "pending_decisions.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def a_file(tmp_path, round_number, names=("Alguem",)):
+    path = tmp_path / "i.yaml"
+    fora = "\n".join(
+        f'  - id: "{i}"\n    nome: {n}\n    razao: lesionado'
+        for i, n in enumerate(names, 1)
+    )
+    path.write_text(f"jornada: {round_number}\nfora:\n{fora}\n", encoding="utf-8")
+    return path
+
+
+def test_the_round_it_names_is_the_only_one_it_applies_to(tmp_path):
+    path = a_file(tmp_path, 4)
+    assert load_unavailable(path, 4)
+    assert load_unavailable(path, 5) == {}
+
+
+def test_a_file_that_has_expired_is_reported(pending, tmp_path):
+    said = pending.stale_injuries(a_file(tmp_path, 4, ("Santi García",)), 5)
+    assert said is not None
+    assert "Santi García" in said
+    assert "jornada: 5" in said, "it says it is stale without saying how to fix it"
+
+
+def test_a_current_file_is_not_reported(pending, tmp_path):
+    assert pending.stale_injuries(a_file(tmp_path, 5), 5) is None
+
+
+def test_an_empty_list_is_not_reported_however_old(pending, tmp_path):
+    """Nothing is being ignored, so there is nothing to say."""
+    path = tmp_path / "i.yaml"
+    path.write_text("jornada: 2\nfora: []\n", encoding="utf-8")
+    assert pending.stale_injuries(path, 9) is None
+
+
+def test_a_missing_file_is_not_reported(pending, tmp_path):
+    assert pending.stale_injuries(tmp_path / "nope.yaml", 5) is None
+
+
+def test_every_name_in_an_expired_file_is_named(pending, tmp_path):
+    said = pending.stale_injuries(a_file(tmp_path, 4, ("Um", "Dois")), 6)
+    assert "Um" in said and "Dois" in said
+
+
+def test_the_routine_reports_it():
+    source = (ROOT / "scripts" / "pending_decisions.py").read_text(encoding="utf-8")
+    assert "stale_injuries(UNAVAILABLE_PATH" in source
+
+
+# --- and the penalty never reaches the screen ---------------------------------
+
+
+def test_the_selection_penalty_is_not_the_displayed_estimate(page):
+    """It showed "Santi García — -996.94" beside a fixture that looked fine.
+
+    A number nobody can act on teaches the reader to distrust the ones next to
+    it. What he is worth is what §10.3(i) pays a man who does not play.
+    """
+    source = (ROOT / "scripts" / "build_dashboard.py").read_text(encoding="utf-8")
+    assert "sheet = best_eleven(rows, ranking)" in source, (
+        "the optimiser and the display share one map again"
+    )
+    assert 'float(UNUSED_PENALTY) if i in unavailable else v' in source
+
+
+def test_the_page_says_why_he_is_worth_minus_one():
+    built = ROOT / "docs" / "index.html"
+    if not built.is_file():
+        pytest.skip("the pages have not been built")
+    text = built.read_text(encoding="utf-8")
+    assert "-996" not in text, "the selection penalty is on the page"
