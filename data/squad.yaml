@@ -249,19 +249,19 @@ selection:
   starters:
     - "38800"    # Diogo Costa      GR   FC Porto
     - "41584"    # Nehuén Pérez     DEF  FC Porto
-    - "41670"    # Zaidu            DEF  FC Porto
     - "43052"    # Léo Santos       DEF  Nacional
+    - "41670"    # Zaidu            DEF  FC Porto
     - "42725"    # Zalazar          MED  Sporting
     - "21459"    # Raphael Guzzo    MED  Marítimo
-    - "43500"    # Issa Doumbia     MED  Sporting
     - "42019"    # Danilovic        MED  Marítimo
-    - "42937"    # Santi García     MED  Gil Vicente
-    - "42896"    # Pavlidis         AVA  Benfica
-    - "42920"    # Begraoui         AVA  Estoril
-  bench:
-    - "43383"    # Alfonso Pastor   GR   Marítimo
-    - "43510"    # Finn van Breemen DEF  Famalicão
+    - "43500"    # Issa Doumbia     MED  Sporting
     - "33728"    # Samu             MED  V. Guimarães
+    - "42920"    # Begraoui         AVA  Estoril
+    - "42896"    # Pavlidis         AVA  Benfica
+  bench:
+    - "43430"    # Lucão            GR   Gil Vicente
+    - "43510"    # Finn van Breemen DEF  Famalicão
+    - "42220"    # Gorby            MED  Sp. Braga
     - "42142"    # Fran Navarro     AVA  Sp. Braga
   captain: "42896"    # Pavlidis
   coach: "890"        # Farioli, FC Porto
