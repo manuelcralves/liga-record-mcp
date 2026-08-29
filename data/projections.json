@@ -779,7 +779,8 @@
           "attacking_multiplier": 1.197,
           "projected": 3.91,
           "points_before": 9,
-          "actual": null
+          "actual": 3,
+          "error": -0.91
         },
         "21459": {
           "name": "Raphael Guzzo",
@@ -817,7 +818,8 @@
           "attacking_multiplier": 1.197,
           "projected": 4.26,
           "points_before": 7,
-          "actual": null
+          "actual": 4,
+          "error": -0.26
         },
         "33728": {
           "name": "Samu",
@@ -1005,7 +1007,9 @@
         "club_strength": 1.49,
         "club_has_history": true,
         "actual": null
-      }
+      },
+      "settled_at": "2026-08-29T00:23:15.230995+00:00",
+      "fully_settled": false
     }
   }
 }
