@@ -589,7 +589,8 @@
           "attacking_multiplier": 1.197,
           "projected": 1.27,
           "points_before": 8,
-          "actual": null
+          "actual": -2,
+          "error": -3.27
         },
         "43430": {
           "name": "Lucão",
@@ -646,7 +647,8 @@
           "attacking_multiplier": 1.1,
           "projected": 1.68,
           "points_before": 16,
-          "actual": null
+          "actual": 1,
+          "error": -0.68
         },
         "41670": {
           "name": "Zaidu",
@@ -703,7 +705,8 @@
           "attacking_multiplier": 1.1,
           "projected": 2.28,
           "points_before": 12,
-          "actual": null
+          "actual": 1,
+          "error": -1.28
         },
         "41350": {
           "name": "Tiago Esgaio",
@@ -722,7 +725,8 @@
           "attacking_multiplier": 1.1,
           "projected": 2.04,
           "points_before": 11,
-          "actual": null
+          "actual": 0,
+          "error": -2.04
         },
         "43510": {
           "name": "Finn van Breemen",
@@ -799,7 +803,8 @@
           "attacking_multiplier": 1.197,
           "projected": 3.78,
           "points_before": 17,
-          "actual": null
+          "actual": 2,
+          "error": -1.78
         },
         "43500": {
           "name": "Issa Doumbia",
@@ -857,7 +862,8 @@
           "attacking_multiplier": 1.197,
           "projected": 3.23,
           "points_before": 8,
-          "actual": null
+          "actual": 2,
+          "error": -1.23
         },
         "42937": {
           "name": "Santi García",
@@ -1008,7 +1014,7 @@
         "club_has_history": true,
         "actual": null
       },
-      "settled_at": "2026-08-29T00:23:15.230995+00:00",
+      "settled_at": "2026-08-29T19:09:35.993219+00:00",
       "fully_settled": false
     }
   }
