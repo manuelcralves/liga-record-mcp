@@ -689,7 +689,8 @@
           "attacking_multiplier": 1.358,
           "projected": 2.43,
           "points_before": 11,
-          "actual": null
+          "actual": 2,
+          "error": -0.43
         },
         "43426": {
           "name": "Javi Sánchez",
@@ -1017,7 +1018,7 @@
         "club_has_history": true,
         "actual": null
       },
-      "settled_at": "2026-08-30T12:37:06.804692+00:00",
+      "settled_at": "2026-08-30T19:01:16.330525+00:00",
       "fully_settled": false
     }
   }
