@@ -570,7 +570,8 @@
           "attacking_multiplier": 0.91,
           "projected": 2.89,
           "points_before": 14,
-          "actual": null
+          "actual": 6,
+          "error": 3.11
         },
         "43383": {
           "name": "Alfonso Pastor",
@@ -628,7 +629,8 @@
           "attacking_multiplier": 0.91,
           "projected": 2.42,
           "points_before": 13,
-          "actual": null
+          "actual": 4,
+          "error": 1.58
         },
         "42893": {
           "name": "Jose Fontán",
@@ -667,7 +669,8 @@
           "attacking_multiplier": 0.91,
           "projected": 2.39,
           "points_before": 10,
-          "actual": null
+          "actual": 5,
+          "error": 2.61
         },
         "43052": {
           "name": "Léo Santos",
@@ -1014,7 +1017,7 @@
         "club_has_history": true,
         "actual": null
       },
-      "settled_at": "2026-08-29T19:09:35.993219+00:00",
+      "settled_at": "2026-08-30T12:37:06.804692+00:00",
       "fully_settled": false
     }
   }
