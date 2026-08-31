@@ -610,7 +610,8 @@
           "attacking_multiplier": 0.721,
           "projected": 1.19,
           "points_before": 6,
-          "actual": null
+          "actual": 6,
+          "error": 4.81
         },
         "41584": {
           "name": "Nehuén Pérez",
@@ -749,7 +750,8 @@
           "attacking_multiplier": 1.089,
           "projected": 2.29,
           "points_before": 8,
-          "actual": null
+          "actual": 2,
+          "error": -0.29
         },
         "41400": {
           "name": "Buatu",
@@ -768,7 +770,8 @@
           "attacking_multiplier": 0.721,
           "projected": 1.64,
           "points_before": 5,
-          "actual": null
+          "actual": 5,
+          "error": 3.36
         },
         "42725": {
           "name": "Zalazar",
@@ -886,7 +889,8 @@
           "attacking_multiplier": 0.721,
           "projected": 3.0,
           "points_before": 4,
-          "actual": null
+          "actual": 5,
+          "error": 2.0
         },
         "42220": {
           "name": "Gorby",
@@ -924,7 +928,8 @@
           "attacking_multiplier": 0.721,
           "projected": 2.22,
           "points_before": 4,
-          "actual": null
+          "actual": 4,
+          "error": 1.78
         },
         "42896": {
           "name": "Pavlidis",
@@ -1000,7 +1005,8 @@
           "attacking_multiplier": 0.721,
           "projected": 2.12,
           "points_before": 7,
-          "actual": null
+          "actual": 7,
+          "error": 4.88
         }
       },
       "coach": {
@@ -1018,7 +1024,7 @@
         "club_has_history": true,
         "actual": null
       },
-      "settled_at": "2026-08-30T19:01:16.330525+00:00",
+      "settled_at": "2026-08-31T14:51:33.336618+00:00",
       "fully_settled": false
     }
   }
