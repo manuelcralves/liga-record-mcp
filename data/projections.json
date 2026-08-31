@@ -850,7 +850,8 @@
           "attacking_multiplier": 0.699,
           "projected": 2.92,
           "points_before": 11,
-          "actual": null
+          "actual": 2,
+          "error": -0.92
         },
         "42019": {
           "name": "Danilovic",
@@ -909,7 +910,8 @@
           "attacking_multiplier": 1.127,
           "projected": 2.9,
           "points_before": 2,
-          "actual": null
+          "actual": 0,
+          "error": -2.9
         },
         "42765": {
           "name": "Cáseres",
@@ -948,7 +950,8 @@
           "attacking_multiplier": 1.409,
           "projected": 5.68,
           "points_before": 30,
-          "actual": null
+          "actual": 0,
+          "error": -5.68
         },
         "42142": {
           "name": "Fran Navarro",
@@ -967,7 +970,8 @@
           "attacking_multiplier": 1.127,
           "projected": 2.53,
           "points_before": 6,
-          "actual": null
+          "actual": 0,
+          "error": -2.53
         },
         "42920": {
           "name": "Begraoui",
@@ -986,7 +990,8 @@
           "attacking_multiplier": 0.562,
           "projected": 2.87,
           "points_before": 7,
-          "actual": null
+          "actual": 2,
+          "error": -0.87
         },
         "42398": {
           "name": "Héctor Hernández",
@@ -1024,8 +1029,8 @@
         "club_has_history": true,
         "actual": null
       },
-      "settled_at": "2026-08-31T14:51:33.336618+00:00",
-      "fully_settled": false
+      "settled_at": "2026-08-31T21:17:21.360607+00:00",
+      "fully_settled": true
     }
   }
 }
