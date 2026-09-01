@@ -172,7 +172,36 @@ def two_part_projection(
     and a substitute's low returns ALREADY carry the fact that he is a
     substitute. Scaling either half by minutes charges him for it twice.
 
-    Whatever the ridge is extracting, it is not a shrinkage. It stays open.
+    AND IT IS NOT A TREND EITHER, which is worth writing down because the
+    ridge's own weights point straight at one and it does not survive. Its
+    fitted coefficients on the three minutes windows are +0.18, +0.78 and
+    -0.50: opposite signs, so what it computes is a CONTRAST between the last
+    three rounds and the five-round baseline — momentum in team selection,
+    which the blend here cannot express because it shrinks toward the season
+    and so can never pass either rate.
+
+    Built and measured over 6,450 predictions, both ways round. Added to
+    `playing`, and added to the finished estimate the way the ridge adds it:
+
+                             0.25    0.50    1.00    2.00
+        into P(plays)      -0.0018 -0.0050 -0.0125 -0.0316
+        onto the estimate          -0.0006 -0.0019 -0.0062
+
+    Monotonically worse at every strength, both shapes. So the contrast is
+    real in the fit and worth nothing on its own.
+
+    The likely reason: twenty-two columns are fitted TOGETHER, and those two
+    weights are correcting something else in the same fit — most likely the
+    recent-points columns, which carry the same contrast pattern (+0.57 on one
+    round against -0.05 on five). A weight inside a joint fit is a statement
+    about that fit, not about football.
+
+    Worth keeping in proportion too: the whole ridge, all twenty-two columns,
+    beats this estimator by 0.0104 of correlation. There was never a large
+    thing waiting behind the minutes.
+
+    Whatever the ridge is extracting, it is not a shrinkage and not a trend.
+    It stays open.
 
     THE POSITION BLOCK WAS THE OTHER LEAD AND IT CLOSES. The estimator carries
     a real, structural bias by position — it over-rates goalkeepers by roughly

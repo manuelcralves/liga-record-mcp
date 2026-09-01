@@ -167,14 +167,28 @@ def main() -> None:
         tell_the_season(market, history, minutes, cells, rows, views)
         return
 
-    opening_view = views["form only"][MATCHDAYS[0]]
-    bought = best_squad_under_budget(
-        rows, {i: v * len(MATCHDAYS) for i, v in opening_view.items()}
-    )
-    if bought is None:
-        raise SystemExit("no legal squad fits the budget")
+    # EACH SIGNAL BUYS ITS OWN SQUAD. This used to buy one squad with `form
+    # only` and then measure every signal's WEEKLY decisions on it — so the
+    # column headed `plays x returns` described a season begun by a signal it
+    # does not use, and the squad choice of the model that actually advises
+    # Manuel was never tested at all. He spotted it: he had assumed the test
+    # started from five matchdays and ran the whole thing forward, which is
+    # what it does for transfers and was not what it did for the twenty-three.
+    #
+    # Buying with the same signal that then manages the season is the only
+    # comparison that isolates the signal rather than confounding it with
+    # whichever one happened to open.
+    squads = {}
+    for name, per_round in views.items():
+        opening = per_round[MATCHDAYS[0]]
+        bought = best_squad_under_budget(
+            rows, {i: v * len(MATCHDAYS) for i, v in opening.items()}
+        )
+        if bought is None:
+            raise SystemExit(f"no legal squad fits the budget for {name}")
+        squads[name] = bought["players"]
 
-    for label, squad in (("a squad the model bought", bought["players"]), ("YOUR 23", mine)):
+    for label, squad in (("cada sinal compra o SEU plantel", None), ("YOUR 23", mine)):
         print()
         print(f"  {label}")
         print(
@@ -182,9 +196,10 @@ def main() -> None:
             + "".join(f"{'trf ' + format(t, 'g'):>10}" for t in args.thresholds)
         )
         for name, per_round in views.items():
-            blind = replay(squad, market, history, MATCHDAYS, forecasts=per_round)
+            held = squad if squad is not None else squads[name]
+            blind = replay(held, market, history, MATCHDAYS, forecasts=per_round)
             informed = replay(
-                squad,
+                held,
                 market,
                 history,
                 MATCHDAYS,
@@ -194,7 +209,7 @@ def main() -> None:
             cells_out = [f"{blind['points']:>10.0f}", f"{informed['points']:>14.0f}"]
             for threshold in args.thresholds:
                 played = replay_with_transfers(
-                    squad,
+                    held,
                     market,
                     history,
                     MATCHDAYS,
