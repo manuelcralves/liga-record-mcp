@@ -206,6 +206,9 @@ def gather(round_number: int) -> dict:
     data = {
         "round": round_number,
         "stored": stored,
+        # Every recorded round, so the front page can tell when the site is
+        # behind what has already been settled from the email.
+        "stored_all": json.loads(LOG_PATH.read_text("utf-8"))["rounds"] if LOG_PATH.exists() else {},
         "league": (league or {}).get("teams") or [],
         "me": me,
         "field": field,
@@ -1361,6 +1364,37 @@ def hero(data: dict, public: bool = False) -> str:
     </div>"""
 
     place = me.get("position_league")
+
+    # THE SITE'S TABLE LAGS, and this panel is built from it. Everything here —
+    # the rank, the total, the round — is what Liga Record has published, and
+    # it publishes a round a day or two after it is played. So on the Monday
+    # after a round these figures are still last week's, while the ledger has
+    # already been settled from the weekly email.
+    #
+    # Saying so is the difference between a page that looks stale and a page
+    # that says which week it is describing. Without it the reader goes looking
+    # for a round that is on file, on another page, under a number this panel
+    # has never heard of.
+    behind = ""
+    latest = max(
+        (int(k) for k, r in (data.get("stored_all") or {}).items()
+         if any(p.get("actual") is not None for p in r["players"].values())),
+        default=None,
+    )
+    if latest is not None and me.get("points_round") is not None:
+        ours = sum(
+            p["actual"]
+            for p in (data["stored_all"][str(latest)]["players"].values())
+            if p["actual"] is not None
+        )
+        if ours != me["points_round"]:
+            behind = (
+                '    <p class="footnote">Estes números são os que o site publicou, '
+                f'e ele publica uma jornada com um ou dois dias de atraso. A '
+                f'jornada <strong>{latest}</strong> já está liquidada no registo '
+                f'pelo email — vê-a em <em>O modelo</em>.</p>'
+            )
+
     return f"""  <section class="bcast">
     <div class="mast">
       <div class="mast-name"><span>Melro</span></div>
@@ -1387,11 +1421,13 @@ def hero(data: dict, public: bool = False) -> str:
       <div class="fig-block">
         <span class="fig-label">Pontos</span>
         <span class="fig-value">{me['points_total']}</span>
-        <span class="fig-note">em duas jornadas</span>
+        <span class="fig-note">dos quais
+        <strong>{me['points_round']}</strong> na última que o site pontuou</span>
       </div>
 {lead}
     </div>
 {bars}
+{behind}
   </section>"""
 
 
