@@ -247,3 +247,76 @@ def test_the_postponed_clubs_are_still_waiting():
             assert row["actual"] is None, (
                 f"{row['name']} was settled on a round his club has not played"
             )
+
+
+# --- internal consistency is not the same question ----------------------------
+#
+# The first guard checked that a player's running total had moved by exactly
+# `points_round`, and refused when it had not. That is a real check and it is
+# not enough, because it never asks WHICH round the field describes.
+#
+# What happened on 1 September. Round 4 was snapshotted on 25 August, when the
+# site had rounds 1-2 in its totals. On the 26th the site published round 3:
+# every total moved by round 3's points, and `points_round` became round 3. So
+# `gained == points_round` held perfectly for every player — and twenty-one of
+# twenty-three were settled with round 3's scores under round 4's name. Santi
+# García entered on 5, which was his round 3; Pavlidis on 0, which was the
+# round Benfica did not play. Manuel's weekly email caught it, again.
+#
+# No arithmetic over fields that all describe the same wrong round can recover
+# which round it is. The email says, in its subject line. So the email is now
+# the only source allowed to close a round.
+
+
+def test_a_lagging_round_passes_the_arithmetic_check(ledger):
+    """The hole, stated as the thing the old guard could not see.
+
+    Snapshot at 14 (rounds 1-2 in). Then round 3 publishes: the total moves by
+    round 3's points and `points_round` is round 3. Consistent, and wrong.
+    """
+    rows = {"1": {"points_before": 14, "name": "p1"}}
+    live = {"1": Live(total=14 + 5, round_points=5)}
+    assert ledger.round_is_published(rows, live), (
+        "the arithmetic check refuses this, which is not the failure being "
+        "described — it passes, and that is the problem"
+    )
+    gained = live["1"].points_total - rows["1"]["points_before"]
+    assert gained == live["1"].points_round
+
+
+def test_only_a_filed_email_may_close_a_round(ledger):
+    """The fix: the API cannot settle at all, however consistent it looks."""
+    source = (ROOT / "scripts" / "record_projection.py").read_text(encoding="utf-8")
+    assert "published = official is not None" in source, (
+        "the API can settle a round again, and it cannot say which round it is "
+        "reporting"
+    )
+    assert "A API nao diz de que jornada sao os numeros dela" in source
+
+
+def test_a_round_with_no_email_settles_nothing(ledger):
+    assert ledger.official_scores("99") is None
+
+
+def test_round_four_holds_the_email_figures_not_the_site_ones():
+    """A regression test against the data. These twenty-one values are
+    recognisable: they are round 3's, and they were in the ledger for an hour."""
+    import json
+
+    log = json.loads(
+        (ROOT / "data" / "projections.json").read_text(encoding="utf-8")
+    )
+    four = log["rounds"].get("4")
+    if four is None:
+        pytest.skip("round 4 is no longer on file")
+    by_name = {r["name"]: r for r in four["players"].values()}
+    for name, right, wrong in [
+        ("Santi García", -1, 5),
+        ("Pavlidis", 7, 0),
+        ("Héctor Hernández", 2, 7),
+    ]:
+        row = by_name.get(name)
+        if row is None or row.get("actual") is None:
+            continue
+        assert row["actual"] != wrong, f"{name} carries his round 3 score"
+        assert row["actual"] == right

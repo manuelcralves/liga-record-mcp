@@ -1,0 +1,35 @@
+{
+ "_": "Pontuações oficiais da 4.ª ronda, do email semanal ligarecord@record.pt de 01/09/2026 02:48. Chaves nome|clube por causa dos homónimos entre clubes.",
+ "ronda": 4,
+ "recebido": "2026-09-01T02:48:00+01:00",
+ "fonte": "email Liga Record - Pontuações",
+ "jogadores": {
+  "Diogo Costa|FC Porto": 6,
+  "Alfonso Pastor|Marítimo": -1,
+  "Lucão|Gil Vicente": 6,
+  "Nehuén Pérez|FC Porto": 5,
+  "Jose Fontán|Arouca": 3,
+  "Zaidu|FC Porto": 3,
+  "Léo Santos|Nacional": -1,
+  "Javi Sánchez|Arouca": 3,
+  "Tiago Esgaio|Arouca": 3,
+  "Finn van Breemen|Famalicão": 4,
+  "Buatu|Gil Vicente": 4,
+  "Zalazar|Sporting": 4,
+  "Raphael Guzzo|Marítimo": 3,
+  "Issa Doumbia|Sporting": 5,
+  "Samu|V. Guimarães": 3,
+  "Danilovic|Marítimo": 3,
+  "Santi García|Gil Vicente": -1,
+  "Gorby|Sp. Braga": -1,
+  "Cáseres|Gil Vicente": 3,
+  "Pavlidis|Benfica": 7,
+  "Fran Navarro|Sp. Braga": 2,
+  "Begraoui|Estoril": 5,
+  "Héctor Hernández|Gil Vicente": 2
+ },
+ "treinadores": {
+  "Farioli|FC Porto": 7
+ },
+ "adiados": []
+}

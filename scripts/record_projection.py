@@ -440,8 +440,32 @@ def main() -> None:
                 f"({official['fonte']}, {official['recebido'][:16]})"
             )
 
-        published = official is not None or round_is_published(stored["players"], live)
+        # THE API IS NOT ALLOWED TO SETTLE A ROUND. Only the email may.
+        #
+        # The first version of this guard checked that a player's running total
+        # had moved by exactly `points_round`, and refused when it had not.
+        # That is internal consistency, and it is not the same question.
+        #
+        # Round 4 was snapshotted on 25 August, when the site had rounds 1-2 in
+        # its totals. On the 26th the site published round 3: every total moved
+        # by round 3's points, and `points_round` became round 3. So
+        # `gained == points_round` held perfectly — and twenty-one of
+        # twenty-three players were settled with round 3's scores under round
+        # 4's name. Santi García entered on 5, which was his round 3; Pavlidis
+        # on 0, which was the round Benfica did not play.
+        #
+        # The field simply does not say which round it describes, and no amount
+        # of arithmetic over fields that all describe the same wrong round can
+        # recover it. The email says, in its subject line. So the email is the
+        # only source allowed to close a round, and a round with no filed email
+        # waits instead of guessing.
+        published = official is not None
         if not published:
+            print(
+                f"  a jornada {key} nao tem pontuacoes em "
+                f"data/pontuacoes/{key}.json — nada foi liquidado.\n"
+                "  A API nao diz de que jornada sao os numeros dela; o email diz."
+            )
             print(
                 f"  a jornada {key} ainda nao esta somada aos totais do site — "
                 "o points_round que ele serve e da jornada anterior. Nada foi "

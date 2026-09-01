@@ -590,8 +590,8 @@
           "attacking_multiplier": 1.197,
           "projected": 1.27,
           "points_before": 8,
-          "actual": -2,
-          "error": -3.27
+          "actual": -1,
+          "error": -2.27
         },
         "43430": {
           "name": "Lucão",
@@ -630,8 +630,8 @@
           "attacking_multiplier": 0.91,
           "projected": 2.42,
           "points_before": 13,
-          "actual": 4,
-          "error": 1.58
+          "actual": 5,
+          "error": 2.58
         },
         "42893": {
           "name": "Jose Fontán",
@@ -650,8 +650,8 @@
           "attacking_multiplier": 1.1,
           "projected": 1.68,
           "points_before": 16,
-          "actual": 1,
-          "error": -0.68
+          "actual": 3,
+          "error": 1.32
         },
         "41670": {
           "name": "Zaidu",
@@ -670,8 +670,8 @@
           "attacking_multiplier": 0.91,
           "projected": 2.39,
           "points_before": 10,
-          "actual": 5,
-          "error": 2.61
+          "actual": 3,
+          "error": 0.61
         },
         "43052": {
           "name": "Léo Santos",
@@ -690,8 +690,8 @@
           "attacking_multiplier": 1.358,
           "projected": 2.43,
           "points_before": 11,
-          "actual": 2,
-          "error": -0.43
+          "actual": -1,
+          "error": -3.43
         },
         "43426": {
           "name": "Javi Sánchez",
@@ -710,8 +710,8 @@
           "attacking_multiplier": 1.1,
           "projected": 2.28,
           "points_before": 12,
-          "actual": 1,
-          "error": -1.28
+          "actual": 3,
+          "error": 0.72
         },
         "41350": {
           "name": "Tiago Esgaio",
@@ -730,8 +730,8 @@
           "attacking_multiplier": 1.1,
           "projected": 2.04,
           "points_before": 11,
-          "actual": 0,
-          "error": -2.04
+          "actual": 3,
+          "error": 0.96
         },
         "43510": {
           "name": "Finn van Breemen",
@@ -750,8 +750,8 @@
           "attacking_multiplier": 1.089,
           "projected": 2.29,
           "points_before": 8,
-          "actual": 2,
-          "error": -0.29
+          "actual": 4,
+          "error": 1.71
         },
         "41400": {
           "name": "Buatu",
@@ -770,8 +770,8 @@
           "attacking_multiplier": 0.721,
           "projected": 1.64,
           "points_before": 5,
-          "actual": 5,
-          "error": 3.36
+          "actual": 4,
+          "error": 2.36
         },
         "42725": {
           "name": "Zalazar",
@@ -790,8 +790,8 @@
           "attacking_multiplier": 1.197,
           "projected": 3.91,
           "points_before": 9,
-          "actual": 3,
-          "error": -0.91
+          "actual": 4,
+          "error": 0.09
         },
         "21459": {
           "name": "Raphael Guzzo",
@@ -810,8 +810,8 @@
           "attacking_multiplier": 1.197,
           "projected": 3.78,
           "points_before": 17,
-          "actual": 2,
-          "error": -1.78
+          "actual": 3,
+          "error": -0.78
         },
         "43500": {
           "name": "Issa Doumbia",
@@ -830,8 +830,8 @@
           "attacking_multiplier": 1.197,
           "projected": 4.26,
           "points_before": 7,
-          "actual": 4,
-          "error": -0.26
+          "actual": 5,
+          "error": 0.74
         },
         "33728": {
           "name": "Samu",
@@ -850,8 +850,8 @@
           "attacking_multiplier": 0.699,
           "projected": 2.92,
           "points_before": 11,
-          "actual": 2,
-          "error": -0.92
+          "actual": 3,
+          "error": 0.08
         },
         "42019": {
           "name": "Danilovic",
@@ -870,8 +870,8 @@
           "attacking_multiplier": 1.197,
           "projected": 3.23,
           "points_before": 8,
-          "actual": 2,
-          "error": -1.23
+          "actual": 3,
+          "error": -0.23
         },
         "42937": {
           "name": "Santi García",
@@ -890,8 +890,8 @@
           "attacking_multiplier": 0.721,
           "projected": 3.0,
           "points_before": 4,
-          "actual": 5,
-          "error": 2.0
+          "actual": -1,
+          "error": -4.0
         },
         "42220": {
           "name": "Gorby",
@@ -910,8 +910,8 @@
           "attacking_multiplier": 1.127,
           "projected": 2.9,
           "points_before": 2,
-          "actual": 0,
-          "error": -2.9
+          "actual": -1,
+          "error": -3.9
         },
         "42765": {
           "name": "Cáseres",
@@ -930,8 +930,8 @@
           "attacking_multiplier": 0.721,
           "projected": 2.22,
           "points_before": 4,
-          "actual": 4,
-          "error": 1.78
+          "actual": 3,
+          "error": 0.78
         },
         "42896": {
           "name": "Pavlidis",
@@ -950,8 +950,8 @@
           "attacking_multiplier": 1.409,
           "projected": 5.68,
           "points_before": 30,
-          "actual": 0,
-          "error": -5.68
+          "actual": 7,
+          "error": 1.32
         },
         "42142": {
           "name": "Fran Navarro",
@@ -970,8 +970,8 @@
           "attacking_multiplier": 1.127,
           "projected": 2.53,
           "points_before": 6,
-          "actual": 0,
-          "error": -2.53
+          "actual": 2,
+          "error": -0.53
         },
         "42920": {
           "name": "Begraoui",
@@ -990,8 +990,8 @@
           "attacking_multiplier": 0.562,
           "projected": 2.87,
           "points_before": 7,
-          "actual": 2,
-          "error": -0.87
+          "actual": 5,
+          "error": 2.13
         },
         "42398": {
           "name": "Héctor Hernández",
@@ -1010,8 +1010,8 @@
           "attacking_multiplier": 0.721,
           "projected": 2.12,
           "points_before": 7,
-          "actual": 7,
-          "error": 4.88
+          "actual": 2,
+          "error": -0.12
         }
       },
       "coach": {
@@ -1027,9 +1027,10 @@
         "weight_on_form": 0.2,
         "club_strength": 1.49,
         "club_has_history": true,
-        "actual": null
+        "actual": 7,
+        "error": 2.79
       },
-      "settled_at": "2026-08-31T21:17:21.360607+00:00",
+      "settled_at": "2026-09-01T08:30:25.367375+00:00",
       "fully_settled": true
     }
   }
