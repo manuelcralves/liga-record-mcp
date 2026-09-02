@@ -378,3 +378,55 @@ def test_the_scheduled_job_runs_it():
     assert "if: always()" in workflow, (
         "the warning is skipped on exactly the days something else went wrong"
     )
+
+
+# --- a date does not know what has been done ----------------------------------
+#
+# The alarm fired twice a day for two days after Manuel had already rebuilt the
+# whole squad and filed the sheet, telling him each time to go and do a thing he
+# had finished. That is how a warning becomes something you learn to ignore, and
+# this is the one warning of the season that must not become that.
+#
+# The squad file carries the round it was entered for, so it knows.
+
+
+def test_a_squad_filed_for_the_locking_round_counts_as_done(mod, tmp_path, monkeypatch):
+    from liga_record_mcp.source import ManualSquadSource
+
+    class Filed:
+        round_number = mod.FIRST_SCORING_MATCHDAY
+
+    monkeypatch.setattr(mod, "ManualSquadSource", lambda p: type("L", (), {"load": lambda s: Filed()})())
+    assert mod.lock_is_settled(mod.FIRST_SCORING_MATCHDAY)
+
+
+def test_a_squad_still_on_an_earlier_round_is_not_done(mod, monkeypatch):
+    class Filed:
+        round_number = mod.FIRST_SCORING_MATCHDAY - 1
+
+    monkeypatch.setattr(mod, "ManualSquadSource", lambda p: type("L", (), {"load": lambda s: Filed()})())
+    assert not mod.lock_is_settled(mod.FIRST_SCORING_MATCHDAY)
+
+
+def test_a_squad_file_that_will_not_load_is_not_a_decision(mod, monkeypatch):
+    """Refusing to load is a reason to warn, not a reason to fall silent."""
+    def boom(_):
+        raise RuntimeError("illegal squad")
+
+    monkeypatch.setattr(mod, "ManualSquadSource", boom)
+    assert not mod.lock_is_settled(mod.FIRST_SCORING_MATCHDAY)
+
+
+def test_the_real_squad_is_filed_for_the_lock():
+    """Against the file: he rebuilt it on 1 September."""
+    from liga_record_mcp.source import ManualSquadSource
+
+    snap = ManualSquadSource(ROOT / "data" / "squad.yaml").load()
+    assert snap.round_number >= 5, "the squad file is behind the locking round"
+
+
+def test_the_alarm_consults_it():
+    source = (ROOT / "scripts" / "pending_decisions.py").read_text(encoding="utf-8")
+    assert "lock_is_settled(FIRST_SCORING_MATCHDAY)" in source, (
+        "the alarm is a date again, and a date does not know what has been done"
+    )

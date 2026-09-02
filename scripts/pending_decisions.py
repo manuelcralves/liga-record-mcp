@@ -228,6 +228,24 @@ def stale_injuries(path, round_number: int) -> str | None:
     )
 
 
+def lock_is_settled(round_number: int) -> bool:
+    """Whether the squad has already been filed for the round that locks.
+
+    The alarm below is a date, and a date does not know what has been done.
+    It fired for two days after Manuel had already rebuilt the whole squad and
+    filed the sheet, telling him twice a day to go and do a thing he had
+    finished — which is how a warning becomes something you learn to ignore,
+    and this is the one warning of the season that must not become that.
+
+    The squad file carries the round it was entered for. When that is the
+    locking round, the decision is made.
+    """
+    try:
+        return ManualSquadSource(SQUAD_PATH).load().round_number >= FIRST_SCORING_MATCHDAY
+    except Exception:  # noqa: BLE001 — a file that will not load is not a decision
+        return False
+
+
 def lock_is_near(fixtures, within_days: int) -> tuple[bool, str]:
     """Whether the matchday-5 lock is dated and close, and what to say about it.
 
@@ -295,6 +313,12 @@ def main() -> None:
         except SiteError as exc:
             raise SystemExit(f"could not read the calendar: {exc}")
         near, said = lock_is_near(fixtures, args.alerta)
+        if near and lock_is_settled(FIRST_SCORING_MATCHDAY):
+            print(
+                f"  a jornada {FIRST_SCORING_MATCHDAY} esta a chegar e o plantel "
+                "ja esta entregue para ela — nada a avisar"
+            )
+            raise SystemExit(0)
         print(said)
         raise SystemExit(1 if near else 0)
 

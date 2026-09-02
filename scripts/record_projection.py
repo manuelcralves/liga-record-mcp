@@ -609,6 +609,43 @@ def main() -> None:
                 "has been played, so it is still a prediction"
             )
             return
+        # THE SHEET IS NOT A PREDICTION, and it moves after the snapshot.
+        #
+        # `filed` records the eleven Manuel entered, and he keeps entering it:
+        # round 4 was snapshotted on 25 August with Santi García starting, the
+        # Record's injury bulletin landed on the 27th, and he swapped in Samu
+        # before the deadline. The ledger kept the old sheet, so it scored his
+        # round at 53 against the site's 57 — Santi García's -1 where Samu's 3
+        # belonged, and the difference is exactly four.
+        #
+        # The projections stay frozen because they ARE predictions and one
+        # rewritten afterwards proves nothing. The sheet is a fact about what he
+        # did, and the true one is whatever stood at kickoff. So it is refreshed
+        # on every run until the round starts, and the guard below — which
+        # refuses once a club has played — is what keeps that honest.
+        picked = snapshot_of_squad.selection
+        fresh = (
+            {
+                "starters": list(picked.starters),
+                "bench": list(picked.bench),
+                "captain": picked.captain,
+            }
+            if picked is not None
+            else None
+        )
+        if fresh != stored.get("filed") and not clubs_playing_in(
+            market.fixtures(), int(key)
+        ):
+            stored["filed"] = fresh
+            stored["advised"] = advised_sheet(stored["players"])
+            LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
+            print(
+                f"round {key}: a folha mudou desde o instantaneo e ainda nao ha "
+                "jogo — atualizada. As projecoes ficam como estavam."
+            )
+            return
+
+
         raise SystemExit(
             f"round {key} is already on file, recorded {log['rounds'][key]['recorded_at']}.\n"
             "Refusing to overwrite — a projection rewritten after the fact proves nothing.\n"
