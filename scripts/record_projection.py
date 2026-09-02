@@ -623,34 +623,56 @@ def main() -> None:
         # did, and the true one is whatever stood at kickoff. So it is refreshed
         # on every run until the round starts, and the guard below — which
         # refuses once a club has played — is what keeps that honest.
-        picked = snapshot_of_squad.selection
-        fresh = (
-            {
-                "starters": list(picked.starters),
-                "bench": list(picked.bench),
-                "captain": picked.captain,
-            }
-            if picked is not None
-            else None
-        )
-        if fresh != stored.get("filed") and not clubs_playing_in(
+        # AND THE SQUAD ITSELF, for the same reason and with more force. The
+        # sheet moving between snapshot and kickoff is a nuisance; the
+        # TWENTY-THREE moving makes the whole round a prediction about players
+        # he no longer owns. It happened on 2 September: the round was recorded
+        # on the 1st, he swapped four men on the 2nd, and the ledger held a
+        # forecast for a squad that had ceased to exist.
+        #
+        # Re-recording before kickoff is not a rewritten prediction — it is the
+        # prediction, made about the team that will actually play. The guard
+        # below still refuses the moment a club takes the field, which is the
+        # line that matters.
+        held = {p.id for p in squad.players}
+        if held != set(stored["players"]) and not clubs_playing_in(
             market.fixtures(), int(key)
         ):
-            stored["filed"] = fresh
-            stored["advised"] = advised_sheet(stored["players"])
-            LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
             print(
-                f"round {key}: a folha mudou desde o instantaneo e ainda nao ha "
-                "jogo — atualizada. As projecoes ficam como estavam."
+                f"round {key}: o plantel mudou desde o instantaneo e a jornada "
+                "ainda nao comecou — a registar de novo."
             )
-            return
+            del log["rounds"][key]
+        else:
+
+            picked = snapshot_of_squad.selection
+            fresh = (
+                {
+                    "starters": list(picked.starters),
+                    "bench": list(picked.bench),
+                    "captain": picked.captain,
+                }
+                if picked is not None
+                else None
+            )
+            if fresh != stored.get("filed") and not clubs_playing_in(
+                market.fixtures(), int(key)
+            ):
+                stored["filed"] = fresh
+                stored["advised"] = advised_sheet(stored["players"])
+                LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
+                print(
+                    f"round {key}: a folha mudou desde o instantaneo e ainda nao ha "
+                    "jogo — atualizada. As projecoes ficam como estavam."
+                )
+                return
 
 
-        raise SystemExit(
-            f"round {key} is already on file, recorded {log['rounds'][key]['recorded_at']}.\n"
-            "Refusing to overwrite — a projection rewritten after the fact proves nothing.\n"
-            "Use --settle to add the results instead."
-        )
+            raise SystemExit(
+                f"round {key} is already on file, recorded {log['rounds'][key]['recorded_at']}.\n"
+                "Refusing to overwrite — a projection rewritten after the fact proves nothing.\n"
+                "Use --settle to add the results instead."
+            )
 
     # The whole value of this file is that every row was written before anyone
     # kicked a ball. Run by hand that is obvious; run on a schedule it is not,
