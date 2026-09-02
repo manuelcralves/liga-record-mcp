@@ -17,8 +17,27 @@
 
 jornada_entrada: 5
 
-# Ainda por entregar — o prazo é a jornada 5.
-entrada: null
+# Entregue no zerozero a 3 de setembro de 2026, antes do fecho da jornada 5.
+# É a ordem que o modelo propôs, copiada sem alterações.
+entrada:
+  - Sporting
+  - Benfica
+  - FC Porto
+  - Sp. Braga
+  - Marítimo
+  - Gil Vicente
+  - Santa Clara
+  - Famalicão
+  - Arouca
+  - V. Guimarães
+  - Académico Viseu
+  - Moreirense
+  - Estoril
+  - Nacional
+  - Alverca
+  - E. Amadora
+  - Rio Ave
+  - Casa Pia
 
 chips: []
 # Exemplo, depois de entregar:
