@@ -23,13 +23,20 @@
 #
 # Esvazia a lista quando a jornada mudar.
 
-jornada: 4
+jornada: 5
 
 fora:
-  - id: "42937"
-    nome: Santi García
+  - id: "41670"
+    nome: Zaidu
+    razao: lesao muscular no adutor direito
+    fonte: email ALERTA da 5.a ronda. Confirmado pela imprensa — saiu ao min 17
+      da jornada 4, ainda em tratamento a 02/09, e o Farioli disse que "parece
+      seria". NOTA — o boletim clinico geral do site, marcado ronda 5, NAO o
+      listava; o email listava. Quando discordarem, o email decide.
+  - id: "43304"
+    nome: Liziero
     razao: lesionado
-    fonte: email ALERTA do Record, boletim clinico da 4.a ronda, 27/08 23:58
+    fonte: email ALERTA da 5.a ronda
 
 # Exemplo:
 #

@@ -234,7 +234,7 @@ selection:
   starters:
     - "38800"    # Diogo Costa        GR   FC Porto
     - "43299"    # Bednarek           DEF  FC Porto
-    - "41670"    # Zaidu              DEF  FC Porto
+    - "43369"    # Espen Van Ee       MED  Arouca
     - "41584"    # Nehuén Pérez       DEF  FC Porto
     - "43510"    # Finn van Breemen   DEF  Famalicão
     - "33728"    # Samu               MED  V. Guimarães
@@ -246,7 +246,7 @@ selection:
   bench:
     - "43029"    # Carevic            GR   Famalicão
     - "42927"    # Rodrigo Pinheiro   DEF  Famalicão
-    - "43369"    # Espen Van Ee       MED  Arouca
+    - "42835"    # Fukui              MED  Arouca
     - "42749"    # Óscar Aranda       AVA  Famalicão
   captain: "43298"    # Luis Suárez
   coach: "890"        # Farioli, FC Porto
