@@ -1034,7 +1034,7 @@
       "fully_settled": true
     },
     "5": {
-      "recorded_at": "2026-09-02T13:45:07.610798+00:00",
+      "recorded_at": "2026-09-04T09:16:04.771637+00:00",
       "estimator": "valuation+fixture",
       "squad_value": 40000000,
       "filed": {
@@ -1063,12 +1063,12 @@
         "starters": [
           "38800",
           "43299",
-          "41670",
           "41584",
           "43510",
           "33728",
           "43499",
           "42864",
+          "43369",
           "43298",
           "26072",
           "42896"
@@ -1076,11 +1076,11 @@
         "bench": [
           "43029",
           "42927",
-          "43369",
+          "42835",
           "42749"
         ],
         "captain": "43298",
-        "formation": "4-3-3"
+        "formation": "3-4-3"
       },
       "players": {
         "38800": {
@@ -1174,9 +1174,10 @@
           "appearances": 24,
           "defensive_multiplier": 1.185,
           "attacking_multiplier": 1.281,
-          "projected": 3.23,
+          "projected": -1.0,
           "points_before": 18,
-          "actual": null
+          "actual": null,
+          "unavailable": "lesao muscular no adutor direito"
         },
         "41584": {
           "name": "Nehuén Pérez",
@@ -1383,9 +1384,10 @@
           "appearances": 32,
           "defensive_multiplier": 0.55,
           "attacking_multiplier": 0.55,
-          "projected": 2.17,
+          "projected": -1.0,
           "points_before": 14,
-          "actual": null
+          "actual": null,
+          "unavailable": "lesionado"
         },
         "42864": {
           "name": "Pedro Ferreira",

@@ -635,7 +635,17 @@ def main() -> None:
         # below still refuses the moment a club takes the field, which is the
         # line that matters.
         held = {p.id for p in squad.players}
-        if held != set(stored["players"]) and not clubs_playing_in(
+        # AND WHEN THE INJURY LIST MOVES, for the same reason. The bulletin for
+        # round 5 arrived hours after the snapshot: Zaidu had been recorded at
+        # 3.23 and was going to collect §10.3(i)'s -1, which the ledger would
+        # have charged to the model as four points of error for a fact it knew
+        # before kickoff. Knowing it and not writing it down is the one thing
+        # this file is for.
+        fora_agora = set(load_unavailable(UNAVAILABLE_PATH, int(key)))
+        fora_antes = {i for i, r in stored["players"].items() if r.get("unavailable")}
+        mexeu = held != set(stored["players"]) or fora_agora != fora_antes
+        if mexeu and not clubs_playing_in(
+
             market.fixtures(), int(key)
         ):
             print(
