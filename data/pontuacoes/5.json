@@ -1,0 +1,35 @@
+{
+ "_": "Pontuações oficiais da 5.ª ronda, do email semanal ligarecord@record.pt de 08/09/2026 03:08. Chaves nome|clube. NOTA — o email passou a escrever o treinador como «Francesco Farioli»; o data/coaches.yaml chama-lhe «Farioli», e a chave aqui segue o ficheiro.",
+ "ronda": 5,
+ "recebido": "2026-09-08T03:08:00+01:00",
+ "fonte": "email Liga Record - Pontuações",
+ "jogadores": {
+  "Diogo Costa|FC Porto": 3,
+  "João Afonso|FC Porto": -1,
+  "Carevic|Famalicão": -1,
+  "Bednarek|FC Porto": 7,
+  "Zaidu|FC Porto": -1,
+  "Nehuén Pérez|FC Porto": 1,
+  "Rodrigo Pinheiro|Famalicão": 1,
+  "Finn van Breemen|Famalicão": 1,
+  "Javi Sánchez|Arouca": -1,
+  "Diogo Calila|Santa Clara": -1,
+  "André Geraldes|Casa Pia": 4,
+  "Altimira|Sporting": 4,
+  "Samu|V. Guimarães": 2,
+  "Espen Van Ee|Arouca": 2,
+  "Fukui|Arouca": 3,
+  "Liziero|Nacional": -1,
+  "Pedro Ferreira|Santa Clara": 5,
+  "Xeka|Estoril": -1,
+  "Filipe Soares|Nacional": -1,
+  "Luis Suárez|Sporting": 7,
+  "Pavlidis|Benfica": 3,
+  "Óscar Aranda|Famalicão": 2,
+  "Gonçalo Paciência|Santa Clara": 3
+ },
+ "treinadores": {
+  "Farioli|FC Porto": 7
+ },
+ "adiados": []
+}
