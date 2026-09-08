@@ -39,8 +39,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp.final_table import (  # noqa: E402
-    BONUS_ROUNDS,
     BONUS_REACH,
+    BONUS_ROUNDS,
+    ENTRY_LOCK_MATCHDAY,
+    FIRST_CHIP_ROUND,
     LAST_CHIP_ROUND,
     WEEKLY_REACH,
     WORTH_MOVING,
@@ -50,7 +52,6 @@ from liga_record_mcp.final_table import (  # noqa: E402
     score,
     strengths,
 )
-from liga_record_mcp.models import FIRST_SCORING_MATCHDAY  # noqa: E402
 from liga_record_mcp.source import OpenFootballClient  # noqa: E402
 
 
@@ -177,7 +178,7 @@ def main() -> None:
     needed = sorted({s for pair in PAIRS for s in (pair[0], *pair[1])})
     fixtures = {tag: client.season_fixtures(tag) for tag in needed}
 
-    print(f"locking at matchday {FIRST_SCORING_MATCHDAY}, {args.draws} seasons drawn")
+    print(f"locking at matchday {ENTRY_LOCK_MATCHDAY}, {args.draws} seasons drawn")
     print(f"chips worth {WEEKLY_REACH} places weekly to matchday {LAST_CHIP_ROUND}, "
           f"{BONUS_REACH} at {', '.join(map(str, BONUS_ROUNDS))}")
     print()
@@ -193,17 +194,17 @@ def main() -> None:
         actual = [row["club"] for row in table_from(season, clubs)]
 
         run = play_season(
-            season, clubs, archive, lock=FIRST_SCORING_MATCHDAY, draws=args.draws,
+            season, clubs, archive, lock=ENTRY_LOCK_MATCHDAY, draws=args.draws,
             weight=args.weight, seed=args.seed, threshold=args.threshold,
         )
         locked = play_season(
-            season, clubs, archive, lock=FIRST_SCORING_MATCHDAY, draws=args.draws,
+            season, clubs, archive, lock=ENTRY_LOCK_MATCHDAY, draws=args.draws,
             weight=args.weight, seed=args.seed, chips=False,
         )
         at_lock = [
             row["club"]
             for row in table_from(
-                [f for f in season if f.round_number < FIRST_SCORING_MATCHDAY], clubs
+                [f for f in season if f.round_number < ENTRY_LOCK_MATCHDAY], clubs
             )
         ]
         previous = fixtures[archive_tags[-1]]
@@ -241,7 +242,8 @@ def main() -> None:
         f"  and the season-to-season spread is {spread:.0f} points — wider than any "
         "gap between"
     )
-    print("  the entries. Twenty-five weeks of correcting is what separates them.")
+    print(f"  the entries. {LAST_CHIP_ROUND - FIRST_CHIP_ROUND + 1} weeks of "
+          "correcting is what separates them.")
     print()
     print(
         "  Every figure here moves with --draws and --seed. Quote none of them "

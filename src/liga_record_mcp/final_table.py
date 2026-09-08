@@ -457,6 +457,11 @@ BONUS_ROUNDS = (18, 24, 29)
 #: `jornada_entrada` in data/tabela-final.yaml from 5 to 6, against that file's
 #: own note saying the entry was filed before the matchday-5 deadline. Manuel
 #: caught both by reading the site.
+#: The matchday the entry is sealed on, and the first on which a chip may be
+#: played. ADJACENT BY DEFINITION — a chip corrects an entry, so there is
+#: nothing to correct until one exists, and the test below pins the two
+#: together so neither can be moved alone.
+ENTRY_LOCK_MATCHDAY = 5
 FIRST_CHIP_ROUND = 6
 LAST_CHIP_ROUND = 29
 
@@ -477,7 +482,12 @@ LAST_CHIP_ROUND = 29
 #: `scripts/sweep_worth_moving.py`, four seasons x twelve seeds x 2500 draws,
 #: every threshold scored against the SAME distributions so the comparison is
 #: paired and the hundred-point season-to-season variance differences away.
-#: n = 48 per setting:
+#: n = 48 per setting. RE-RUN 8 September 2026 after the chip window was
+#: repaired, and it reproduced this table digit for digit — which is the
+#: check that matters. The window had been correct when these were measured
+#: in August, broken for a few hours by a change to FIRST_SCORING_MATCHDAY,
+#: and is correct again; a sweep that came back identical is how we know the
+#: repair put it back rather than somewhere new. 7.0 stands unchanged.
 #:
 #:      threshold   mean   chips   places    vs 7.0   std err
 #:      0.0          391    26.9     58.6      -2.6      13.0

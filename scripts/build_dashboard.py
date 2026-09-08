@@ -55,6 +55,7 @@ from liga_record_mcp.source import (  # noqa: E402
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
 from liga_record_mcp.final_table import (  # noqa: E402
+    ENTRY_LOCK_MATCHDAY,
     FIRST_CHIP_ROUND,
     LAST_CHIP_ROUND,
     RELEGATION_PLACES,
@@ -2137,7 +2138,7 @@ def final_section(data: dict) -> str:
 
       <p class="footnote"><strong>Isto foi testado, e o teste diz onde está o
       valor.</strong> Quatro épocas jogadas do princípio — entrada fechada na
-      jornada {FIRST_SCORING_MATCHDAY}, chips jogados semana a semana sem nunca
+      jornada {ENTRY_LOCK_MATCHDAY}, chips jogados semana a semana sem nunca
       ver o futuro, e a pontuação contada contra a tabela em que a época
       acabou. A entrada com os chips faz <span class="num">394</span> pontos em
       média de 48 simulações — corridas isoladas dão entre 355 e 396, e é por
@@ -2147,7 +2148,7 @@ def final_section(data: dict) -> str:
 
       <p class="footnote"><strong>E a entrada sozinha faz
       <span class="num">109</span>.</strong> Menos do que copiar a
-      classificação. Não é a ordem que ganha isto — são as vinte e cinco
+      classificação. Não é a ordem que ganha isto — são as vinte e quatro
       semanas de correções. O que está na tabela acima é um ponto de partida,
       e o trabalho vem depois.</p>
 

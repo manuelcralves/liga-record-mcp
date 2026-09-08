@@ -39,6 +39,8 @@ sys.path[:0] = [str(ROOT / "src"), str(ROOT / "scripts")]
 from liga_record_mcp.final_table import (  # noqa: E402
     BONUS_REACH,
     BONUS_ROUNDS,
+    ENTRY_LOCK_MATCHDAY,
+    FIRST_CHIP_ROUND,
     LAST_CHIP_ROUND,
     WEEKLY_REACH,
     best_order,
@@ -47,7 +49,6 @@ from liga_record_mcp.final_table import (  # noqa: E402
     score,
     strengths,
 )
-from liga_record_mcp.models import FIRST_SCORING_MATCHDAY  # noqa: E402
 from liga_record_mcp.source import OpenFootballClient  # noqa: E402
 
 from backtest_final_table import PAIRS, records_from, table_from  # noqa: E402
@@ -65,7 +66,7 @@ def spreads_for(season, clubs, archive, *, draws, seed, weight=1.0) -> dict:
     before r only, the same information a chip decision has on the Thursday.
     """
     out = {}
-    for matchday in range(FIRST_SCORING_MATCHDAY, LAST_CHIP_ROUND + 1):
+    for matchday in range(ENTRY_LOCK_MATCHDAY, LAST_CHIP_ROUND + 1):
         played = [f for f in season if f.round_number < matchday]
         remaining = [(f.home, f.away) for f in season if f.round_number >= matchday]
         table = table_from(played, clubs)
@@ -78,11 +79,11 @@ def spreads_for(season, clubs, archive, *, draws, seed, weight=1.0) -> dict:
 
 def play_with(spreads, clubs, threshold: float) -> dict:
     """The entry a threshold produces, given distributions already drawn."""
-    order = best_order(spreads[FIRST_SCORING_MATCHDAY], clubs=clubs)
+    order = best_order(spreads[ENTRY_LOCK_MATCHDAY], clubs=clubs)
     chips = places = 0
     # `chip_plan` is the policy production plays. Measuring a second copy of it
     # would answer a question about this script rather than about the model.
-    for matchday in range(FIRST_SCORING_MATCHDAY + 1, LAST_CHIP_ROUND + 1):
+    for matchday in range(FIRST_CHIP_ROUND, LAST_CHIP_ROUND + 1):
         order, plays = chip_plan(
             order, spreads[matchday], matchday, threshold=threshold
         )

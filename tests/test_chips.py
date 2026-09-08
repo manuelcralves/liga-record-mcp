@@ -23,6 +23,7 @@ import pytest
 from liga_record_mcp.final_table import (
     BONUS_REACH,
     BONUS_ROUNDS,
+    ENTRY_LOCK_MATCHDAY,
     FIRST_CHIP_ROUND,
     LAST_CHIP_ROUND,
     WEEKLY_REACH,
@@ -342,3 +343,25 @@ def test_an_entry_that_does_not_match_the_league_is_flagged_not_used(page):
 def test_after_the_last_chip_round_it_explains_the_silence(page):
     said = page.chip_advice({"filed": True, "chips": []})
     assert "Não há chip" in said
+
+
+def test_the_entry_lock_and_the_first_chip_are_adjacent():
+    """Pinned together so neither can be moved alone.
+
+    The chip window already slid a whole matchday once, when a change to
+    `FIRST_SCORING_MATCHDAY` moved a `reaches_at` that was written against it.
+    These two are genuinely adjacent — a chip corrects an entry, so the first
+    chip is the round after the entry seals — and saying so here means a future
+    edit to one fails loudly instead of quietly desynchronising the backtest
+    from the game it is supposed to be measuring.
+    """
+    assert FIRST_CHIP_ROUND == ENTRY_LOCK_MATCHDAY + 1
+    assert reaches_at(ENTRY_LOCK_MATCHDAY) == []
+    assert reaches_at(ENTRY_LOCK_MATCHDAY + 1) == [WEEKLY_REACH]
+
+
+def test_the_season_has_twenty_four_chip_weeks():
+    """The number the backtest has to play, and used to play as twenty-three."""
+    weeks = [m for m in range(1, 36) if reaches_at(m)]
+    assert len(weeks) == 24
+    assert weeks[0] == 6 and weeks[-1] == 29
