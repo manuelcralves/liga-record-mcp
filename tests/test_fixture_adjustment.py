@@ -503,3 +503,72 @@ def test_the_appearance_floor_is_what_was_measured():
     comment behind it that reads just as convincingly. 2.0 was the low end of
     a two-to-three reading; the sweep put the optimum lower on both seasons."""
     assert APPEARANCE_FLOOR == 1.0
+
+
+# --- pricing a round the data has not reached ---------------------------------
+
+
+def _three_rounds():
+    """Two clubs, three rounds, and opponents that differ round to round."""
+    points = {"p": {1: 6.0, 2: 4.0, 3: 8.0}, "q": {1: 2.0, 2: 3.0, 3: 1.0}}
+    minutes = {i: {1: 90, 2: 90, 3: 90} for i in points}
+    cells = {"p": ("Porto", Position.FWD.value), "q": ("Braga", Position.FWD.value)}
+    table = fixture_table(
+        [
+            (
+                rows(
+                    match(1, "Porto", "Braga", scored=3, conceded=0),
+                    match(2, "Porto", "Benfica", scored=0, conceded=2),
+                    match(3, "Porto", "Braga", at_home=False, scored=1, conceded=1),
+                ),
+                0,
+            )
+        ]
+    )
+    return points, minutes, cells, table
+
+
+def test_for_matchday_defaults_to_upto_and_changes_nothing():
+    """The pin: every existing caller must get bit-for-bit what it got before."""
+    points, minutes, cells, table = _three_rounds()
+    plain = adjusted_projection(points, minutes, cells, upto=2, fixtures=table)
+    same = adjusted_projection(
+        points, minutes, cells, upto=2, fixtures=table, for_matchday=2
+    )
+    assert plain == same
+
+
+def test_pricing_a_later_round_uses_that_rounds_opponent():
+    """A different opponent must give a different answer, or the split is inert.
+
+    Matchday 2 sends Porto to Benfica and matchday 3 to Braga, so the same
+    player priced from the same data comes out differently.
+    """
+    points, minutes, cells, table = _three_rounds()
+    here = adjusted_projection(points, minutes, cells, upto=2, fixtures=table)
+    ahead = adjusted_projection(
+        points, minutes, cells, upto=2, fixtures=table, for_matchday=3
+    )
+    assert here["p"] != pytest.approx(ahead["p"])
+
+
+def test_the_strengths_never_move_with_the_priced_round():
+    """The no-leak invariant, and the reason these are two arguments.
+
+    Pricing matchday 3 while standing at matchday 2 must read the CALENDAR of
+    matchday 3 and none of its results. Rewriting every scoreline from matchday
+    2 onwards has to leave the answer untouched; if it moves, the horizon is
+    reading matches that have not been played.
+    """
+    points, minutes, cells, table = _three_rounds()
+    ahead = adjusted_projection(
+        points, minutes, cells, upto=2, fixtures=table, for_matchday=3
+    )
+    wrecked = {
+        key: (value[0], value[1], 9, 9) if key[0] >= 2 else value
+        for key, value in table.items()
+    }
+    after = adjusted_projection(
+        points, minutes, cells, upto=2, fixtures=wrecked, for_matchday=3
+    )
+    assert ahead == pytest.approx(after)

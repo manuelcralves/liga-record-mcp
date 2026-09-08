@@ -598,6 +598,66 @@ def position_bias(
     }
 
 
+def rescale_for_fixture(
+    returns: Mapping[str, float],
+    cells: Mapping[str, tuple[str, str]],
+    fixtures: Mapping[tuple[int, str], tuple[str, bool, int, int]],
+    *,
+    upto: int,
+    for_matchday: int,
+    shares: Mapping[Position, float] | None = None,
+    floor: float | None = None,
+    strength: float | None = None,
+) -> dict[str, float]:
+    """What a man returns when he plays, moved by who his club plays.
+
+    Lifted out of `adjusted_projection` so a caller pricing SEVERAL rounds from
+    one cutoff can reuse the expensive half. `two_part_projection` walks every
+    player's whole history; this walks one dictionary. A horizon of five rounds
+    that recomputed the halves five times would spend the whole measurement in
+    the wrong place, and a backtest slow enough not to be run is a backtest
+    that answers nothing.
+
+    Nothing here is a second copy of the policy — `adjusted_projection` calls
+    this and only this, so the two cannot drift.
+
+    `upto` fixes the strengths, `for_matchday` the calendar. Keeping them apart
+    is what makes pricing a future round honest rather than hindsight.
+    """
+    rates, league_against, league_for = club_form_upto(fixtures, upto)
+    moved = dict(returns)
+    for player, rate in returns.items():
+        cell = cells.get(player)
+        fixture = fixtures.get((for_matchday, cell[0])) if cell else None
+        if fixture is None or cell is None:
+            continue
+        opponent, at_home, _, _ = fixture
+        club_against, club_for = rates.get(cell[0], (league_against, league_for))
+        opponent_against, opponent_for = rates.get(
+            opponent, (league_against, league_for)
+        )
+        defensive, attacking = fixture_multipliers(
+            max(club_against, 1e-9),
+            max(club_for, 1e-9),
+            opponent_against,
+            opponent_for,
+            league_against,
+            league_for,
+            at_home=at_home,
+        )
+        position = Position(cell[1])
+        moved[player] = adjust_for_fixture(
+            rate,
+            position,
+            defensive,
+            attacking,
+            share=None if shares is None else shares[position],
+            **({} if floor is None else {"floor": floor}),
+            **({} if strength is None else {"strength": strength}),
+        )
+    return moved
+
+
 def adjusted_projection(
     points: Mapping[str, Mapping[int, float]],
     minutes: Mapping[str, Mapping[int, int]],
@@ -611,6 +671,7 @@ def adjusted_projection(
     floor: float | None = None,
     strength: float | None = None,
     bias: Mapping[Position, float] | None = None,
+    for_matchday: int | None = None,
     **kwargs: Any,
 ) -> dict[str, float]:
     """`two_part_projection`, with what is already known about the round in it.
@@ -631,6 +692,15 @@ def adjusted_projection(
 
     Both arguments are optional, and with neither this is `two_part_projection`
     with an extra dictionary comprehension.
+
+    `for_matchday` PRICES A ROUND OTHER THAN THE ONE THE DATA STOPS AT, which
+    is what a horizon longer than a week needs: standing at matchday 8, ask
+    what a player is worth in matchday 11. The calendar is published, so
+    knowing who he plays then is not hindsight — but the club STRENGTHS must
+    still come from before matchday 8, or the answer quietly reads results that
+    have not happened. So the two are split here rather than both riding on
+    `upto`: `club_form_upto` keeps `upto`, and only the fixture lookup moves.
+    Defaults to `upto`, which is the behaviour every existing caller gets.
     """
     playing, returns = two_part_projection(
         points, minutes, cells, upto=upto, parts=True, **kwargs
@@ -642,36 +712,12 @@ def adjusted_projection(
                 playing[player] = suspended
 
     if fixtures is not None:
-        rates, league_against, league_for = club_form_upto(fixtures, upto)
-        for player, rate in returns.items():
-            cell = cells.get(player)
-            fixture = fixtures.get((upto, cell[0])) if cell else None
-            if fixture is None or cell is None:
-                continue
-            opponent, at_home, _, _ = fixture
-            club_against, club_for = rates.get(cell[0], (league_against, league_for))
-            opponent_against, opponent_for = rates.get(
-                opponent, (league_against, league_for)
-            )
-            defensive, attacking = fixture_multipliers(
-                max(club_against, 1e-9),
-                max(club_for, 1e-9),
-                opponent_against,
-                opponent_for,
-                league_against,
-                league_for,
-                at_home=at_home,
-            )
-            position = Position(cell[1])
-            returns[player] = adjust_for_fixture(
-                rate,
-                position,
-                defensive,
-                attacking,
-                share=None if shares is None else shares[position],
-                **({} if floor is None else {"floor": floor}),
-                **({} if strength is None else {"strength": strength}),
-            )
+        returns = rescale_for_fixture(
+            returns, cells, fixtures,
+            upto=upto,
+            for_matchday=upto if for_matchday is None else for_matchday,
+            shares=shares, floor=floor, strength=strength,
+        )
 
     blended = {
         player: playing[player] * rate + (1 - playing[player]) * ABSENT
@@ -852,6 +898,8 @@ def best_transfer(
     min_gain: float = 0.0,
     candidates: Iterable[str] | None = None,
     sold: Iterable[str] = (),
+    horizon: Mapping[int, Mapping[str, float]] | None = None,
+    breadth: int = 5,
 ) -> tuple[str, str, float] | None:
     """The one swap §6.8 allows that the projection likes best, or None.
 
@@ -872,6 +920,19 @@ def best_transfer(
     to take any positive edge. But a projected edge is not a real one, and
     acting on noise churns a squad for nothing. Passing a threshold here is how
     that gets measured rather than assumed.
+
+    `horizon` LOOKS PAST SATURDAY. Without it a swap is priced on this round's
+    estimate and multiplied by the rounds still to play, which assumes every
+    remaining week looks like this one. Given {matchday: projection} for the
+    next few rounds — each priced against ITS OWN fixture, from data that stops
+    before today — the edge is averaged across them first and multiplied after.
+    A man with one gentle Saturday and a brutal month behind it stops looking
+    like a season.
+
+    With a horizon the "first affordable candidate wins" shortcut below is not
+    sound: it rests on a higher-rated incoming never making the eleven worse,
+    which holds for the round he was rated on and not for a mean across
+    several. So `breadth` candidates per position are tried instead of one.
     """
     held = set(squad_ids)
     # Never buy back a man already sold. Two near-identical players make the
@@ -886,17 +947,39 @@ def best_transfer(
         if i not in barred
     ]
 
+    # The projection candidates are RANKED by, which with a horizon is the mean
+    # across it — the same quantity the gain is measured in.
+    ranking = projection
+    if horizon:
+        ranking = {
+            i: mean([view.get(i, ABSENT) for view in horizon.values()])
+            for i in {p for view in horizon.values() for p in view}
+        }
+
     by_position: dict[Position, list[Player]] = {}
     for player in pool:
         by_position.setdefault(player.position, []).append(player)
     for players in by_position.values():
-        players.sort(key=lambda p: (-projection.get(p.id, ABSENT), p.id))
+        players.sort(key=lambda p: (-ranking.get(p.id, ABSENT), p.id))
 
-    def eleven_worth(ids: Sequence[str]) -> float:
-        sheet = best_eleven(_rows(ids, market), projection)
+    def eleven_worth(ids: Sequence[str], view: Mapping[str, float]) -> float:
+        sheet = best_eleven(_rows(ids, market), view)
         return sheet["points"] if sheet else float("-inf")
 
-    standing = eleven_worth(squad_ids)
+    def weekly_edge(swapped: Sequence[str]) -> float:
+        """What the change is worth in an average week of the horizon."""
+        if not horizon:
+            return eleven_worth(swapped, projection) - standing_at[None]
+        return mean(
+            [
+                eleven_worth(swapped, view) - standing_at[matchday]
+                for matchday, view in horizon.items()
+            ]
+        )
+
+    standing_at: dict[int | None, float] = {None: eleven_worth(squad_ids, projection)}
+    for matchday, view in (horizon or {}).items():
+        standing_at[matchday] = eleven_worth(squad_ids, view)
 
     best: tuple[str, str, float] | None = None
     # In id order, NOT in the order the squad was handed over. Exact ties are
@@ -910,6 +993,7 @@ def best_transfer(
     # was left: identical twenty-threes, seasons 38 points apart.
     for position, out_id in ((market[i].position, i) for i in sorted(squad_ids)):
         headroom = budget - value + market[out_id].value
+        tried = 0
         for incoming in by_position.get(position, ()):
             if incoming.value > headroom:
                 continue
@@ -917,10 +1001,12 @@ def best_transfer(
             # best available for this outgoing player: a higher-rated incoming
             # can never make the eleven worse.
             swapped = [incoming.id if i == out_id else i for i in squad_ids]
-            gain = (eleven_worth(swapped) - standing) * rounds_left
+            gain = weekly_edge(swapped) * rounds_left
             if gain >= min_gain and gain > 0 and (best is None or gain > best[2]):
                 best = (out_id, incoming.id, gain)
-            break
+            tried += 1
+            if tried >= (breadth if horizon else 1):
+                break
     return best
 
 
@@ -937,6 +1023,7 @@ def replay_with_transfers(
     prior_strength: float = PRIOR_STRENGTH,
     candidates: Iterable[str] | None = None,
     forecasts: Mapping[int, Mapping[str, float]] | None = None,
+    horizons: Mapping[int, Mapping[int, Mapping[str, float]]] | None = None,
     coaches: Mapping[str, Mapping[int, float]] | None = None,
     coach_forecasts: Mapping[int, Mapping[str, float]] | None = None,
 ) -> dict[str, Any]:
@@ -951,6 +1038,12 @@ def replay_with_transfers(
     §6.9's February window is not modelled — six swaps in one month is a
     different problem, and blurring it into "one a round" would quietly answer
     neither.
+
+    `horizons` is {decision matchday: {round priced: projection}} and is handed
+    straight to `best_transfer`. Building it is the CALLER'S job and so is
+    keeping it honest: every projection in it must come from data before the
+    decision matchday, however far ahead the round it prices. Nothing here can
+    check that, exactly as nothing here can check `forecasts`.
     """
     squad = list(opening)
     per_round, substitutions = [], 0
@@ -980,6 +1073,7 @@ def replay_with_transfers(
             min_gain=min_gain,
             candidates=candidates,
             sold=sold,
+            horizon=None if horizons is None else horizons.get(matchday),
         )
         if swap is not None:
             out_id, in_id, gain = swap

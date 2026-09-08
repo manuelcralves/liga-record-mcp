@@ -60,9 +60,11 @@ from liga_record_mcp.backtest import (  # noqa: E402
     ABSENT,
     replay,
     replay_with_transfers,
+    rescale_for_fixture,
     settle_transfers,
     shrunk_projection,
     two_part_projection,
+    fixture_table,
 )
 from liga_record_mcp.models import (  # noqa: E402
     BASE_BUDGET,
@@ -104,7 +106,99 @@ def load(market, season_path=None):
             max(clubs, key=clubs.get) if clubs else "",
             market[player_id].position.value,
         )
-    return history, minutes, cells
+    # The opponent and the venue are on every match row already, and this
+    # backtest has always thrown them away — so the transfer it measured was
+    # chosen without knowing who anybody plays. `fixture_table` recovers them
+    # from the same rows, which is what a horizon has to have.
+    return history, minutes, cells, fixture_table([(loaded, 0)])
+
+
+def looking_ahead(history, minutes, cells, table, market, rows, mine, *, horizon, paths, seed):
+    """Does pricing a transfer over the next few rounds beat pricing this one?
+
+    THE ONLY DIFFERENCE BETWEEN THE ARMS IS THE HORIZON. Both are handed the
+    same fixture-aware projection, so a win cannot be the fixture term arriving
+    — that term is in both. Arm A values a swap on the round being decided and
+    multiplies by the rounds left, which is what the model does today; arm B
+    averages the weekly edge across the next `horizon` rounds first, each
+    priced against its own opponent, and multiplies after.
+
+    A SEASON IS ONE PATH and this script's own docstring says so: about
+    twenty-five decisions, swinging a hundred points with no pattern, and
+    anything read off a single run is noise wearing a number. So the answer
+    here is a PAIRED DISTRIBUTION over many starting squads — same season, same
+    projections, same draws, one squad at a time — and the thing reported is
+    how often B beats A, not what B scored.
+    """
+    # The expensive half once per matchday; the fixture step is a dictionary
+    # walk and can be repeated for every round in the horizon.
+    halves = {
+        m: two_part_projection(history, minutes, cells, upto=m, parts=True)
+        for m in MATCHDAYS
+    }
+
+    def blended(playing, returns):
+        return {
+            i: playing[i] * rate + (1 - playing[i]) * ABSENT
+            for i, rate in returns.items()
+        }
+
+    def priced(upto, for_matchday):
+        playing, returns = halves[upto]
+        return blended(
+            playing,
+            rescale_for_fixture(
+                returns, cells, table, upto=upto, for_matchday=for_matchday
+            ),
+        )
+
+    per_round = {m: priced(m, m) for m in MATCHDAYS}
+    horizons = {
+        m: {f: priced(m, f) for f in range(m, min(m + horizon, MATCHDAYS[-1] + 1))}
+        for m in MATCHDAYS
+    }
+
+    # The starting squads. Manuel's own and the model's opening pick are the
+    # two that matter, and random legal twenty-threes supply the spread — one
+    # pair of seasons and two squads could not tell a real edge from a lucky
+    # one.
+    opening = per_round[MATCHDAYS[0]]
+    model = best_squad_under_budget(
+        rows, {i: v * len(MATCHDAYS) for i, v in opening.items()}
+    )
+    starts = [("o teu 23", mine)]
+    if model is not None:
+        starts.append(("o do modelo", model["players"]))
+    rng = random.Random(seed)
+    while len(starts) < paths:
+        noise = {i: rng.random() for i in market}
+        drawn = best_squad_under_budget(rows, noise)
+        if drawn is not None:
+            starts.append((f"aleatorio {len(starts) - 1}", drawn["players"]))
+
+    print()
+    print(f"  LOOKAHEAD DE {horizon} JORNADAS, {len(starts)} caminhos emparelhados")
+    print(f"  {'plantel de partida':<22}{'hoje':>9}{'lookahead':>11}{'dif':>8}")
+    wins, diffs = 0, []
+    for name, held in starts:
+        common = dict(
+            market=market, history=history, matchdays=MATCHDAYS, cells=cells,
+            budget=BASE_BUDGET, forecasts=per_round, knows_availability=True,
+        )
+        today = replay_with_transfers(held, **common)["points"]
+        ahead = replay_with_transfers(held, horizons=horizons, **common)["points"]
+        diffs.append(ahead - today)
+        wins += ahead > today
+        print(f"  {name:<22}{today:>9.0f}{ahead:>11.0f}{ahead - today:>+8.0f}")
+
+    mean_diff = statistics.mean(diffs)
+    spread = statistics.stdev(diffs) if len(diffs) > 1 else 0.0
+    error = spread / (len(diffs) ** 0.5) if diffs else 0.0
+    print()
+    print(f"  o lookahead ganha em {wins} de {len(diffs)} caminhos")
+    print(f"  diferenca media {mean_diff:+.1f}, desvio {spread:.1f}, "
+          f"erro padrao {error:.1f}")
+    return {"wins": wins, "paths": len(diffs), "mean": mean_diff, "error": error}
 
 
 def main() -> None:
@@ -118,6 +212,19 @@ def main() -> None:
         "be checked against a year it was not tuned on",
     )
     parser.add_argument(
+        "--lookahead",
+        type=int,
+        metavar="K",
+        help="price each transfer across the next K rounds of real calendar "
+        "instead of the one being decided, and report the paired distribution",
+    )
+    parser.add_argument(
+        "--paths",
+        type=int,
+        default=12,
+        help="how many starting squads the lookahead comparison is paired over",
+    )
+    parser.add_argument(
         "--story",
         action="store_true",
         help="one season told as decisions rather than as a benchmark table",
@@ -128,7 +235,7 @@ def main() -> None:
     market = {
         p.id: p.as_player() for position in Position for p in client.search(position)
     }
-    history, minutes, cells = load(market, args.season)
+    history, minutes, cells, table = load(market, args.season)
     market = {i: market[i] for i in history}
     rows = [
         {"id": p.id, "position": p.position, "value": p.value} for p in market.values()
@@ -147,6 +254,13 @@ def main() -> None:
         cells[player.id] = (player.club, player.position.value)
 
     print(f"{len(market)} players; matchdays {MATCHDAYS[0]}-{MATCHDAYS[-1]}")
+
+    if args.lookahead:
+        looking_ahead(
+            history, minutes, cells, table, market, rows, mine,
+            horizon=args.lookahead, paths=args.paths, seed=args.seed,
+        )
+        return
 
     # Three ways of estimating what a player is about to be worth. The first is
     # what the projection has always done; the others split it in two.

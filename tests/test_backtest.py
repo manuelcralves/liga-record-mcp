@@ -15,6 +15,8 @@ form that moved the season by +5.
 
 from __future__ import annotations
 
+import pytest
+
 import random
 
 from liga_record_mcp.backtest import (
@@ -584,3 +586,77 @@ def test_the_one_transfer_is_the_same_one_however_the_squad_is_ordered():
     # but FIXED — and arbitrary is the whole point of a tie-break. An
     # arbitrary rule written down beats an arbitrary rule left to a dict.
     assert out_id == "DEF0"
+
+
+# --- looking past Saturday ----------------------------------------------------
+
+
+def test_no_horizon_is_the_behaviour_every_caller_had():
+    """The pin. A swap priced without a horizon must come out bit for bit."""
+    market = market_of(extra=1)
+    squad = squad_of(market)
+    projection = {i: 1.0 for i in market}
+    spare = next(i for i in market if i.startswith("FWD") and i not in squad)
+    projection[spare] = 9.0
+
+    plain = best_transfer(
+        squad, market, projection, budget=99_000_000, rounds_left=10
+    )
+    assert plain is not None
+    assert plain == best_transfer(
+        squad, market, projection, budget=99_000_000, rounds_left=10, horizon=None
+    )
+
+
+def test_a_flat_horizon_agrees_with_no_horizon_at_all():
+    """Every round identical is the degenerate case, and it must not drift.
+
+    If the mean over a horizon of copies did not equal the single estimate,
+    the horizon would be changing the answer by arithmetic rather than by
+    football, and nothing measured with it afterwards would mean anything.
+    """
+    market = market_of(extra=1)
+    squad = squad_of(market)
+    projection = {i: 1.0 for i in market}
+    spare = next(i for i in market if i.startswith("FWD") and i not in squad)
+    projection[spare] = 9.0
+
+    plain = best_transfer(
+        squad, market, projection, budget=99_000_000, rounds_left=10
+    )
+    flat = best_transfer(
+        squad, market, projection, budget=99_000_000, rounds_left=10,
+        horizon={7: projection, 8: projection, 9: projection},
+    )
+    assert flat is not None
+    assert flat[0] == plain[0] and flat[1] == plain[1]
+    assert flat[2] == pytest.approx(plain[2])
+
+
+def test_a_gentle_saturday_stops_deciding_the_season():
+    """What the horizon is for.
+
+    One incoming forward is worth a great deal in the round being decided and
+    nothing for the month after it; the other is steady. Priced on Saturday
+    alone the first wins. Priced across the horizon, the second does.
+    """
+    market = market_of(extra=2)
+    squad = squad_of(market)
+    spares = [i for i in market if i.startswith("FWD") and i not in squad][:2]
+    flash, steady = spares
+
+    saturday = {i: 1.0 for i in market}
+    saturday[flash], saturday[steady] = 9.0, 5.0
+    later = {i: 1.0 for i in market}
+    later[flash], later[steady] = 1.0, 5.0
+
+    on_the_day = best_transfer(
+        squad, market, saturday, budget=99_000_000, rounds_left=10
+    )
+    assert on_the_day[1] == flash
+
+    ahead = best_transfer(
+        squad, market, saturday, budget=99_000_000, rounds_left=10,
+        horizon={7: saturday, 8: later, 9: later, 10: later},
+    )
+    assert ahead[1] == steady
