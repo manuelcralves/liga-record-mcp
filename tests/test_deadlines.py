@@ -139,9 +139,11 @@ def test_only_the_next_round_is_named(mod):
     now = datetime.now()
     said = mod.deadlines(
         [
-            fixture(3, "a", "b", played=True),
-            fixture(4, "c", "d", kickoff=at(now + timedelta(days=4))),
-            fixture(5, "e", "f", kickoff=at(now + timedelta(days=11))),
+            fixture(mod.FIRST_SCORING_MATCHDAY - 3, "a", "b", played=True),
+            fixture(mod.FIRST_SCORING_MATCHDAY - 2, "c", "d",
+                    kickoff=at(now + timedelta(days=4))),
+            fixture(mod.FIRST_SCORING_MATCHDAY, "e", "f",
+                    kickoff=at(now + timedelta(days=11))),
             fixture(6, "g", "h", kickoff=at(now + timedelta(days=18))),
         ]
     )
@@ -155,9 +157,11 @@ def test_the_squad_lock_is_announced_while_it_is_still_ahead(mod):
     now = datetime.now()
     said = mod.deadlines(
         [
-            fixture(3, "a", "b", played=True),
-            fixture(4, "c", "d", kickoff=at(now + timedelta(days=4))),
-            fixture(5, "e", "f", kickoff=at(now + timedelta(days=11))),
+            fixture(mod.FIRST_SCORING_MATCHDAY - 3, "a", "b", played=True),
+            fixture(mod.FIRST_SCORING_MATCHDAY - 2, "c", "d",
+                    kickoff=at(now + timedelta(days=4))),
+            fixture(mod.FIRST_SCORING_MATCHDAY, "e", "f",
+                    kickoff=at(now + timedelta(days=11))),
         ]
     )
     lock = [line for line in said if "FECHA TUDO" in line]
@@ -169,9 +173,10 @@ def test_an_undated_lock_says_so_rather_than_going_quiet(mod):
     """Matchday 5 has no dates published yet, and that is worth saying."""
     said = mod.deadlines(
         [
-            fixture(3, "a", "b", played=True),
-            fixture(4, "c", "d", kickoff=at(datetime.now() + timedelta(days=4))),
-            fixture(5, "e", "f", kickoff=None),
+            fixture(mod.FIRST_SCORING_MATCHDAY - 3, "a", "b", played=True),
+            fixture(mod.FIRST_SCORING_MATCHDAY - 2, "c", "d",
+                    kickoff=at(datetime.now() + timedelta(days=4))),
+            fixture(mod.FIRST_SCORING_MATCHDAY, "e", "f", kickoff=None),
         ]
     )
     lock = next(line for line in said if "FECHA TUDO" in line)
@@ -181,8 +186,9 @@ def test_an_undated_lock_says_so_rather_than_going_quiet(mod):
 def test_the_lock_is_not_announced_once_it_has_passed(mod):
     said = mod.deadlines(
         [
-            fixture(5, "a", "b", played=True),
-            fixture(6, "c", "d", kickoff=at(datetime.now() + timedelta(days=4))),
+            fixture(mod.FIRST_SCORING_MATCHDAY, "a", "b", played=True),
+            fixture(mod.FIRST_SCORING_MATCHDAY + 1, "c", "d",
+                    kickoff=at(datetime.now() + timedelta(days=4))),
         ]
     )
     assert not [line for line in said if "FECHA TUDO" in line]
@@ -199,9 +205,11 @@ def test_the_sheet_deadline_is_the_last_line(mod):
     now = datetime.now()
     said = mod.deadlines(
         [
-            fixture(3, "a", "b", played=True),
-            fixture(4, "c", "d", kickoff=at(now + timedelta(days=4))),
-            fixture(5, "e", "f", kickoff=at(now + timedelta(days=11))),
+            fixture(mod.FIRST_SCORING_MATCHDAY - 3, "a", "b", played=True),
+            fixture(mod.FIRST_SCORING_MATCHDAY - 2, "c", "d",
+                    kickoff=at(now + timedelta(days=4))),
+            fixture(mod.FIRST_SCORING_MATCHDAY, "e", "f",
+                    kickoff=at(now + timedelta(days=11))),
         ]
     )
     assert len(said) == 2

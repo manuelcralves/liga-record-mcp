@@ -92,17 +92,20 @@ COMPETITION_CHANGE_TRANSFERS = 1
 #: is matchday 6. Against all that, §19 calls matchday 5 the one "que marca o
 #: início efetivo" and describes the trial as "estas 4 primeiras jornadas".
 #:
-#: It is settled by the participant, who plays in the league and can see what
-#: it does: matchday 5 counts. The squad locks then, §10.3(m)'s bet locks then,
-#: and §6.8's one-a-round begins then. Everything before it is free.
+#: THIS WAS SETTLED THE WRONG WAY ROUND, and for a month everything downstream
+#: was a matchday early: the deadline warnings, `transfers_allowed`, the Final
+#: Table lock, the pages. Manuel said matchday 6 on 8 September and the site
+#: settles it beyond argument — on that day, with round 5 already played and
+#: round 6 closing on the 12th, his squad page still carried a REABRIR PLANTEL
+#: button and the standings were still headed RANKING PERÍODO EXPERIMENTAL.
+#: A squad that can be reopened has not locked.
 #:
-#: Both readings can be true at once, which is the likeliest explanation:
-#: §16.4 governs the national prize classification, and a private league tallies
-#: from where it tallies. So the model scores from 5 and §16.3's arithmetic is
-#: kept on its own constant below rather than bent to fit.
-FIRST_SCORING_MATCHDAY = 5
+#: So it is 6, and the count that follows is §16.5's twenty-nine rounds rather
+#: than thirty. Every other article agreed all along; §19 is the outlier and it
+#: is the one this constant used to follow.
+FIRST_SCORING_MATCHDAY = 6
 LAST_MATCHDAY = 34
-RECORD_ROUNDS = LAST_MATCHDAY - FIRST_SCORING_MATCHDAY + 1  # 30
+RECORD_ROUNDS = LAST_MATCHDAY - FIRST_SCORING_MATCHDAY + 1  # 29
 
 #: §16.4's reading, for the national table. Kept because it is not merely an
 #: alternative opinion: §16.3 states that round 13 is matchday 18 and round 29

@@ -122,7 +122,7 @@ def test_the_last_three_rounds_cannot_be_taken_off():
         for r in range(1, RECORD_ROUNDS + 1)
         if r <= RECORD_ROUNDS - HOLIDAY_BLOCKED_LAST_ROUNDS
     ]
-    assert playable[-1] == RECORD_ROUNDS - HOLIDAY_BLOCKED_LAST_ROUNDS == 27
+    assert playable[-1] == RECORD_ROUNDS - HOLIDAY_BLOCKED_LAST_ROUNDS == 26
 
 
 def test_the_top_scorer_bet_is_free_and_settled_once():
@@ -138,21 +138,28 @@ def test_a_matchday_before_the_league_started_is_refused(matchday):
 
 
 def test_the_two_readings_are_both_kept_and_do_not_collide():
-    """The regulation contradicts itself, so both readings live in the code.
+    """The regulation contradicts itself, and it was resolved the wrong way.
 
-    Matchday 5 counts — settled by the participant, who plays in the league and
-    can see what it does, and who also confirmed that the squad, the top-scorer
-    bet and the transfer limit all lock there. That is what the model scores.
+    This test used to assert matchday 5, on the strength of the participant
+    having said so. He said 6 on 8 September and the site settles it: with
+    round 5 already played and round 6 closing on the 12th, his squad page
+    still carried a REABRIR PLANTEL button and the standings were still headed
+    RANKING PERÍODO EXPERIMENTAL. A squad that can be reopened has not locked.
 
-    §16.4's reading is not merely a losing opinion and is not deleted: §16.3
-    states that round 13 is matchday 18 and round 29 is matchday 34, which are
-    checkable numbers that only work from matchday 6. The likeliest reading is
-    that both are true — §16.4 governs the national prize table, and a private
-    league tallies from where it tallies.
+    So §16.4's reading was right all along, and it was never a lone opinion:
+    §16.5 says twenty-nine rounds, §12.1 puts the first price list at matchday
+    6, and §16.3 relates the two numberings twice in a way that only holds from
+    there. §19 is the outlier, and it is the one this code used to follow — for
+    a month, with the deadline warnings, the transfer windows and the Final
+    Table lock all a matchday early.
+
+    Both constants are still kept. They now agree, which is itself the check:
+    if a future reading pulls them apart again, this test is where it shows.
     """
-    assert (FIRST_SCORING_MATCHDAY, RECORD_ROUNDS) == (5, 30)
+    assert (FIRST_SCORING_MATCHDAY, RECORD_ROUNDS) == (6, 29)
     assert (NATIONAL_FIRST_MATCHDAY, NATIONAL_ROUNDS) == (6, 29)
-    assert FIRST_SCORING_MATCHDAY == NATIONAL_FIRST_MATCHDAY - 1
+    # They agreed all along; only this code disagreed with them.
+    assert FIRST_SCORING_MATCHDAY == NATIONAL_FIRST_MATCHDAY
     # The national mapping keeps satisfying both anchors §16.3 gives.
     assert matchday_of_round(13) == 18
     assert matchday_of_round(29) == 34
