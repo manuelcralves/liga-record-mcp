@@ -6,7 +6,14 @@
 # O segundo ajuste — quatro suplentes trocados — vale +0,04 por jornada sobre
 # a época, medido com 2000 sorteios: nada, e foi feito na mesma.
 #
-# Lido das capturas do site e conferido: quota 3-8-8-4, 40,00M de 40,00M.
+# TRANSFERENCIA DA JORNADA 6, 8 de setembro: saiu o Diogo Calila, entrou o
+# Weverson (Gil Vicente, 0,50M). Forcada — o Calila assinou pelo Maghreb Fes a
+# 3 de setembro e saiu da liga, e o mercado do Record deixou de o listar sem o
+# tirar de quem o tinha. Foi a unica troca: tudo o resto que o modelo encontrou
+# valia ~+0,25 por jornada e invertia-se com 0,25 de erro, contra um erro do
+# proprio modelo de 1,49 por jogador.
+#
+# Lido do site a 8 de setembro e conferido: quota 3-8-8-4, 40,00M de 40,00M.
 
 team:
   id: 156412
@@ -100,14 +107,14 @@ players:
     points_total: 16
     points_round: 3
 
-  - id: "41489"
-    name: Diogo Calila
+  - id: "42544"
+    name: Weverson
     position: DEF
-    club: Santa Clara
+    club: Gil Vicente
     value: 500000
     initial_value: 500000
     points_total: 12
-    points_round: 1
+    points_round: 4
 
   - id: "26027"
     name: André Geraldes
@@ -228,26 +235,32 @@ players:
     points_total: 23
     points_round: 2
 
-# A folha entregue no site para a jornada 5, em 4-3-3.
+# A folha entregue no site para a jornada 6, em 3-4-3. Lida do site a 8 de
+# setembro, nao assumida a partir do que o modelo recomendou.
 #
 # A ordem do `bench` conta: o §11.2 percorre-o por ordem quando substitui.
+#
+# UMA DIFERENCA PARA O QUE FOI ACONSELHADO, e fica registada: o modelo punha o
+# Joao Afonso como guarda-redes suplente (1,76) e o Manuel manteve o Carevic
+# (1,70). Sao sete centesimas num quarto suplente que so joga se o titular nao
+# aparecer — nada, e a folha e dele.
 selection:
   starters:
     - "38800"    # Diogo Costa        GR   FC Porto
     - "43299"    # Bednarek           DEF  FC Porto
-    - "43369"    # Espen Van Ee       MED  Arouca
+    - "43426"    # Javi Sánchez       DEF  Arouca
     - "41584"    # Nehuén Pérez       DEF  FC Porto
-    - "43510"    # Finn van Breemen   DEF  Famalicão
+    - "43369"    # Espen Van Ee       MED  Arouca
+    - "42835"    # Fukui              MED  Arouca
     - "33728"    # Samu               MED  V. Guimarães
-    - "43499"    # Altimira           MED  Sporting
     - "42864"    # Pedro Ferreira     MED  Santa Clara
+    - "42896"    # Pavlidis           AVA  Benfica
     - "43298"    # Luis Suárez        AVA  Sporting
     - "26072"    # Gonçalo Paciência  AVA  Santa Clara
-    - "42896"    # Pavlidis           AVA  Benfica
   bench:
     - "43029"    # Carevic            GR   Famalicão
     - "42927"    # Rodrigo Pinheiro   DEF  Famalicão
-    - "42835"    # Fukui              MED  Arouca
+    - "43499"    # Altimira           MED  Sporting
     - "42749"    # Óscar Aranda       AVA  Famalicão
-  captain: "43298"    # Luis Suárez
+  captain: "42896"    # Pavlidis
   coach: "890"        # Farioli, FC Porto
