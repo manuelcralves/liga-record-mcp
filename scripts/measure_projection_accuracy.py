@@ -45,7 +45,7 @@ from liga_record_mcp.backtest import (  # noqa: E402
     shrunk_projection,
     two_part_projection,
 )
-from liga_record_mcp.models import FIRST_SCORING_MATCHDAY, LAST_MATCHDAY  # noqa: E402
+from liga_record_mcp.models import FIRST_SCORING_MATCHDAY, LAST_MATCHDAY, Position  # noqa: E402
 
 SEASON_PATH = ROOT / "data" / "last-season.json"
 
@@ -156,6 +156,74 @@ class Calibrated:
         )
 
 
+class Rescaled:
+    """The estimator, plus a per-position AFFINE correction fitted walk-forward.
+
+    `Calibrated` above shifts each position by its mean residual. This fits
+    both terms — `actual ~ a * estimate + b`, by ordinary least squares, per
+    position, on the estimates already made — because the offset alone was
+    measured at nothing and the argument given for why (a constant cannot
+    reorder anyone within a position) applies to the offset and says nothing
+    about the slope.
+
+    It is here to close that gap with a number rather than an argument. A
+    slope IS still monotone within a position, so it cannot reorder a keeper
+    against another keeper either; what it can do that an offset cannot is
+    change how far apart the positions sit when they are compared against each
+    other, which is what choosing a shape and a squad actually does.
+
+    Identity until a position has `MIN_FIT` residuals, and identity when the
+    estimates for that position are all but constant — a slope fitted through
+    no spread is a division by noise.
+    """
+
+    MIN_FIT = 40
+
+    def __init__(self, points, minutes, cells, table, cards):
+        self.args = (points, minutes, cells)
+        self.common = {"fixtures": table, "cards": cards}
+        self.points, self.cells = points, cells
+        self.made: dict[int, dict[str, float]] = {}
+
+    def _fit(self, earlier):
+        pairs: dict[Position, list[tuple[float, float]]] = {p: [] for p in Position}
+        for matchday, view in earlier.items():
+            for player, estimate in view.items():
+                actual = self.points.get(player, {}).get(matchday)
+                cell = self.cells.get(player)
+                if actual is None or cell is None:
+                    continue
+                pairs[Position(cell[1])].append((estimate, actual))
+        fitted = {}
+        for position, seen in pairs.items():
+            if len(seen) < self.MIN_FIT:
+                continue
+            xs = [x for x, _ in seen]
+            ys = [y for _, y in seen]
+            mx, my = statistics.fmean(xs), statistics.fmean(ys)
+            sxx = sum((x - mx) ** 2 for x in xs)
+            if sxx < 1e-9:
+                continue
+            sxy = sum((x - mx) * (y - my) for x, y in seen)
+            a = sxy / sxx
+            fitted[position] = (a, my - a * mx)
+        return fitted
+
+    def __call__(self, upto: int) -> dict[str, float]:
+        plain = adjusted_projection(*self.args, upto=upto, **self.common)
+        earlier = {m: view for m, view in self.made.items() if m < upto}
+        self.made[upto] = plain
+        if not earlier:
+            return plain
+        fitted = self._fit(earlier)
+        out = {}
+        for player, value in plain.items():
+            cell = self.cells.get(player)
+            a, b = fitted.get(Position(cell[1]), (1.0, 0.0)) if cell else (1.0, 0.0)
+            out[player] = a * value + b
+        return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--season", type=Path, default=SEASON_PATH)
@@ -231,6 +299,11 @@ def main() -> None:
         # estimates ALREADY MADE turned out to be. It has to remember them, so
         # unlike its neighbours it is not a pure function of the matchday.
         "plays x returns, fixture + bans + position": Calibrated(
+            points, minutes, cells, table, cards
+        ),
+        # And the same correction with a SLOPE as well as an offset, fitted by
+        # least squares per position. The experiment the offset alone never ran.
+        "plays x returns, fixture + bans + position affine": Rescaled(
             points, minutes, cells, table, cards
         ),
     }

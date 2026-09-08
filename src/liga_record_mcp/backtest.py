@@ -221,6 +221,26 @@ def two_part_projection(
     are ranked against each other. The ridge gains on pooled correlation, where
     every position sits in one column together. A team sheet does not.
 
+    AND THE SLOPE CLOSES IT TOO. The paragraph above argues about a CONSTANT,
+    which leaves the obvious question standing: fit `actual ~ a * estimate + b`
+    per position instead, by least squares, walk-forward. A slope still cannot
+    reorder one keeper against another, but it can change how far apart the
+    positions sit when they are compared — which is what choosing a shape and a
+    squad actually does. Measured 8 September 2026, against `fixture + bans` at
+    0.5500 and 0.5573:
+
+                            offset only     offset and slope
+        this season           +0.0012           +0.0010
+        2024/25               -0.0005           -0.0048
+
+    Worse than the offset on both seasons, and worse than doing nothing on
+    2024/25. The slope is fitting noise, and the error rises with it, from
+    1.486 to 1.530. The bar was +0.003 on both seasons, fixed before running.
+    Neither clears it, so neither is wired into the live path.
+
+    `Rescaled` in scripts/measure_projection_accuracy.py is that experiment,
+    kept runnable rather than deleted so the question stays answered.
+
     `minutes_weighted` is off by default because it measures WORSE. Predicting each round from
     what came before, over two seasons and about ten thousand player-rounds, it
     loses to the plain split in both (1.601 against 1.530, and 1.592 against
