@@ -1,7 +1,8 @@
 # O plantel do Manuel na Liga Record — equipa «Melro» (id_team 156412).
 #
 # RECONSTRUÍDO A 1 DE SETEMBRO e ajustado a 2, ambos dentro da janela do §6.7
-# («enquanto a quantidade de alterações é livre»), que fecha na jornada 5.
+# («enquanto a quantidade de alterações é livre»), que fecha na jornada 6 — a
+# primeira que conta para a classificação (§19 pôs a 1ª a 5 fora de prova).
 # O segundo ajuste — quatro suplentes trocados — vale +0,04 por jornada sobre
 # a época, medido com 2000 sorteios: nada, e foi feito na mesma.
 #
@@ -13,7 +14,7 @@ team:
   bonus: 0
   penalties: 0
 
-round: 5
+round: 6
 
 players:
   # --- Guarda-redes (3) ---
