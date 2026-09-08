@@ -34,8 +34,6 @@ import random
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
-from .models import FIRST_SCORING_MATCHDAY
-
 #: Points for being this many places out, and beyond that a flat penalty.
 BY_DISTANCE = {0: 25, 1: 5, 2: 2, 3: 0}
 TOO_FAR = -5
@@ -441,6 +439,25 @@ def best_order(
 WEEKLY_REACH = 3
 BONUS_REACH = 5
 BONUS_ROUNDS = (18, 24, 29)
+
+#: The first and last matchdays a chip may be played.
+#:
+#: WRITTEN OUT, NOT DERIVED — THE TWO GAMES HAVE DIFFERENT DEADLINES.
+#:
+#: Liga Record's squad locks at matchday 6; transfers are unlimited until then.
+#: The Final Table is a separate game on zerozero and its entry closed a week
+#: earlier, at matchday 5. So the chips run from 6, the round after the entry
+#: was sealed — which has nothing to do with when the fantasy competition
+#: starts counting.
+#:
+#: `reaches_at` used to read `FIRST_SCORING_MATCHDAY + 1` and happened to give
+#: 6 while that constant read 5. Correcting it to 6 on 8 September 2026 — a
+#: change about which matchdays SCORE, which never touched this file — slid the
+#: chips to 7 and cost a week of them. The same sweep pushed
+#: `jornada_entrada` in data/tabela-final.yaml from 5 to 6, against that file's
+#: own note saying the entry was filed before the matchday-5 deadline. Manuel
+#: caught both by reading the site.
+FIRST_CHIP_ROUND = 6
 LAST_CHIP_ROUND = 29
 
 #: Expected points a move must be worth before it is taken.
@@ -552,7 +569,7 @@ def reaches_at(matchday: int) -> list[int]:
     sequential decisions, not one combined move, and the second is priced
     against the order the first leaves behind.
     """
-    if matchday <= FIRST_SCORING_MATCHDAY or matchday > LAST_CHIP_ROUND:
+    if matchday < FIRST_CHIP_ROUND or matchday > LAST_CHIP_ROUND:
         return []
     reaches = [WEEKLY_REACH]
     if matchday in BONUS_ROUNDS:

@@ -23,13 +23,13 @@ import pytest
 from liga_record_mcp.final_table import (
     BONUS_REACH,
     BONUS_ROUNDS,
+    FIRST_CHIP_ROUND,
     LAST_CHIP_ROUND,
     WEEKLY_REACH,
     apply_chips,
     chip_plan,
     reaches_at,
 )
-from liga_record_mcp.models import FIRST_SCORING_MATCHDAY
 from liga_record_mcp.source import load_final_entry
 from liga_record_mcp.source.base import SquadSourceError
 
@@ -41,12 +41,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_no_chips_before_the_entry_locks():
     """Nothing to correct while the entry is still being written."""
-    for matchday in range(1, FIRST_SCORING_MATCHDAY + 1):
+    for matchday in range(1, FIRST_CHIP_ROUND):
         assert reaches_at(matchday) == []
 
 
-def test_one_chip_a_week_after_the_lock():
-    assert reaches_at(FIRST_SCORING_MATCHDAY + 1) == [WEEKLY_REACH]
+def test_one_chip_a_week_from_the_lock_onwards():
+    for matchday in range(FIRST_CHIP_ROUND, LAST_CHIP_ROUND + 1):
+        assert WEEKLY_REACH in reaches_at(matchday)
+
+
+def test_the_window_is_matchdays_6_to_29():
+    """PINNED TO ABSOLUTE NUMBERS ON PURPOSE.
+
+    The tests here used to read `FIRST_SCORING_MATCHDAY + 1`, so when that
+    constant was corrected from 5 to 6 the chip window slid from 6-29 to 7-29
+    and every one of them still passed. A test written against the constant it
+    is supposed to be checking cannot catch the constant moving. Manuel caught
+    it instead, by reading the site.
+    """
+    assert FIRST_CHIP_ROUND == 6
+    assert LAST_CHIP_ROUND == 29
+    assert reaches_at(5) == []
+    assert reaches_at(6) == [WEEKLY_REACH]
+    assert sum(len(reaches_at(m)) for m in range(1, 36)) == 24 + len(BONUS_ROUNDS)
 
 
 def test_the_bonus_stacks_with_that_weeks_ordinary_chip():
@@ -115,7 +132,7 @@ def spread(**odds):
 def test_a_move_worth_nothing_is_not_made():
     """The order is already the best one, so the chip is kept in the pocket."""
     certain = spread(a=[1.0, 0.0], b=[0.0, 1.0])
-    after, plays = chip_plan(["a", "b"], certain, FIRST_SCORING_MATCHDAY + 1)
+    after, plays = chip_plan(["a", "b"], certain, FIRST_CHIP_ROUND)
     assert after == ["a", "b"]
     assert len(plays) == 1
     assert plays[0]["club"] is None
@@ -124,7 +141,7 @@ def test_a_move_worth_nothing_is_not_made():
 def test_a_move_worth_making_is_made_and_priced():
     """Reversed against a certain distribution: 50 points sit on one swap."""
     certain = spread(a=[1.0, 0.0], b=[0.0, 1.0])
-    after, plays = chip_plan(["b", "a"], certain, FIRST_SCORING_MATCHDAY + 1)
+    after, plays = chip_plan(["b", "a"], certain, FIRST_CHIP_ROUND)
     assert after == ["a", "b"]
     assert plays[0]["club"] is not None
     assert plays[0]["gain"] > 0
@@ -144,7 +161,7 @@ def test_a_bonus_week_prices_the_second_chip_against_the_first_ones_result():
 
 def test_no_chip_week_returns_no_plays_rather_than_a_missing_answer():
     certain = spread(a=[1.0, 0.0], b=[0.0, 1.0])
-    after, plays = chip_plan(["b", "a"], certain, FIRST_SCORING_MATCHDAY)
+    after, plays = chip_plan(["b", "a"], certain, FIRST_CHIP_ROUND - 1)
     assert plays == []
     assert after == ["b", "a"], "an order was changed in a week with no chip"
 
@@ -154,7 +171,7 @@ def test_no_chip_week_returns_no_plays_rather_than_a_missing_answer():
 
 def test_the_real_file_loads():
     filed = load_final_entry(ROOT / "data" / "tabela-final.yaml")
-    assert filed["locked_round"] == FIRST_SCORING_MATCHDAY
+    assert filed["locked_round"] == FIRST_CHIP_ROUND - 1
 
 
 def test_a_missing_file_means_not_yet_entered_not_an_error(tmp_path):

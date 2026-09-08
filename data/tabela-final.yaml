@@ -15,7 +15,7 @@
 # Os nomes dos clubes têm de ser os que o resto do projeto usa (os do Record),
 # não os do zerozero, senão a ordem não casa com as probabilidades.
 
-jornada_entrada: 6
+jornada_entrada: 5
 
 # Entregue no zerozero a 3 de setembro de 2026, antes do fecho da jornada 5.
 # É a ordem que o modelo propôs, copiada sem alterações.

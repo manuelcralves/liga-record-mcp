@@ -51,6 +51,7 @@ from liga_record_mcp.backtest import (  # noqa: E402
 from liga_record_mcp.models import (  # noqa: E402
     BASE_BUDGET,
     BRONZE_BOOT_BONUS,
+    FIRST_SCORING_MATCHDAY,
     GOLDEN_BOOT_BONUS,
     LAST_MATCHDAY,
     REOPENED_FIRST_ROUND,
@@ -79,10 +80,15 @@ ALL_MATCHDAYS = list(range(1, LAST_MATCHDAY + 1))
 #: at matchday 5 it looks at 3 and 4, and never reaches back into last year.
 ARCHIVE_OFFSET = -LAST_MATCHDAY
 
-#: Manuel's own account of the site: the squad locks at matchday 5 and the four
-#: before it do not count. §16.4 says the standings start at 6. One round apart,
-#: and it is shown rather than chosen — the first round is marked.
-DEFAULT_FIRST = 5
+#: The first matchday that counts, which is where a simulated season starts and
+#: what the squad is chosen from everything before.
+#:
+#: DERIVED ON PURPOSE, unlike `FIRST_CHIP_ROUND` — this is the same concept as
+#: `FIRST_SCORING_MATCHDAY`, not a second number that happens to match it, so
+#: they should move together. It read 5 on Manuel's account that the squad
+#: locked then; the site says 6, and §16.4 agrees. The old value also put the
+#: February window at matchday 20 through `args.first + REOPENED_FIRST_ROUND
+#: - 1`, where §6.9 puts it at 21.
 
 
 def _matches_of(player) -> list:
@@ -220,7 +226,9 @@ def pick_top_scorer(market, goals, minutes, upto):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--from", dest="first", type=int, default=DEFAULT_FIRST)
+    parser.add_argument(
+        "--from", dest="first", type=int, default=FIRST_SCORING_MATCHDAY
+    )
     parser.add_argument("--draws", type=int, default=400)
     parser.add_argument(
         "--order-seed",

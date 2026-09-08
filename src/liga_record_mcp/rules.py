@@ -394,7 +394,7 @@ def transfers_allowed(matchday: int) -> tuple[int | None, str]:
     THREE WINDOWS, NOT TWO, and code that knows only about §6.8 gives the wrong
     answer in both of the others:
 
-        up to matchday 5      §6.7 — "enquanto a quantidade de alterações é
+        up to matchday 6      §6.7 — "enquanto a quantidade de alterações é
                               livre". The squad has not gone to a match yet, so
                               the whole twenty-three can be rebuilt at once.
         matchdays 21 to 24    §6.9 — the February reopening. Six for the WHOLE
