@@ -987,6 +987,20 @@ def mcp_players():
 
 def model_section(data: dict) -> str:
     found = data.get("model") or {}
+    # WHICH RULE IS IN FORCE THIS WEEK. This block used to say "§6.8, one a
+    # round" in every week of the season, including the ones where §6.7 lets
+    # the whole twenty-three be rebuilt for free — telling Manuel he had one
+    # move on the very week he had unlimited ones, which is the most expensive
+    # week to be wrong about.
+    window, article = transfers_allowed(data.get("round") or FIRST_SCORING_MATCHDAY)
+    limit = (
+        "E é uma por ronda: não acumula, e saltar uma não guarda nada."
+        if window == 1
+        else f"E esta semana não estás limitado a uma: o {article} deixa-te "
+        "fazer as que quiseres de uma vez, até ao fecho."
+        if window is None
+        else f"O {article} deixa-te {window} nesta janela, para o mês inteiro."
+    )
     if not found:
         return """      <p class="lede">Sem épocas reconstruídas, o modelo não tem
       opinião. Corre <code>scripts/build_last_season.py</code>.</p>"""
@@ -1039,7 +1053,7 @@ def model_section(data: dict) -> str:
     if move and move["out"]:
         arrival = move["in"]
         transfer = (
-            '      <p class="lede"><strong>A transferência (§6.8).</strong> '
+            f'      <p class="lede"><strong>A transferência ({article}).</strong> '
             f"Sai <strong>{esc(move['out']['name'])}</strong> "
             f"({move['out']['expected']:.2f} esperados), entra "
             f"<strong>{esc(arrival['name'])}</strong> do {esc(arrival['club'])} "
@@ -1050,12 +1064,11 @@ def model_section(data: dict) -> str:
             + f". Vale cerca de <strong>{move['gain']:.0f} pontos</strong> até ao "
             "fim da época. Só entram na busca jogadores com registo a sério — "
             "quem não tem jogos é valorizado pelo clube dele, o que dá uma "
-            "estimativa justa e uma recomendação má. E é uma por ronda: não "
-            "acumula, e saltar uma não guarda nada.</p>"
+            f"estimativa justa e uma recomendação má. {limit}</p>"
         )
     else:
         transfer = (
-            '      <p class="lede"><strong>A transferência (§6.8).</strong> '
+            f'      <p class="lede"><strong>A transferência ({article}).</strong> '
             "Nenhuma — o modelo não encontra troca que melhore o onze o "
             "suficiente para valer a pena. Não transferir é uma decisão, e "
             "aqui é a recomendada.</p>"
