@@ -42,6 +42,7 @@ from liga_record_mcp.optimise import (  # noqa: E402
     best_eleven,
     best_squad_under_budget,
     improve_squad,
+    left_the_league,
     squad_value,
 )
 from liga_record_mcp.source import (  # noqa: E402
@@ -54,6 +55,8 @@ from liga_record_mcp.source import (  # noqa: E402
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
 from liga_record_mcp.final_table import (  # noqa: E402
+    FIRST_CHIP_ROUND,
+    LAST_CHIP_ROUND,
     RELEGATION_PLACES,
     TOP_FOUR,
     WORTH_MOVING,
@@ -70,6 +73,7 @@ from liga_record_mcp.models import (  # noqa: E402
     LAST_MATCHDAY,
     Position,
 )
+from liga_record_mcp.rules import transfers_allowed  # noqa: E402
 from liga_record_mcp.source import OpenFootballClient  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
     MEAN_MARK_POINTS,
@@ -786,8 +790,13 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     #
     # Season values, not this week's. A transfer runs to May, and adjusting it
     # for one fixture would sell a good player for a bad Saturday.
+    # A man who has left the league is not in `whole`, and every call below
+    # would die looking him up. Filtered once, here, with the names carried out
+    # to the page — never dropped quietly, which is how this went unseen.
+    gone = left_the_league([p.id for p in squad.players], whole)
+    still_here = [p.id for p in squad.players if p.id not in gone]
     improved = improve_squad(
-        [p.id for p in squad.players],
+        still_here,
         whole,
         {i: v["returns"] for i, v in wide.items()},
         {i: v["playing"] for i, v in wide.items()},
@@ -798,7 +807,7 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     )
     move = None
     if improved["swaps"]:
-        held = {p.id for p in squad.players}
+        held = set(still_here)
         out_id = next(i for i in held if i not in improved["players"])
         in_id = next(i for i in improved["players"] if i not in held)
         # Per round, and over the rounds that are left. The search reports what
@@ -905,7 +914,7 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         # with absences and §11 substitutions, the other is eleven names added
         # up. Both squads are now valued by the same call.
         mine_round = squad_value(
-            [p.id for p in squad.players],
+            still_here,
             whole,
             {i: v["returns"] for i, v in wide.items()},
             {i: v["playing"] for i, v in wide.items()},
@@ -1681,7 +1690,10 @@ def ideal_section(data: dict) -> str:
       reconstrução das épocas. Corre <code>scripts/build_last_season.py</code>.</p>"""
 
     round_number = data["round"]
-    free = round_number < FIRST_SCORING_MATCHDAY
+    # §6.7's window, asked of the rules rather than re-derived here. Written
+    # out as `< FIRST_SCORING_MATCHDAY`, this page said the transfers were no
+    # longer free on the very matchday they still were.
+    free = transfers_allowed(round_number)[0] is None
     per_round = ideal["expected_round"]
     mine = ideal.get("yours_round")
 
@@ -2018,7 +2030,7 @@ def chip_advice(found: dict) -> str:
     unused, so "spend nothing" has to be a decision Manuel sees taken.
     """
     if not found.get("filed"):
-        locked = found.get("locked_round") or FIRST_SCORING_MATCHDAY
+        locked = found.get("locked_round") or FIRST_CHIP_ROUND - 1
         return f"""      <p class="callout"><strong>A entrada ainda não está entregue.</strong>
       A ordem acima é a proposta do modelo. Assim que a entregares no zerozero,
       copia-a para <code>data/tabela-final.yaml</code> — a partir da jornada
@@ -2088,9 +2100,11 @@ def final_section(data: dict) -> str:
             + "            </tr>"
         )
 
-    return f"""      <p class="lede">Um jogo diferente do plantel, com o mesmo prazo:
-      ambos fecham na <strong>jornada {FIRST_SCORING_MATCHDAY}</strong>. Depois
-      disso a entrada fica fixa e só os chips a mexem — um por jornada para
+    return f"""      <p class="lede">Um jogo diferente do plantel, e com
+      <strong>prazo diferente</strong>: a entrada fechou na <strong>jornada
+      {FIRST_CHIP_ROUND - 1}</strong>, uma antes de o plantel fechar na
+      {FIRST_SCORING_MATCHDAY}. Desde então a entrada está fixa e só os chips a
+      mexem — um por jornada da {FIRST_CHIP_ROUND} à {LAST_CHIP_ROUND} para
       mover um clube até três lugares, mais três de cinco lugares nas jornadas
       18, 24 e 29. Cada chip joga-se às cegas e perde-se se não for usado.</p>
 

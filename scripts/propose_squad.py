@@ -1,6 +1,6 @@
 """Propose the twenty-three to hold when the squad locks.
 
-Transfers are unlimited until matchday 5 and one a round afterwards, so this is
+Transfers are unlimited until matchday 6 and one a round afterwards, so this is
 the last moment the whole team can be chosen at once. Everything else the
 project does is worth less than getting this right: measured over a season, the
 gap between a good squad and a careless one is several hundred points, and the
@@ -53,6 +53,7 @@ from liga_record_mcp.advice import MIN_OWN_HISTORY  # noqa: E402
 from liga_record_mcp.rules import transfers_allowed  # noqa: E402
 from liga_record_mcp.optimise import (  # noqa: E402
     best_eleven,
+    left_the_league,
     best_squad_under_budget,
     improve_squad,
     squad_value,
@@ -316,10 +317,19 @@ def main() -> None:
     rungs = args.moves if args.moves is not None else (window or SQUAD_SIZE)
 
     mine = [p.id for p in snapshot.squad.players]
-    covered = [i for i in mine if i in market]
+    gone = left_the_league(mine, market)
+    covered = [i for i in mine if i not in gone]
     yours = squad_value(covered, market, returns, playing, draws=args.draws)
 
     print(f"{len(market)} players on the market, {ROUNDS_LEFT} rounds to play")
+    if gone:
+        by_id = {p.id: p for p in snapshot.squad.players}
+        print()
+        print("FORA DA LIGA — o mercado ja nao os lista, e nao voltam a pontuar:")
+        for i in gone:
+            held = by_id[i]
+            print(f"  {held.name} ({held.club}) — o lugar dele esta morto ate o venderes")
+        print(f"  o resto do plantel abaixo sao {len(covered)}, nao {len(mine)}.")
     print()
     print("THE PROPOSED 23")
     order = {Position.GK: 0, Position.DEF: 1, Position.MID: 2, Position.FWD: 3}

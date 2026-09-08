@@ -71,6 +71,29 @@ def legal_shapes() -> list[tuple[int, int, int]]:
     ]
 
 
+def left_the_league(
+    squad_ids: Sequence[str], market: Mapping[str, Any]
+) -> list[str]:
+    """Held players the market no longer lists — men who have left the league.
+
+    A REAL AND RECURRING EVENT, not a data glitch. Diogo Calila was in the
+    squad on 8 September 2026 and had signed for Maghreb Fes five days earlier;
+    Record dropped him from the market and left him in the teams that held him,
+    where he will score nothing for the rest of the season.
+
+    It was found by accident. `build_dashboard` died on a KeyError deep inside
+    `squad_value`, and `propose_squad` did something worse — it filtered the
+    unknown id out silently, so it priced twenty-two against a rival
+    twenty-three and reported the gap as if both were whole. A squad quietly
+    shrinking is the failure that hides; the crash is the one that gets fixed.
+
+    So callers ask this first and say the names out loud. Nothing here guesses
+    a replacement: which defender to buy is a decision, and the point of
+    naming him is that Manuel gets to make it.
+    """
+    return [i for i in squad_ids if i not in market]
+
+
 def best_eleven(
     squad: Sequence[Mapping[str, Any]],
     points: Mapping[str, float],

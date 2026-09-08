@@ -583,3 +583,29 @@ def test_the_climb_lands_in_the_same_place_whatever_order_it_reads_the_market_in
         assert set(again["players"]) == set(first["players"])
         assert again["swaps"] == first["swaps"]
         assert again["expected_round"] == first["expected_round"]
+
+
+# --- a man who has left the league --------------------------------------------
+
+
+def test_a_squad_member_the_market_dropped_is_named_not_swallowed():
+    """The failure that hid: a squad shrinking without saying so.
+
+    Diogo Calila signed for Maghreb Fes on 3 September 2026 and stayed in the
+    squad file. `build_dashboard` died on a KeyError; `propose_squad` was worse
+    — it filtered him out in silence and reported twenty-two against a rival
+    twenty-three as though both were whole.
+    """
+    from liga_record_mcp.optimise import left_the_league
+
+    market = {"a": object(), "b": object()}
+    assert left_the_league(["a", "b"], market) == []
+    assert left_the_league(["a", "gone", "b"], market) == ["gone"]
+
+
+def test_departures_come_back_in_squad_order_and_without_duplicates():
+    """Order matters: it is printed to Manuel as a list of names to act on."""
+    from liga_record_mcp.optimise import left_the_league
+
+    assert left_the_league(["x", "y", "z"], {}) == ["x", "y", "z"]
+    assert left_the_league([], {"a": object()}) == []

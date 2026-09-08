@@ -29,6 +29,7 @@ sys.path[:0] = [str(ROOT / "src")]
 from liga_record_mcp.models import (  # noqa: E402
     FIRST_SCORING_MATCHDAY,
     HOLIDAY_ROUNDS,
+    Position,
 )
 from liga_record_mcp.source import (  # noqa: E402
     ManualSquadSource,
@@ -294,6 +295,36 @@ def lock_is_near(fixtures, within_days: int) -> tuple[bool, str]:
     )
 
 
+def departed(squad_path) -> list[str]:
+    """Squad members the market no longer lists — men who have left the league.
+
+    THE ONE THING NOTHING WAS WATCHING. `data/squad.yaml` is written by hand and
+    nothing ever asked whether the twenty-three still exist. Diogo Calila signed
+    for Maghreb Fes on 3 September 2026 and sat in the squad for five days
+    afterwards, projected at 2.09 points a round, while every piece of advice
+    given that week was computed as though he were still in Ponta Delgada. It
+    surfaced only because `build_dashboard` happened to crash on him.
+
+    A dead slot costs the whole season, and outside the §6.7 window it costs a
+    transfer to clear. So it is worth one market call a day to find out.
+    """
+    try:
+        market = {
+            p.id
+            for position in Position
+            for p in LigaRecordClient(timeout=40.0).search(position)
+        }
+    except SiteError:
+        return []
+    squad = ManualSquadSource(squad_path).load().squad.players
+    return [
+        f"{p.name} ({p.club}) — o mercado ja nao o lista. Saiu da liga, nao "
+        f"volta a pontuar, e o lugar dele esta morto ate o venderes."
+        for p in squad
+        if p.id not in market
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--decisions", type=Path, default=DECISIONS_PATH)
@@ -375,6 +406,13 @@ def main() -> None:
     if stale:
         print()
         print(stale)
+
+    fora = departed(SQUAD_PATH)
+    if fora:
+        print()
+        print("FORA DA LIGA — trata disto antes de qualquer outra coisa:")
+        for line in fora:
+            print(f"  {line}")
 
     said = deadlines(fixtures)
     if said:
