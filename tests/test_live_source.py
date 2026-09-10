@@ -246,3 +246,73 @@ def test_market_player_still_enforces_the_price_floor():
             value=MIN_PRICE - 1,
             initial_value=MIN_PRICE,
         )
+
+
+# --- a market that is lying --------------------------------------------------
+
+
+class _Fixture:
+    def __init__(self, played: bool) -> None:
+        self.played = played
+
+
+def _client_returning(
+    rows: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch, *, played: bool = True
+) -> LigaRecordClient:
+    made = LigaRecordClient()
+    monkeypatch.setattr(made, "_fetch", lambda params: rows)
+    monkeypatch.setattr(made, "fixtures", lambda: [_Fixture(played)])
+    return made
+
+
+def _blank(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{**r, "PointsTotal": 0, "Points": 0} for r in rows]
+
+
+def test_an_unfiltered_search_that_comes_back_empty_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """10 September 2026: no midfielders at all, and nothing else went wrong.
+
+    A whole position is never empty in a live league. Believed, it becomes a
+    squad whose midfielders have all "left the league".
+    """
+    made = _client_returning([], monkeypatch)
+    with pytest.raises(MarketError, match="no MID players"):
+        made.search(Position.MID)
+
+
+def test_a_filtered_search_may_come_back_empty(monkeypatch: pytest.MonkeyPatch):
+    """A name that matches nobody is an answer, not an outage."""
+    made = _client_returning([], monkeypatch)
+    assert made.search(Position.MID, name="Ninguém") == []
+
+
+def test_a_blank_scoreboard_after_a_played_match_is_refused(
+    rows: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+):
+    """The second half of 10 September: every player on zero points."""
+    made = _client_returning(_blank(rows), monkeypatch, played=True)
+    with pytest.raises(MarketError, match="zero points"):
+        made.search(Position.GK)
+
+
+def test_a_blank_scoreboard_before_the_season_is_believed(
+    rows: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+):
+    """In August nobody has scored yet, so zero is the truth."""
+    made = _client_returning(_blank(rows), monkeypatch, played=False)
+    assert len(made.search(Position.GK)) == len(rows)
+
+
+def test_a_refused_market_is_not_cached(
+    rows: list[dict[str, Any]], monkeypatch: pytest.MonkeyPatch
+):
+    """The next call has to ask the site again, not replay the outage."""
+    made = LigaRecordClient()
+    answers = [[], rows]
+    monkeypatch.setattr(made, "_fetch", lambda params: answers.pop(0))
+    monkeypatch.setattr(made, "fixtures", lambda: [_Fixture(True)])
+    with pytest.raises(MarketError):
+        made.search(Position.GK)
+    assert len(made.search(Position.GK)) == len(rows)

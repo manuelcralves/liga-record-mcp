@@ -379,6 +379,9 @@ class LigaRecordClient:
         """Every player of one position matching the filters.
 
         `position` is required: the endpoint returns an empty array without it.
+
+        An UNFILTERED search, meaning the whole position, is checked before
+        anything is allowed to believe it. See `_refuse_a_broken_market`.
         """
         if order_by not in ORDER_BY:
             raise MarketError(f"order_by must be one of {ORDER_BY}, got {order_by!r}")
@@ -401,9 +404,59 @@ class LigaRecordClient:
             return hit[1]
 
         rows = self._fetch(params)
+        if not (name or club) and (min_value, max_value) == (
+            MARKET_MIN_VALUE,
+            MARKET_MAX_VALUE,
+        ):
+            self._refuse_a_broken_market(position, rows)
         players = [parse_market_player(r) for r in rows]
         self._cache[key] = (now + self.cache_ttl, players)
         return players
+
+    def _refuse_a_broken_market(
+        self, position: Position, rows: list[dict[str, Any]]
+    ) -> None:
+        """Raise rather than hand over a market that cannot be true.
+
+        On 10 September 2026, two days before the round-6 lock, the endpoint
+        failed in two stages while the site itself was fine. First it returned
+        no midfielders at all. Then it returned all 554 players with every
+        point at zero, while the team page showed Pavlidis on 40, and it kept
+        doing so for more than an hour.
+
+        Nothing errored. The live model reads `points_total` from here, so a
+        rebuild during that hour would have learnt that nobody scored all
+        season. `left_the_league` reads absence from here, so an empty position
+        would have become a squad full of false departures. Both would have
+        published their answers without complaint.
+
+        So the two impossible shapes are refused, in the one place every
+        caller passes through. MarketError is a SiteError: the MCP tools and the
+        daily departures check already catch that and degrade gracefully, and
+        the page build, the ledger and the squad proposal stop without writing
+        anything. A stale page is better than a confident wrong one. A refusal
+        is never cached, so the next call asks the site again.
+
+        A blank scoreboard is legitimate before the first match, so that one is
+        refused only once the calendar shows a match has been played. An empty
+        position is never legitimate.
+        """
+        if not rows:
+            raise MarketError(
+                f"the market returned no {position.value} players at all. A whole "
+                "position is never empty in a live league, so the site is "
+                "misbehaving, and nothing should be computed from this"
+            )
+        blank = all(
+            int(r.get("PointsTotal", 0)) == 0 and int(r.get("Points", 0)) == 0
+            for r in rows
+        )
+        if blank and any(f.played for f in self.fixtures()):
+            raise MarketError(
+                f"the market returned every {position.value} on zero points after "
+                "matches have been played. The site is serving a blank scoreboard, "
+                "and nothing should be computed from it"
+            )
 
     def _fetch(self, params: dict[str, str]) -> list[dict[str, Any]]:
         url = f"{self.base_url}{self.SEARCH_PATH}"
