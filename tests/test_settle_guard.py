@@ -200,7 +200,8 @@ def test_a_postponed_club_is_named_so_its_zero_is_not_settled(ledger):
     Benfica and Sp. Braga did not play round 3 — their fixtures are 9 and 10
     September — so all thirty and all twenty-eight of their players read 0.
     That is "nothing assigned", not "scored nothing", and Pavlidis entering the
-    ledger on 0 would be the 25 August bug wearing a better source.
+    ledger on 0 would be the 25 August bug wearing a better source — until
+    §15.3 decides the match is worth 0, which is the test after the next one.
     """
     filed = ledger.official_scores("3")
     assert set(filed["adiados"]) >= {"Benfica", "Sp. Braga"}
@@ -236,17 +237,35 @@ def test_nehuen_perez_is_on_four_for_round_three():
     )
 
 
-def test_the_postponed_clubs_are_still_waiting():
+def test_a_postponed_club_settles_only_once_15_3_has_decided_it():
+    """The old guard, restated now that the rule has been read.
+
+    This used to insist that Benfica's and Sp. Braga's round-3 rows stay empty,
+    because the clubs had not played. It refused for the wrong reason: the 0 was
+    never going to change, since §15.3 scores a postponed match played after the
+    next round has begun at 0. What must still never happen is a postponed club
+    settled on a guess. So a row of a club the email marked `adiados` is either
+    still open, or its club is in `anulados_15_3` and it sits on exactly 0.
+    """
     import json
 
     log = json.loads(
         (ROOT / "data" / "projections.json").read_text(encoding="utf-8")
     )
+    filed = json.loads(
+        (ROOT / "data" / "pontuacoes" / "3.json").read_text(encoding="utf-8")
+    )
+    voided = filed.get("anulados_15_3", {})
     for row in log["rounds"]["3"]["players"].values():
-        if row["club"] in ("Benfica", "Sp. Braga"):
-            assert row["actual"] is None, (
-                f"{row['name']} was settled on a round his club has not played"
-            )
+        if row["club"] not in filed["adiados"] or row["actual"] is None:
+            continue
+        assert row["club"] in voided, (
+            f"{row['name']} was settled on a round his club has not played, "
+            "and nothing records §15.3 as having decided it"
+        )
+        assert row["actual"] == 0, (
+            f"{row['name']} was voided by §15.3 but settled on {row['actual']}"
+        )
 
 
 # --- internal consistency is not the same question ----------------------------
@@ -320,3 +339,51 @@ def test_round_four_holds_the_email_figures_not_the_site_ones():
             continue
         assert row["actual"] != wrong, f"{name} carries his round 3 score"
         assert row["actual"] == right
+
+
+# --- a postponement that §15.3 has already decided ----------------------------
+
+
+def test_a_postponement_that_15_3_voided_settles_on_its_zero(ledger):
+    """The email's 0 was the score all along, for these two clubs.
+
+    Moreirense–Benfica and E. Amadora–Sp. Braga were both played after round 4
+    had begun, and §15.3 scores a postponed match played after the next round
+    starts at 0. The paragraph was in data/regulation from the start. The
+    resolution is its own list, so `adiados` still says exactly what the email
+    said.
+    """
+    filed = ledger.official_scores("3")
+    assert {"Benfica", "Sp. Braga"} <= set(filed["anulados_15_3"])
+    assert {"Benfica", "Sp. Braga"} <= set(filed["adiados"])
+    source = (ROOT / "scripts" / "record_projection.py").read_text(encoding="utf-8")
+    assert 'official.get("anulados_15_3", {})' in source
+
+
+def test_round_three_is_closed_with_the_voided_three_on_zero():
+    """Pavlidis, Fran Navarro and Gorby: zero by §15.3, and the miss is the model's.
+
+    The calendar had Benfica's round-3 match dated 9 September, after round 4
+    had begun. The date alone guaranteed the zero, and the model still projected
+    Pavlidis at 9.19. That counts against it.
+    """
+    import json
+
+    log = json.loads(
+        (ROOT / "data" / "projections.json").read_text(encoding="utf-8")
+    )
+    players = log["rounds"]["3"]["players"].values()
+    assert all(r.get("actual") is not None for r in players)
+    voided = {
+        r["name"]: r["actual"]
+        for r in players
+        if r["name"] in ("Pavlidis", "Fran Navarro", "Gorby")
+    }
+    assert voided == {"Pavlidis": 0, "Fran Navarro": 0, "Gorby": 0}
+
+
+def test_a_past_round_can_be_settled_but_never_recorded(ledger, monkeypatch):
+    """--round looks backwards, so only the settle step may use it."""
+    monkeypatch.setattr("sys.argv", ["record_projection.py", "--round", "3"])
+    with pytest.raises(SystemExit, match="--settle"):
+        ledger.main()

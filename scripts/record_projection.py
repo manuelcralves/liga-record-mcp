@@ -366,6 +366,13 @@ def official_scores(round_number: str) -> dict | None:
     the email for the same reason they sit at 0 on the site — nothing has been
     assigned yet — and settling that 0 would enter a fabricated score, so those
     clubs stay pending here exactly as they do on the API path.
+
+    `anulados_15_3` is the way out, and it is written by hand, not taken from
+    the email. §15.3 scores a postponed match 0 when it is played after the next
+    round has begun, so for a club listed there the 0 IS the score. The field
+    carries the match and the date it was resolved. Removing a club from it
+    reopens the row, which is what to do if the site is ever seen paying the
+    points anyway.
     """
     path = OFFICIAL_DIR / f"{round_number}.json"
     if not path.exists():
@@ -410,12 +417,27 @@ def main() -> None:
         action="store_true",
         help="fill in what actually happened, for a round already on file",
     )
+    parser.add_argument(
+        "--round",
+        type=int,
+        help="with --settle: close a PAST round instead of the squad's current "
+        "one, such as a round held open by a postponed match",
+    )
     args = parser.parse_args()
+    # Only a settle may look backwards. Recording a round is a prediction, and a
+    # prediction for a round that has started proves nothing. The refusal
+    # further down exists for exactly that, and a --round on the recording path
+    # would walk straight past it.
+    if args.round is not None and not args.settle:
+        raise SystemExit(
+            "--round so serve com --settle: registar uma jornada que nao e a "
+            "atual e precisamente o que este ficheiro existe para impedir"
+        )
 
     snapshot_of_squad = ManualSquadSource(SQUAD_PATH).load()
     squad = snapshot_of_squad.squad
     market = LigaRecordClient(timeout=60.0)
-    key = str(snapshot_of_squad.round_number)
+    key = str(args.round if args.round is not None else snapshot_of_squad.round_number)
 
     log = json.loads(LOG_PATH.read_text("utf-8")) if LOG_PATH.exists() else {"rounds": {}}
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -494,7 +516,14 @@ def main() -> None:
                 continue
 
             if official:
-                if row["club"] in official.get("adiados", ()):
+                # Postponed stays pending, UNLESS §15.3 has already decided what
+                # it is worth. A postponed match played after the next round has
+                # begun scores 0 by rule, so the email's 0 is the score rather
+                # than an unassigned one. Kept as its own list so `adiados`
+                # stays what the email said.
+                if row["club"] in official.get("adiados", ()) and row[
+                    "club"
+                ] not in official.get("anulados_15_3", {}):
                     pending.append(row["name"])
                     continue
                 scored = official["jogadores"].get(f"{row['name']}|{row['club']}")

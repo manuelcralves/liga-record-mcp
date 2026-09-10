@@ -388,7 +388,8 @@
           "attacking_multiplier": 1.123,
           "projected": 3.07,
           "points_before": 2,
-          "actual": null
+          "actual": 0,
+          "error": -3.07
         },
         "42765": {
           "name": "Cáseres",
@@ -425,7 +426,8 @@
           "attacking_multiplier": 1.06,
           "projected": 9.19,
           "points_before": 30,
-          "actual": null
+          "actual": 0,
+          "error": -9.19
         },
         "42142": {
           "name": "Fran Navarro",
@@ -443,7 +445,8 @@
           "attacking_multiplier": 1.123,
           "projected": 4.81,
           "points_before": 6,
-          "actual": null
+          "actual": 0,
+          "error": -4.81
         },
         "42920": {
           "name": "Begraoui",
@@ -500,8 +503,8 @@
         "actual": 7,
         "error": 1.27
       },
-      "settled_at": "2026-08-25T06:45:47.440292+00:00",
-      "fully_settled": false
+      "settled_at": "2026-09-10T09:54:52.094728+00:00",
+      "fully_settled": true
     },
     "4": {
       "recorded_at": "2026-08-25T11:05:11.533804+00:00",

@@ -31,5 +31,16 @@
  "treinadores": {
   "Farioli|FC Porto": 7
  },
- "adiados": ["Benfica", "Sp. Braga", "Moreirense", "E. Amadora"]
+ "adiados": [
+  "Benfica",
+  "Sp. Braga",
+  "Moreirense",
+  "E. Amadora"
+ ],
+ "anulados_15_3": {
+  "Benfica": "Moreirense 0-4 Benfica, jogado a 9/09/2026, depois de a ronda 4 ter comecado. §15.3: 0 pontos. Resolvido a 10/09/2026.",
+  "Moreirense": "Moreirense 0-4 Benfica, jogado a 9/09/2026, depois de a ronda 4 ter comecado. §15.3: 0 pontos. Resolvido a 10/09/2026.",
+  "Sp. Braga": "E. Amadora–Sp. Braga, marcado para 10/09/2026, depois de a ronda 4 ter comecado. §15.3: 0 pontos, jogue-se nesse dia ou mais tarde. Resolvido a 10/09/2026.",
+  "E. Amadora": "E. Amadora–Sp. Braga, marcado para 10/09/2026, depois de a ronda 4 ter comecado. §15.3: 0 pontos, jogue-se nesse dia ou mais tarde. Resolvido a 10/09/2026."
+ }
 }
