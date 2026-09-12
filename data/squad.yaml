@@ -235,8 +235,18 @@ players:
     points_total: 23
     points_round: 2
 
-# A folha entregue no site para a jornada 6, em 3-4-3. Lida do site a 8 de
-# setembro, nao assumida a partir do que o modelo recomendou.
+# A folha entregue no site para a jornada 6, em 3-4-3. Lida do site, nao
+# assumida a partir do que o modelo recomendou.
+#
+# ALTERADA A 12/09, DEPOIS DO ALERTA. O email da manha listou seis jogadores do
+# plantel como lesionados ou em duvida — Filipe Soares, Javi Sanchez, Liziero,
+# Weverson, Xeka e Zaidu — e so o Javi Sanchez estava no onze. Saiu ele, entrou
+# o Finn van Breemen. Os outros cinco ja estavam fora dos 15.
+#
+# A troca vale pouco e fica dito: se o Javi ficasse e nao jogasse, o §11 metia o
+# Rodrigo Pinheiro (2,07), praticamente o mesmo que o Finn (2,03). Fez-se para
+# nao depender de a substituicao automatica disparar, e para o Rodrigo continuar
+# no banco como cobertura.
 #
 # A ordem do `bench` conta: o §11.2 percorre-o por ordem quando substitui.
 #
@@ -248,7 +258,7 @@ selection:
   starters:
     - "38800"    # Diogo Costa        GR   FC Porto
     - "43299"    # Bednarek           DEF  FC Porto
-    - "43426"    # Javi Sánchez       DEF  Arouca
+    - "43510"    # Finn van Breemen   DEF  Famalicão
     - "41584"    # Nehuén Pérez       DEF  FC Porto
     - "43369"    # Espen Van Ee       MED  Arouca
     - "42835"    # Fukui              MED  Arouca
