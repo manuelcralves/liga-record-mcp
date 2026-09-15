@@ -30,10 +30,11 @@ sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp.advice import valuation  # noqa: E402
 from liga_record_mcp.optimise import best_eleven  # noqa: E402
-from liga_record_mcp.models import Position  # noqa: E402
+from liga_record_mcp.models import FIRST_SCORING_MATCHDAY, Position  # noqa: E402
 from liga_record_mcp.source import (  # noqa: E402
+    consistency_problems,
+    load_official_rounds,
     LigaRecordClient,
-    load_appearances,
     load_unavailable,
     ManualSquadSource,
     OpenFootballClient,
@@ -65,6 +66,14 @@ UNAVAILABLE_PATH = ROOT / "data" / "indisponiveis.yaml"
 #: was leaving out roughly seven points a round of spread.
 CHOSEN_COACH = "890"  # Farioli, FC Porto
 
+#: Where the coach's matches are counted from. NOT the official phase: the
+#: coach totals are the hand copy in data/coaches.yaml, taken on 19/08/2026 —
+#: before the site reset its totals on 15/09 — and dividing that copy by the
+#: official matches alone would put a trial-phase total over one match. Wrong
+#: either way until the file is refreshed; this way it is the old wrong, not a
+#: new and larger one.
+COACH_TOTALS_SINCE = 1
+
 
 def league_rates(records):
     """Mean goals for and against among clubs with a record to read."""
@@ -87,12 +96,17 @@ def snapshot(market, history, squad, round_number):
     """Everything known about the coming round, per player."""
     records = history.club_records()
     fixtures = market.fixtures()
-    counts = matches_played(fixtures)
+    counts = matches_played(fixtures, since=FIRST_SCORING_MATCHDAY)
     league_ga, league_gf = league_rates(records)
 
     everyone = [m.as_player() for pos in Position for m in market.search(pos)]
     baselines = position_baselines(everyone, counts)
-    played = [p for p in everyone if counts.get(p.club, 0) > 0]
+    # Before the first official round is played, nobody has a match inside the
+    # window. Prices do not depend on matches, so the price context falls back
+    # to the whole market instead of dividing by nobody, which is what
+    # recording the first official round would do now that the trial rounds no
+    # longer count.
+    played = [p for p in everyone if counts.get(p.club, 0) > 0] or everyone
     mean_value = sum(p.value for p in played) / len(played)
     index = club_price_index(played, mean_value)
     position_mean = {
@@ -123,14 +137,29 @@ def snapshot(market, history, squad, round_number):
     # was measuring a model nobody was being advised by — the same fault
     # 162d930 found in the backtest, still sitting here because nobody checked
     # whether it was true twice.
+    # THE SEASON COMES FROM THE EMAILS, AND IS CHECKED BEFORE ANYTHING IS KEPT.
+    #
+    # On 15 September 2026 the site put every player's total back to zero for
+    # the official phase, and the reading that stood here saw Pavlidis on nine
+    # points in six matches. This file also runs unattended twice a day, from
+    # registar-previsoes.yml, which commits whatever it records — so a
+    # projection built on totals and emails that disagree must never reach the
+    # ledger. It stops here and says why, and the scheduled job fails where
+    # someone will see it.
+    official = load_official_rounds(OFFICIAL_DIR, first_round=FIRST_SCORING_MATCHDAY)
+    whole = {p.id: p for p in everyone}
+    problems = consistency_problems(
+        whole, official, fixtures, first_round=FIRST_SCORING_MATCHDAY
+    )
+    if problems:
+        raise SystemExit(
+            f"NAO REGISTO a jornada {round_number}: o total do site e os emails "
+            "nao batem certo.\n  " + "\n  ".join(problems)
+        )
     view = valuation(
         {p.id: p for p in squad.players},
         archive_records(ROOT / "data"),
-        current_records(
-            {m.id: m.as_player() for pos in Position for m in market.search(pos)},
-            counts,
-            load_appearances(ROOT / "data" / "appearances.json"),
-        ),
+        current_records(whole, official),
     )
 
     # Who is known to be out this round, from the one file the site cannot
@@ -626,7 +655,7 @@ def main() -> None:
         if "coach" not in stored and not clubs_playing_in(market.fixtures(), int(key)):
             stored["coach"] = coach_snapshot(
                 OpenFootballClient(timeout=60.0),
-                matches_played(market.fixtures()),
+                matches_played(market.fixtures(), since=COACH_TOTALS_SINCE),
                 int(key),
             )
             LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
@@ -758,7 +787,9 @@ def main() -> None:
         "advised": advised_sheet(rows),
         "players": rows,
         "coach": coach_snapshot(
-            history, matches_played(market.fixtures()), snapshot_of_squad.round_number
+            history,
+            matches_played(market.fixtures(), since=COACH_TOTALS_SINCE),
+            snapshot_of_squad.round_number,
         ),
     }
     LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")

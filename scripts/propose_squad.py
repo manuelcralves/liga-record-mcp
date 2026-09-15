@@ -61,22 +61,19 @@ from liga_record_mcp.optimise import (  # noqa: E402
 from liga_record_mcp.source import (  # noqa: E402
     LigaRecordClient,
     ManualSquadSource,
-    load_appearances,
+    load_official_rounds,
 )
+from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
     APPEARANCE_PRIOR,
     describe_pick,
-    NO_MATCH,
-    PLAYED,
     PRIOR_STRENGTH,
     ROTATION_PRIOR,
     UNUSED_PENALTY,
-    matches_played,
 )
 
 SEASONS = (ROOT / "data" / "last-season.json", ROOT / "data" / "season-2024-25.json")
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
-APPEARANCES_PATH = ROOT / "data" / "appearances.json"
 
 #: Rounds still to be played once the squad locks. Used only to turn a rate
 #: into a season, never to choose anything.
@@ -117,51 +114,6 @@ def history():
     return played, scored, available, spread
 
 
-def this_season(market, counts):
-    """The same two numbers from the rounds already played.
-
-    Round 2 is on file from `record_appearances`. Round 1 is read off §10.3(i):
-    a score of exactly -1 for a player whose club played is a man who did not.
-    That reading is not certain — a player who did take the field and whose
-    rating and events netted to -1 is indistinguishable — but it is right far
-    more often than it is wrong, and there are only two rounds of it.
-    """
-    recorded = {}
-    if APPEARANCES_PATH.exists():
-        store = json.loads(APPEARANCES_PATH.read_text(encoding="utf-8"))
-        for rnd, entry in (store.get("rounds") or {}).items():
-            for player_id, status in (entry.get("players") or {}).items():
-                recorded.setdefault(player_id, {})[int(rnd)] = status
-
-    played, scored, available = defaultdict(int), defaultdict(float), defaultdict(int)
-    for player in market.values():
-        rounds = counts.get(player.club, 0)
-        if rounds <= 0:
-            continue
-        seen = recorded.get(player.id, {})
-        appearances = 0
-        for rnd in range(1, rounds + 1):
-            status = seen.get(rnd)
-            if status == NO_MATCH:
-                continue
-            if status is None:
-                # Only the latest round is separable from a running total.
-                points = (
-                    player.points_round
-                    if rnd == rounds
-                    else player.points_total - player.points_round
-                )
-                status = "unused" if points == UNUSED_PENALTY else PLAYED
-            available[player.id] += 1
-            if status == PLAYED:
-                appearances += 1
-        played[player.id] = appearances
-        # §10.3(i) charged -1 for each round he sat; adding those back leaves
-        # what he scored on the days he played.
-        scored[player.id] = player.points_total + (available[player.id] - appearances)
-    return played, scored, available
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--draws", type=int, default=400)
@@ -188,10 +140,20 @@ def main() -> None:
         p.id: p for position in Position for p in client.search(position)
     }
     market = {i: p.as_player() for i, p in quoted.items()}
-    counts = matches_played(client.fixtures())
-
     old_played, old_scored, old_available, spread = history()
-    new_played, new_scored, new_available = this_season(market, counts)
+    # This season from the weekly score emails, read by the same function the
+    # ledger and the pages use. This file kept its own copy of that reading
+    # until 15/09/2026, when the site reset its totals and every copy went
+    # wrong on the same morning — which is the whole argument for having one.
+    season = current_records(
+        market,
+        load_official_rounds(
+            ROOT / "data" / "pontuacoes", first_round=FIRST_SCORING_MATCHDAY
+        ),
+    )
+    new_played = defaultdict(int, {i: r["played"] for i, r in season.items()})
+    new_scored = defaultdict(float, {i: r["points"] for i, r in season.items()})
+    new_available = defaultdict(int, {i: r["available"] for i, r in season.items()})
 
     # What a player at this club in this position returns when he plays, and
     # the club is the CURRENT one: a man's old numbers are his, his old club's

@@ -33,6 +33,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
+from liga_record_mcp.models import FIRST_SCORING_MATCHDAY  # noqa: E402
 from liga_record_mcp.models import Position  # noqa: E402
 from liga_record_mcp.source import LigaRecordClient, ManualSquadSource  # noqa: E402
 from liga_record_mcp.source.zerozero import ZeroZeroClient, ZeroZeroError  # noqa: E402
@@ -61,7 +62,7 @@ def main() -> None:
 
     market = LigaRecordClient(timeout=60.0)
     players = [p.as_player() for pos in Position for p in market.search(pos)]
-    counts = matches_played(market.fixtures())
+    counts = matches_played(market.fixtures(), since=FIRST_SCORING_MATCHDAY)
 
     if args.squad:
         wanted = {p.id for p in ManualSquadSource(SQUAD_PATH).load().squad.players}

@@ -37,6 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp import server as mcp  # noqa: E402
+from liga_record_mcp.source import load_official_rounds  # noqa: E402
 from liga_record_mcp.advice import MIN_OWN_HISTORY, valuation  # noqa: E402
 from liga_record_mcp.optimise import (  # noqa: E402
     best_eleven,
@@ -47,7 +48,6 @@ from liga_record_mcp.optimise import (  # noqa: E402
 )
 from liga_record_mcp.source import (  # noqa: E402
     ManualSquadSource,
-    load_appearances,
     load_coaches,
     load_final_entry,
     load_unavailable,
@@ -617,8 +617,9 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     whole = {p.id: p.as_player() for p in mcp_players()}
     now = current_records(
         whole,
-        matches_played(mcp._market.fixtures()),
-        load_appearances(ROOT / "data" / "appearances.json"),
+        load_official_rounds(
+            ROOT / "data" / "pontuacoes", first_round=FIRST_SCORING_MATCHDAY
+        ),
     )
     view = valuation(
         market,
@@ -1184,7 +1185,7 @@ def market_leaders(stored: dict) -> dict:
     consensus, which is what a differential is a move away from.
     """
     market = [p for pos in Position for p in mcp._market.search(pos)]
-    counts = matches_played(mcp._market.fixtures())
+    counts = matches_played(mcp._market.fixtures(), since=FIRST_SCORING_MATCHDAY)
     mine = set(stored["players"])
 
     best = {}

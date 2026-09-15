@@ -16,6 +16,11 @@ from .appearances import (
     save_appearances,
 )
 from .base import SquadSource, SquadSourceError
+from .scores import (
+    consistency_problems,
+    load_official_rounds,
+    season_records,
+)
 from .decisions import (
     holidays_used,
     load_decisions,
@@ -63,6 +68,9 @@ __all__ = [
     "LigaRecordClient",
     "OpenFootballClient",
     "combine",
+    "consistency_problems",
+    "load_official_rounds",
+    "season_records",
     "parse_season",
     "ManualSquadSource",
     "MarketError",

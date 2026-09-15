@@ -12,12 +12,13 @@ and nothing else; it never sends anything to liga.record.pt.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..stats import NO_MATCH, PLAYED, UNUSED
 from .base import SquadSourceError
+from .scores import season_records
 
 #: Bumped if the file layout ever changes, so an old file fails loudly.
 FORMAT = 1
@@ -94,56 +95,21 @@ def recorded_rounds(store: dict[str, Any]) -> list[int]:
 
 
 def current_records(
-    market, counts, store: dict[str, Any] | None = None
+    market: Mapping[str, Any], rounds: Mapping[int, Mapping[str, Any]]
 ) -> dict[str, dict[str, Any]]:
     """This season's appearances and points-when-playing, per player.
 
-    The shape `advice.valuation` wants, for the rounds already scored. The
-    archives cover sixty-eight matchdays and these are two, which is exactly
-    why they must not be left out: they are the only two that describe the
-    squads as they are now.
+    The shape `advice.valuation` wants, for the rounds already scored.
 
-    Where `record_round` has written a status down it is used. Where it has
-    not, §10.3(i) supplies one: a score of exactly -1 for a player whose club
-    played is a man who did not. That reading is not certain — someone who did
-    take the field and whose rating and events netted to -1 is
-    indistinguishable — but it is right far more often than not, and there are
-    only two rounds of it.
-
-    `points` is what he scored on the days he PLAYED. §10.3(i)'s -1 for the
-    weeks he sat belongs to the other half of the estimate, so it is added back
-    here rather than counted twice.
+    UNTIL 15 SEPTEMBER 2026 this was read off the site: the latest round from
+    `points_round`, everything before it as `points_total - points_round`, and
+    the round-2 statuses `record_round` had written down. Then the site put
+    every total back to zero for the official phase, and this began to see
+    Pavlidis on nine points in six matches. The season now comes from the
+    weekly score emails, round by round, through `scores.season_records` — one
+    reading for the ledger, the pages and the squad proposal, which each held a
+    version of the old one and all went wrong on the same morning. The trial
+    rounds, 1 to 5, went with the totals: they were filed for the squad only,
+    and nothing exact about them survives.
     """
-    seen: dict[str, dict[int, str]] = {}
-    for rnd, entry in ((store or {}).get("rounds") or {}).items():
-        for player_id, status in (entry.get("players") or {}).items():
-            seen.setdefault(player_id, {})[int(rnd)] = status
-
-    out: dict[str, dict[str, Any]] = {}
-    for player in market.values():
-        rounds = counts.get(player.club, 0)
-        if rounds <= 0:
-            continue
-        recorded = seen.get(player.id, {})
-        available = appearances = 0
-        for rnd in range(1, rounds + 1):
-            status = recorded.get(rnd)
-            if status == NO_MATCH:
-                continue
-            if status is None:
-                # Only the latest round is separable from a running total.
-                points = (
-                    player.points_round
-                    if rnd == rounds
-                    else player.points_total - player.points_round
-                )
-                status = UNUSED if points == -1 else PLAYED
-            available += 1
-            if status == PLAYED:
-                appearances += 1
-        out[player.id] = {
-            "played": appearances,
-            "points": player.points_total + (available - appearances),
-            "available": available,
-        }
-    return out
+    return season_records(market, rounds)

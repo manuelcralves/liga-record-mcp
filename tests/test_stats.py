@@ -35,13 +35,25 @@ CALENDAR = [
 
 
 def test_only_played_matches_are_counted():
-    counts = matches_played(CALENDAR)
+    counts = matches_played(CALENDAR, since=1)
     assert counts == {"Arouca": 2, "Porto": 2, "Braga": 1, "Gil Vicente": 1}
 
 
 def test_an_empty_calendar_counts_nothing():
-    assert matches_played([]) == {}
-    assert matches_played([f for f in CALENDAR if not f.played]) == {}
+    assert matches_played([], since=1) == {}
+    assert matches_played([f for f in CALENDAR if not f.played], since=1) == {}
+
+
+def test_every_caller_states_the_window():
+    """No default: forgetting where a season starts is an error, not a guess."""
+    with pytest.raises(TypeError):
+        matches_played(CALENDAR)
+
+
+def test_the_window_leaves_earlier_rounds_out():
+    """The site's totals restarted at matchday 6 on 15/09/2026, and a count that
+    still included the trial rounds divided nine points by six matches."""
+    assert matches_played(CALENDAR, since=2) == {"Porto": 1, "Arouca": 1}
 
 
 def test_per_match_divides():
@@ -70,7 +82,7 @@ def test_never_played_reads_the_unused_penalty():
 
 def test_rate_rows_rank_by_rate_not_total():
     """The whole point: 6 points in one match beats 9 in two."""
-    counts = matches_played(CALENDAR)
+    counts = matches_played(CALENDAR, since=1)
     players = [
         make_player("A", Position.MID, 5_000_000, points_total=9, name="Zalazar"),
         make_player("B", Position.FWD, 2_500_000, points_total=6, name="Fran Navarro"),
@@ -85,7 +97,7 @@ def test_rate_rows_rank_by_rate_not_total():
 
 
 def test_value_rate_normalises_price_as_well():
-    counts = matches_played(CALENDAR)
+    counts = matches_played(CALENDAR, since=1)
     cheap = make_player("A", Position.DEF, 500_000, points_total=4).model_copy(
         update={"club": "Porto"}
     )
@@ -100,7 +112,7 @@ def test_value_rate_normalises_price_as_well():
 
 
 def test_players_without_matches_sort_last():
-    counts = matches_played(CALENDAR)
+    counts = matches_played(CALENDAR, since=1)
     scorer = make_player("A", Position.MID, 500_000, points_total=4).model_copy(
         update={"club": "Porto"}
     )
@@ -118,7 +130,7 @@ def test_the_postponed_fixture_regression():
     Fran Navarro (Braga, one match) scored 6; Javi Sánchez (Arouca, two) scored
     12. Ranked on totals Fran looks half as good. Per match he is better.
     """
-    counts = matches_played(CALENDAR)
+    counts = matches_played(CALENDAR, since=1)
     fran = make_player("fran", Position.FWD, 2_500_000, points_total=6).model_copy(
         update={"club": "Braga"}
     )

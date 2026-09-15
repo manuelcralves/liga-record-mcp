@@ -506,14 +506,20 @@ def test_get_fixtures_reports_a_failure_rather_than_crashing(monkeypatch):
 
 @pytest.fixture
 def stub_uneven_calendar(monkeypatch: pytest.MonkeyPatch):
-    """Club 1 and Club 2 have played twice; Club 3 only once."""
-    from liga_record_mcp.models import Fixture
+    """Club 1 and Club 2 have played twice; Club 3 only once.
 
+    Dated inside the official phase. The server divides the site's totals,
+    which since 15/09/2026 start at matchday 6, so it counts matches from there
+    — a calendar of rounds 1 and 2 would test a window nothing uses any more.
+    """
+    from liga_record_mcp.models import FIRST_SCORING_MATCHDAY, Fixture
+
+    first, second = FIRST_SCORING_MATCHDAY, FIRST_SCORING_MATCHDAY + 1
     calendar = [
-        Fixture(round_number=1, home="Club 1", away="Club 2", home_goals=1, away_goals=0),
-        Fixture(round_number=1, home="Club 3", away="Club 4", home_goals=2, away_goals=2),
-        Fixture(round_number=2, home="Club 2", away="Club 1", home_goals=0, away_goals=0),
-        Fixture(round_number=2, home="Club 3", away="Club 5", kickoff="20 AGO 20:30"),
+        Fixture(round_number=first, home="Club 1", away="Club 2", home_goals=1, away_goals=0),
+        Fixture(round_number=first, home="Club 3", away="Club 4", home_goals=2, away_goals=2),
+        Fixture(round_number=second, home="Club 2", away="Club 1", home_goals=0, away_goals=0),
+        Fixture(round_number=second, home="Club 3", away="Club 5", kickoff="20 AGO 20:30"),
     ]
 
     class StubCal:
@@ -542,11 +548,11 @@ def test_squad_value_warns_when_clubs_are_uneven(stub_uneven_calendar):
 
 
 def test_squad_value_has_no_warning_when_clubs_are_even(monkeypatch, squad: Squad):
-    from liga_record_mcp.models import Fixture
+    from liga_record_mcp.models import FIRST_SCORING_MATCHDAY, Fixture
 
     every_club = sorted({p.club for p in squad.players})
     pairs = [
-        Fixture(round_number=1, home=a, away=b, home_goals=1, away_goals=0)
+        Fixture(round_number=FIRST_SCORING_MATCHDAY, home=a, away=b, home_goals=1, away_goals=0)
         for a, b in zip(every_club[::2], every_club[1::2])
     ]
 

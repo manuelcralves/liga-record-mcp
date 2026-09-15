@@ -228,7 +228,7 @@ def _matches_by_club() -> dict[str, int] | None:
     because a total is meaningless without its denominator.
     """
     try:
-        return matches_played(_market.fixtures())
+        return matches_played(_market.fixtures(), since=FIRST_SCORING_MATCHDAY)
     except SiteError:
         return None
 

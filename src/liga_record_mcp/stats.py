@@ -20,15 +20,23 @@ from typing import Any
 from .models import ClubRecord, Fixture, MarketPlayer, Player, Position
 
 
-def matches_played(fixtures: Iterable[Fixture]) -> dict[str, int]:
-    """How many matches each club has actually completed.
+def matches_played(fixtures: Iterable[Fixture], *, since: int) -> dict[str, int]:
+    """How many matches each club has completed, from round `since` onwards.
 
     A postponed fixture means clubs are mid-season on different counts, which
     is exactly the trap this module exists to close.
+
+    `since` HAS NO DEFAULT, ON PURPOSE. On 15 September 2026 Liga Record put
+    every player's total back to zero for the official phase, so a site total
+    now covers matchday 6 onwards while the calendar still holds matchdays 1-5.
+    A caller dividing a site total counts from `FIRST_SCORING_MATCHDAY`; one
+    reading something older has to say so. A default would have been this
+    week's mistake a third time, one number quietly changing what another
+    means, and a missing argument fails loudly instead.
     """
     counts: dict[str, int] = {}
     for fixture in fixtures:
-        if not fixture.played:
+        if not fixture.played or fixture.round_number < since:
             continue
         for club in (fixture.home, fixture.away):
             counts[club] = counts.get(club, 0) + 1
