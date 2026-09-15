@@ -52,7 +52,7 @@ def test_a_player_who_scored_is_one_match_with_his_points():
     market = {"42896": player("42896", "Pavlidis", "Benfica", points_total=9)}
     rounds = {6: round_doc(6, {"Pavlidis|Benfica": 9})}
     assert season_records(market, rounds)["42896"] == {
-        "played": 1, "points": 9, "available": 1
+        "played": 1, "points": 9, "available": 1, "rounds": {6: True}
     }
 
 
@@ -60,7 +60,7 @@ def test_minus_one_is_an_absence_not_a_match():
     market = {"x": player("x", "Nehuén Pérez", "FC Porto", points_total=-1)}
     rounds = {6: round_doc(6, {"Nehuén Pérez|FC Porto": -1})}
     assert season_records(market, rounds)["x"] == {
-        "played": 0, "points": 0, "available": 1
+        "played": 0, "points": 0, "available": 1, "rounds": {6: False}
     }
 
 
@@ -69,7 +69,7 @@ def test_a_real_zero_is_a_match_played():
     market = {"x": player("x", "Lekovic", "E. Amadora")}
     rounds = {6: round_doc(6, {"Lekovic|E. Amadora": 0})}
     assert season_records(market, rounds)["x"] == {
-        "played": 1, "points": 0, "available": 1
+        "played": 1, "points": 0, "available": 1, "rounds": {6: True}
     }
 
 
@@ -104,7 +104,8 @@ def test_rounds_add_up():
         8: round_doc(8, {"Paciência|Santa Clara": 2}),
     }
     assert season_records(market, rounds)["x"] == {
-        "played": 2, "points": 9, "available": 3
+        "played": 2, "points": 9, "available": 3,
+        "rounds": {6: True, 7: False, 8: True},
     }
 
 
@@ -116,7 +117,7 @@ def test_a_player_who_moved_club_keeps_the_rounds_he_played_for_the_old_one():
         7: round_doc(7, {"Stoica|Sporting": 2}),
     }
     assert season_records(market, rounds)["x"] == {
-        "played": 2, "points": 8, "available": 2
+        "played": 2, "points": 8, "available": 2, "rounds": {6: True, 7: True}
     }
 
 
@@ -131,7 +132,7 @@ def test_the_real_email_puts_pavlidis_on_one_match_and_nine_points():
     rounds = load_official_rounds(ROOT / "data" / "pontuacoes", first_round=6)
     market = {"42896": player("42896", "Pavlidis", "Benfica", points_total=9)}
     assert season_records(market, {6: rounds[6]})["42896"] == {
-        "played": 1, "points": 9, "available": 1
+        "played": 1, "points": 9, "available": 1, "rounds": {6: True}
     }
 
 
@@ -261,3 +262,30 @@ def test_the_squad_proposal_no_longer_keeps_its_own_copy():
 def test_the_ledger_checks_before_it_records():
     source = (ROOT / "scripts" / "record_projection.py").read_text(encoding="utf-8")
     assert "consistency_problems(" in source
+
+
+def test_the_squad_proposal_values_players_with_the_one_function():
+    """Its copy of the chance of playing outlived the replay that measured it worse."""
+    source = (ROOT / "scripts" / "propose_squad.py").read_text(encoding="utf-8")
+    assert "valuation(" in source
+    assert "APPEARANCE_PRIOR" not in source
+    assert "def history" not in source
+
+
+# --- the rounds the recent rule reads ------------------------------------------
+
+
+def test_rounds_say_which_he_played_in_round_order():
+    """The chance of playing leans on the last two, so the order is the information.
+
+    Filed out of order on purpose, with a postponed round in between: a
+    postponed round is no round at all, here as everywhere else.
+    """
+    market = {"x": player("x", "Paciência", "Santa Clara")}
+    rounds = {
+        8: round_doc(8, {"Paciência|Santa Clara": 2}),
+        6: round_doc(6, {"Paciência|Santa Clara": -1}),
+        7: round_doc(7, {"Paciência|Santa Clara": 0}, adiados=["Santa Clara"]),
+    }
+    got = season_records(market, rounds)["x"]["rounds"]
+    assert list(got.items()) == [(6, False), (8, True)]

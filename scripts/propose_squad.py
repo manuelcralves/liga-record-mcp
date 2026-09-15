@@ -7,19 +7,19 @@ gap between a good squad and a careless one is several hundred points, and the
 gap between good weekly transfers and no transfers at all is a few dozen.
 
 WHAT IT KNOWS. Two reconstructed seasons of what each player returns on the
-days he plays, this season's two rounds, and who actually took the field —
-from §10.3(i)'s -1, the only signal Liga Record gives about appearances.
+days he plays, this season's rounds from the weekly score emails, and who
+actually took the field — from §10.3(i)'s -1, the only signal Liga Record gives
+about appearances.
 
-WHAT IT DOES WITH IT. A player is estimated in two halves, because they behave
-differently and because folding them together hides the larger one:
+WHAT IT DOES WITH IT. Every player is valued by `advice.valuation`, the function
+the pages and the ledger use, in two halves:
 
     expected = P(plays) x (what he returns when he plays) + P(not) x -1
 
-His returns are shrunk toward what players at HIS CURRENT CLUB in his position
-return — his old club's numbers are his, the club's are not, and a man who has
-moved to Porto is not the player his Arouca record says he is. His chance of
-playing leans on this season, because being in the side is news and last
-season's team sheet is not.
+This file kept its own copy of that arithmetic until 15/09/2026. The copy still
+weighed every round of the season alike after the replay had measured that rule
+0.06 to 0.09 of correlation worse than one leaning on the last two rounds, which
+is the argument for one copy, made for the second time in a week.
 
 Then the squad is chosen under §6.6's quota and §6.4's budget, and repaired:
 the exact optimiser maximises the sum of twenty-three, which is not the game,
@@ -33,10 +33,7 @@ so a search over the real objective — what the eleven returns once absences an
 from __future__ import annotations
 
 import argparse
-import json
-import statistics
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,7 +46,7 @@ from liga_record_mcp.models import (  # noqa: E402
     SQUAD_SIZE,
     Position,
 )
-from liga_record_mcp.advice import MIN_OWN_HISTORY  # noqa: E402
+from liga_record_mcp.advice import MIN_OWN_HISTORY, valuation  # noqa: E402
 from liga_record_mcp.rules import transfers_allowed  # noqa: E402
 from liga_record_mcp.optimise import (  # noqa: E402
     best_eleven,
@@ -64,54 +61,13 @@ from liga_record_mcp.source import (  # noqa: E402
     load_official_rounds,
 )
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
-from liga_record_mcp.stats import (  # noqa: E402
-    APPEARANCE_PRIOR,
-    describe_pick,
-    PRIOR_STRENGTH,
-    ROTATION_PRIOR,
-    UNUSED_PENALTY,
-)
+from liga_record_mcp.source.last_season import archive_records  # noqa: E402
 
-SEASONS = (ROOT / "data" / "last-season.json", ROOT / "data" / "season-2024-25.json")
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
 
 #: Rounds still to be played once the squad locks. Used only to turn a rate
 #: into a season, never to choose anything.
 ROUNDS_LEFT = LAST_MATCHDAY - FIRST_SCORING_MATCHDAY + 1
-
-#: How many appearances a club-and-position group needs before it is worth
-#: more than the league's average for that position. Ten is about three
-#: players' worth of a fortnight — enough to say something, and far short
-#: of enough to override it.
-MIN_POOL_APPEARANCES = 10
-
-
-def history():
-    """Appearances, points-when-playing, and the spread, across the archives.
-
-    The spread is kept because §10.3(l) doubles the captain: two players on the
-    same average are the same signing and very different armbands.
-    """
-    played = defaultdict(int)
-    scored = defaultdict(float)
-    available = defaultdict(int)
-    each = defaultdict(list)
-    for path in SEASONS:
-        if not path.exists():
-            continue
-        for player_id, player in json.loads(
-            path.read_text(encoding="utf-8")
-        )["players"].items():
-            for match in player["matches"]:
-                available[player_id] += 1
-                if match.get("used"):
-                    played[player_id] += 1
-                    scored[player_id] += float(match["points"])
-                    each[player_id].append(float(match["points"]))
-    spread = {
-        i: statistics.pstdev(v) for i, v in each.items() if len(v) >= 15
-    }
-    return played, scored, available, spread
 
 
 def main() -> None:
@@ -140,119 +96,32 @@ def main() -> None:
         p.id: p for position in Position for p in client.search(position)
     }
     market = {i: p.as_player() for i, p in quoted.items()}
-    old_played, old_scored, old_available, spread = history()
-    # This season from the weekly score emails, read by the same function the
-    # ledger and the pages use. This file kept its own copy of that reading
-    # until 15/09/2026, when the site reset its totals and every copy went
-    # wrong on the same morning — which is the whole argument for having one.
+    # EVERY PLAYER VALUED BY THE ONE FUNCTION the pages and the ledger use, on
+    # this season as the one reading of the weekly emails gives it. This file
+    # kept its own copy of both until 15/09/2026. The reading went wrong on the
+    # morning the site reset its totals. The valuation kept weighing every round
+    # alike after the replay had measured that rule worse than one leaning on
+    # the last two, and kept a fallback that shrank a man toward a position
+    # average he was still part of.
     season = current_records(
         market,
         load_official_rounds(
             ROOT / "data" / "pontuacoes", first_round=FIRST_SCORING_MATCHDAY
         ),
     )
-    new_played = defaultdict(int, {i: r["played"] for i, r in season.items()})
-    new_scored = defaultdict(float, {i: r["points"] for i, r in season.items()})
-    new_available = defaultdict(int, {i: r["available"] for i, r in season.items()})
-
-    # What a player at this club in this position returns when he plays, and
-    # the club is the CURRENT one: a man's old numbers are his, his old club's
-    # are not, and the pool is what carries a move from Arouca to Porto.
-    #
-    # Two things have to be right here and neither is obvious.
-    #
-    # HE MUST NOT BE IN HIS OWN POOL. Shrinking an estimate toward a group he
-    # belongs to shrinks him toward himself, which is not shrinkage. In a group
-    # of one it does nothing at all — and that is not hypothetical: it proposed
-    # three goalkeepers from the same club at the floor price, on one match
-    # between them, because each was his own prior and the prior was a good
-    # afternoon.
-    #
-    # AND THE POOL MUST BE WEIGHTED BY EVIDENCE. Unweighted, a player with one
-    # appearance moves the group as much as one with seventy, so a single loud
-    # afternoon becomes the club's expected return and every team-mate inherits
-    # it.
-    tally: dict[tuple[str, str], tuple[float, int]] = defaultdict(lambda: (0.0, 0))
-    for player in market.values():
-        appearances = old_played[player.id] + new_played[player.id]
-        if appearances:
-            points, seen = tally[(player.club, player.position.value)]
-            tally[(player.club, player.position.value)] = (
-                points + old_scored[player.id] + new_scored[player.id],
-                seen + appearances,
-            )
-
-    total_points = sum(points for points, _ in tally.values())
-    total_seen = sum(seen for _, seen in tally.values())
-    league = total_points / total_seen if total_seen else 0.0
-    by_position = {}
-    for position in Position:
-        points = sum(p for (c, pos), (p, s) in tally.items() if pos == position.value)
-        seen = sum(s for (c, pos), (p, s) in tally.items() if pos == position.value)
-        by_position[position] = points / seen if seen else league
-
-    def prior_for(player) -> float:
-        """The group's return with this player taken out of it."""
-        points, seen = tally.get((player.club, player.position.value), (0.0, 0))
-        points -= old_scored[player.id] + new_scored[player.id]
-        seen -= old_played[player.id] + new_played[player.id]
-        if seen < MIN_POOL_APPEARANCES:
-            # A promoted club, or a position nobody at the club has played in
-            # the top flight. "We do not know" is the position average, not a
-            # guess built from one man's fortnight.
-            return by_position[player.position]
-        return points / seen
-
-    league_availability = statistics.mean(
-        [
-            (old_played[i] + new_played[i]) / total
-            for i in market
-            if (total := old_available[i] + new_available[i]) > 0
-        ]
-        or [0.5]
+    view = valuation(
+        market,
+        archive_records(ROOT / "data"),
+        season,
+        owned={i: q.owned_percent for i, q in quoted.items()},
     )
-
-    returns, playing, basis = {}, {}, {}
-    for player in market.values():
-        prior = prior_for(player)
-
-        appearances = old_played[player.id] + new_played[player.id]
-        total_points = old_scored[player.id] + new_scored[player.id]
-        returns[player.id] = (total_points + prior * PRIOR_STRENGTH) / (
-            appearances + PRIOR_STRENGTH
-        )
-
-        # Availability leans on this season: being in the side is news, and a
-        # team sheet from two years ago at another club is not.
-        seasons_seen = old_available[player.id]
-        now_seen = new_available[player.id]
-        old_rate = old_played[player.id] / seasons_seen if seasons_seen else None
-        anchor = old_rate if old_rate is not None else league_availability
-        playing[player.id] = (
-            new_played[player.id] + anchor * APPEARANCE_PRIOR + league_availability * ROTATION_PRIOR
-        ) / (now_seen + APPEARANCE_PRIOR + ROTATION_PRIOR)
-        basis[player.id] = (appearances, seasons_seen + now_seen)
-
-    def known_rate(player_id, blended):
-        """What his record shows, rather than what the projection assumes.
-
-        The projection shrinks hard toward the league on two rounds of a new
-        season, which is right for forecasting and wrong for a label: it says
-        every player might be a rotation risk, because in August every player
-        might be. His own history answers the question the label asks.
-        """
-        seen = old_available.get(player_id, 0)
-        if seen >= 20:
-            return old_played[player_id] / seen
-        return blended.get(player_id)
+    returns = {i: entry["returns"] for i, entry in view.items()}
+    playing = {i: entry["playing"] for i, entry in view.items()}
+    expected = {i: entry["expected"] for i, entry in view.items()}
 
     rows = [
         {"id": p.id, "position": p.position, "value": p.value} for p in market.values()
     ]
-    expected = {
-        i: playing[i] * returns[i] + (1 - playing[i]) * float(UNUSED_PENALTY)
-        for i in market
-    }
     bought = best_squad_under_budget(
         rows, {i: v * ROUNDS_LEFT for i, v in expected.items()}, budget=args.budget
     )
@@ -299,14 +168,8 @@ def main() -> None:
         proposed["players"], key=lambda i: (order[market[i].position], -returns[i])
     ):
         player = market[player_id]
-        seen, of = basis[player_id]
         mark = "<- tens" if player_id in mine else ""
-        said = describe_pick(
-            appearances=seen,
-            availability=known_rate(player_id, playing),
-            volatility=spread.get(player_id),
-            owned_percent=quoted[player_id].owned_percent,
-        )
+        said = view[player_id]
         print(
             f"  {player.position.value:<4}{player.name[:19]:<21}{player.club[:12]:<13}"
             f"{player.value / 1e6:>5.2f}M"
@@ -337,7 +200,7 @@ def main() -> None:
     known = [
         i
         for i in market
-        if basis.get(i, (0, 0))[0] >= MIN_OWN_HISTORY or i in covered
+        if view[i]["appearances"] >= MIN_OWN_HISTORY or i in covered
     ]
     print()
     if window is None:
@@ -381,13 +244,7 @@ def main() -> None:
         known = [i for i in known if i != going]
 
     for going, coming, gain in ladder:
-        seen, _ = basis.get(coming, (0, 0))
-        said = describe_pick(
-            appearances=seen,
-            availability=known_rate(coming, playing),
-            volatility=spread.get(coming),
-            owned_percent=quoted[coming].owned_percent,
-        )
+        said = view[coming]
         print(
             f"  {market[going].position.value:<4}{market[going].name[:18]:<20}"
             f"{market[coming].name[:18]:<20}{gain:>+8.2f}   "

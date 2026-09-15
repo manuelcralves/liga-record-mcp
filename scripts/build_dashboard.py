@@ -38,7 +38,12 @@ sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp import server as mcp  # noqa: E402
 from liga_record_mcp.source import load_official_rounds  # noqa: E402
-from liga_record_mcp.advice import MIN_OWN_HISTORY, valuation  # noqa: E402
+from liga_record_mcp.advice import (  # noqa: E402
+    ESTIMATOR,
+    MIN_OWN_HISTORY,
+    players_to_value,
+    valuation,
+)
 from liga_record_mcp.optimise import (  # noqa: E402
     best_eleven,
     best_squad_under_budget,
@@ -588,6 +593,29 @@ def judged_on(
     return {i: (0.0 if i in no_fixture else v) for i, v in on_record.items()}
 
 
+def selection_values(
+    expected: dict[str, float], *, unavailable: dict[str, str], gone: list[str]
+) -> tuple[dict[str, float], dict[str, float]]:
+    """What the page prints for each man, and what the eleven is picked on.
+
+    Two maps, for the reasons written where `model_sheet` calls this. A man
+    known to be out is shown at the -1 §10.3(i) pays him, and a man who has left
+    the league at the nothing he now scores. Both are ranked below every fit
+    player rather than removed, so a squad short of keepers still fields a
+    legal eleven.
+    """
+    departed = set(gone)
+    shown = {
+        i: 0.0 if i in departed else float(UNUSED_PENALTY) if i in unavailable else v
+        for i, v in expected.items()
+    }
+    ranking = {
+        i: v - OUT_OF_THE_RECKONING if i in departed or i in unavailable else v
+        for i, v in shown.items()
+    }
+    return shown, ranking
+
+
 def model_sheet(stored: dict, round_number: int) -> dict:
     """What the model would field next round, beside what was actually filed.
 
@@ -621,12 +649,17 @@ def model_sheet(stored: dict, round_number: int) -> dict:
             ROOT / "data" / "pontuacoes", first_round=FIRST_SCORING_MATCHDAY
         ),
     )
-    view = valuation(
-        market,
+    # ONE VALUATION FOR THE ELEVEN AND THE TRANSFER. The eleven was valued with
+    # only the twenty-three in the pools and the transfer with the whole market,
+    # so the same man carried two numbers on one page — and the replay only ever
+    # measured the second.
+    wide = valuation(
+        players_to_value(squad.players, whole),
         archive,
         now,
         owned={i: q.get("owned_percent") for i, q in quoted.items()},
     )
+    view = {i: wide[i] for i in market}
     if not any(v["appearances"] for v in view.values()):
         return {}
 
@@ -719,17 +752,15 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     #
     # What he is actually worth is what §10.3(i) pays a man who does not play,
     # and that is the same -1 the rest of this file uses.
-    if unavailable:
-        expected = {
-            i: (float(UNUSED_PENALTY) if i in unavailable else v)
-            for i, v in expected.items()
-        }
-        ranking = {
-            i: (v - OUT_OF_THE_RECKONING if i in unavailable else v)
-            for i, v in expected.items()
-        }
-    else:
-        ranking = expected
+    #
+    # AND WHO HAS LEFT THE LEAGUE, asked here rather than after the eleven is
+    # picked. `wide` still values him — `players_to_value` keeps him so he can
+    # be priced and sold — and pooled over the whole market his stale number
+    # could win him a place, or the armband. Found by the code review of
+    # 15/09/2026. He is shown at the nothing he now scores, and ranked with the
+    # unavailable.
+    gone = left_the_league([p.id for p in squad.players], whole)
+    expected, ranking = selection_values(expected, unavailable=unavailable, gone=gone)
 
     sheet = best_eleven(rows, ranking)
     if sheet is None:
@@ -762,13 +793,9 @@ def model_sheet(stored: dict, round_number: int) -> dict:
 
     # The transfer §6.8 allows, judged on what it does to the ELEVEN rather
     # than to the player: only eleven score, so a better substitute is worth
-    # nothing, and comparing the two men's own rates cannot see that.
-    wide = valuation(
-        whole,
-        archive,
-        now,
-        owned={i: q.get("owned_percent") for i, q in quoted.items()},
-    )
+    # nothing, and comparing the two men's own rates cannot see that. Valued
+    # once, above, together with the eleven.
+    #
     # Only players with a real record are candidates. A man with no top-flight
     # matches is valued at his club's pool, which is a fair estimate and a poor
     # recommendation: the first version of this proposed a Sporting midfielder
@@ -776,11 +803,12 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # is a confident claim about somebody nobody has measured.
     #
     # He may well be excellent. A transfer is one a round and does not
-    # accumulate, so it is the wrong place to find out.
+    # accumulate, so it is the wrong place to find out. And only men still on
+    # the market: `wide` also values anyone held who has left it.
     known = [
         i
-        for i, entry in wide.items()
-        if entry["appearances"] >= MIN_OWN_HISTORY or i in market
+        for i in whole
+        if wide[i]["appearances"] >= MIN_OWN_HISTORY or i in market
     ]
     # The same search the squad proposal runs, capped at the one transfer §6.8
     # allows. It plays the round out hundreds of times — drawing who turns up
@@ -793,9 +821,8 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # Season values, not this week's. A transfer runs to May, and adjusting it
     # for one fixture would sell a good player for a bad Saturday.
     # A man who has left the league is not in `whole`, and every call below
-    # would die looking him up. Filtered once, here, with the names carried out
+    # would die looking him up. Found once, above, with the names carried out
     # to the page — never dropped quietly, which is how this went unseen.
-    gone = left_the_league([p.id for p in squad.players], whole)
     still_here = [p.id for p in squad.players if p.id not in gone]
     improved = improve_squad(
         still_here,
@@ -1880,7 +1907,7 @@ def track_section(data: dict) -> str:
     body = []
     for row in rounds:
         mark = "" if row["whole"] else '<span class="pending">parcial</span>'
-        if row["estimator"] is None:
+        if row["estimator"] != ESTIMATOR:
             mark += '<span class="pending">modelo antigo</span>'
         body.append(
             "            <tr>" + chr(10)
@@ -1912,10 +1939,10 @@ def track_section(data: dict) -> str:
     # A comparison needs a pair. Rounds with only one side are shown in the
     # table above and counted out of the verdict, with a line saying so rather
     # than silently.
-    usable = [r for r in rounds if r["whole"] and r["estimator"] is not None]
+    usable = [r for r in rounds if r["whole"] and r["estimator"] == ESTIMATOR]
     whole = [r for r in usable if r["model"] is not None and r["mine"] is not None]
     unpaired = [r for r in usable if r not in whole]
-    stale = [r for r in rounds if r["estimator"] is None]
+    stale = [r for r in rounds if r["estimator"] != ESTIMATOR]
     verdict = """      <p class="footnote">Nenhuma jornada está liquidada por
       inteiro, portanto ainda não há totais para somar. Um clube com jogo adiado
       fica pendente, e contá-lo como zero seria uma pergunta diferente.</p>"""
@@ -1959,7 +1986,7 @@ def track_section(data: dict) -> str:
         </table>
       </div>
 {verdict}
-      {'<p class="footnote">As jornadas marcadas <strong>modelo antigo</strong> foram registadas por um estimador diferente do que hoje te aconselha — uma média dobrada, sem a divisão entre <em>joga</em> e <em>quanto rende</em>. Ficam à vista mas fora das somas: um total que atravessa uma mudança de modelo mede a mudança, não o modelo.</p>' if stale else ''}
+      {'<p class="footnote">As jornadas marcadas <strong>modelo antigo</strong> foram registadas por um estimador diferente do que hoje te aconselha — até à jornada 3, uma média dobrada, sem a divisão entre <em>joga</em> e <em>quanto rende</em>; depois, já com a divisão, mas com a probabilidade de jogar a pesar a época inteira por igual. Ficam à vista mas fora das somas: um total que atravessa uma mudança de modelo mede a mudança, não o modelo.</p>' if stale else ''}
       <p class="footnote">O <strong>viés</strong> é o sinal do erro: positivo
       quer dizer que os jogadores fizeram mais do que o previsto, ou seja o
       modelo foi pessimista.</p>"""

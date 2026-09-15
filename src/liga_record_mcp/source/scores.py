@@ -106,11 +106,18 @@ def season_records(
     market: Mapping[str, Any], rounds: Mapping[int, Mapping[str, Any]]
 ) -> dict[str, dict[str, Any]]:
     """Appearances and points-when-playing per player, in the shape
-    `advice.valuation` reads: `played`, `points` and `available`."""
+    `advice.valuation` reads: `played`, `points`, `available` and `rounds`.
+
+    `rounds` maps every round he was available for to whether he played, in
+    round order. The chance of playing leans on the last two of them, so the
+    order is the information: three games in five is the same total whether he
+    lost his place last week or has just won it back.
+    """
     out: dict[str, dict[str, Any]] = {}
     for player in market.values():
         played = available = points = 0
-        for doc in rounds.values():
+        took_part: dict[int, bool] = {}
+        for number, doc in sorted(rounds.items()):
             found = _entry(doc, player.name, player.club)
             if found is None:
                 continue
@@ -118,12 +125,18 @@ def season_records(
             if club in _without_a_match(doc):
                 continue
             available += 1
+            took_part[number] = score != UNUSED_PENALTY
             if score == UNUSED_PENALTY:
                 continue
             played += 1
             points += score
         if available:
-            out[player.id] = {"played": played, "points": points, "available": available}
+            out[player.id] = {
+                "played": played,
+                "points": points,
+                "available": available,
+                "rounds": took_part,
+            }
     return out
 
 

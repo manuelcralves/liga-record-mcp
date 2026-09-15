@@ -14,8 +14,10 @@ differently and folding them together hides the larger one:
 His returns are shrunk toward what players at HIS CURRENT CLUB in his position
 return, because his old club's numbers are not his and a man who has moved to
 Porto is not the player his Arouca record says he is. His chance of playing
-leans on the current season, because being in the side is news and last
-season's team sheet is not.
+leans on his last two rounds, pulled toward his whole record, because being
+dropped is news and news goes stale. That is the rule the harness always used;
+it replaced this function's own on 15/09/2026, after the first replay of the
+function measured the old rule at 0.07 to 0.09 of correlation worse.
 
 TWO THINGS THAT HAVE TO BE RIGHT and neither is obvious.
 
@@ -32,7 +34,7 @@ afternoon becomes the club's expected return and every team-mate inherits it.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from statistics import mean, pstdev
 from typing import Any
 
@@ -41,6 +43,7 @@ from .stats import (
     APPEARANCE_PRIOR,
     PRIOR_STRENGTH,
     ROTATION_PRIOR,
+    ROTATION_WINDOW,
     UNUSED_PENALTY,
     describe_pick,
 )
@@ -56,6 +59,82 @@ MIN_POOL_APPEARANCES = 10
 #: about him.
 MIN_OWN_HISTORY = 20
 
+#: The name the ledger files a round under, and the track record reads back. A
+#: total that spans a change of model measures the change, not the model, so
+#: this moves whenever the estimate does. It last moved on 15/09/2026, when the
+#: chance of playing began leaning on the last two rounds.
+ESTIMATOR = "valuation+fixture+recency"
+
+
+def players_to_value(held: Iterable[Any], market: Mapping[str, Any]) -> dict[str, Any]:
+    """Everyone a valuation should pool over: the market, plus anyone held who left it.
+
+    `valuation` builds its pools — what a club's players return when they play,
+    how often the league's players play at all — from exactly the players it is
+    given. Given only the twenty-three, every man is shrunk toward his
+    squad-mates: a group chosen for being good, and too small for most clubs to
+    count. The ledger and the page's eleven did that until 15/09/2026 while the
+    page's transfer pooled over the market, so one player carried two values on
+    the same page.
+
+    The market's copy of a player wins over the squad file's, because it has his
+    club as it is today. A man held who has left the league keeps the squad
+    file's, so he can still be valued and sold.
+    """
+    return {**{player.id: player for player in held}, **market}
+
+
+def recent_playing(
+    record: Mapping[str, Any],
+    *,
+    played: int,
+    seen: int,
+    league_availability: float,
+) -> float:
+    """His chance of playing, weighted toward the rounds he has just had.
+
+    The rule of `backtest.two_part_projection`, the estimator every accuracy
+    figure in this project was measured on: his last `ROTATION_WINDOW` rounds,
+    pulled toward his whole record with the weight of `ROTATION_PRIOR` rounds.
+    Being dropped is news, and news goes stale.
+
+    `record` is his season so far and carries `rounds`: each round he was
+    available for, mapped to whether he played. `played` and `seen` are his
+    whole record, archive and season together.
+
+    One thing the harness never needed and the live season does: the record is
+    itself pulled toward the league with the weight of `APPEARANCE_PRIOR`
+    rounds. At matchday 7 the official season is one round long, and without
+    that a signing with no archive would come out at exactly 0 or 1.
+
+    MEASURED BEFORE IT WAS ADOPTED, by `scripts/replay_valuation.py` on
+    15/09/2026, against the rule it replaced — this season's rate anchored to
+    the archive, every round alike — on the same player-rounds of both
+    reconstructed seasons, matchdays 7-34:
+
+                                  2025/26   2024/25
+        the season rule            0.4513    0.4295
+        this rule                  0.5200    0.5226
+        the harness, for scale     0.5198    0.5222
+
+    Every gain cleared the +0.003 bar with its 90% interval above zero — in
+    rounds 7-12 and 7-34, with this season's rounds 1-5 and without them — and
+    the Brier score of the chance itself fell from 0.177 to 0.143 and 0.138.
+    """
+    if record.get("available") and "rounds" not in record:
+        raise ValueError(
+            "a season record without its rounds — the recent rule cannot see "
+            "which of them he played"
+        )
+    rounds = record.get("rounds") or {}
+    recent = [rounds[number] for number in sorted(rounds)[-ROTATION_WINDOW:]]
+    history = (played + league_availability * APPEARANCE_PRIOR) / (
+        seen + APPEARANCE_PRIOR
+    )
+    return (sum(1 for took_part in recent if took_part) + history * ROTATION_PRIOR) / (
+        len(recent) + ROTATION_PRIOR
+    )
+
 
 def valuation(
     players: Mapping[str, Any],
@@ -64,6 +143,7 @@ def valuation(
     *,
     owned: Mapping[str, float] | None = None,
     prior_strength: float = PRIOR_STRENGTH,
+    recency: bool = True,
 ) -> dict[str, dict[str, Any]]:
     """Every player, valued from the archives and the season so far.
 
@@ -71,6 +151,10 @@ def valuation(
     a Player will do. `archive` and `current` each map an id to `played`,
     `points` (scored on the days he played) and `available`, with `archive`
     optionally carrying `each`, the round-by-round scores, for the spread.
+
+    With `recency` his chance of playing comes from `recent_playing`, and every
+    `current` record must also carry `rounds`. Without it, from the season
+    rule: this season's rate anchored to the archive, every round alike.
 
     Returns one entry per player: what he returns when he plays, his chance of
     playing, the two multiplied out, and enough of the working to argue with —
@@ -163,13 +247,22 @@ def valuation(
             if archive_seen
             else None
         )
-        anchor = archive_rate if archive_rate is not None else league_availability
         now_seen = part(current, "available", player_id)
-        playing = (
-            part(current, "played", player_id)
-            + anchor * APPEARANCE_PRIOR
-            + league_availability * ROTATION_PRIOR
-        ) / (now_seen + APPEARANCE_PRIOR + ROTATION_PRIOR)
+        if recency:
+            playing = recent_playing(
+                current.get(player_id) or {},
+                played=part(archive, "played", player_id)
+                + part(current, "played", player_id),
+                seen=archive_seen + now_seen,
+                league_availability=league_availability,
+            )
+        else:
+            anchor = archive_rate if archive_rate is not None else league_availability
+            playing = (
+                part(current, "played", player_id)
+                + anchor * APPEARANCE_PRIOR
+                + league_availability * ROTATION_PRIOR
+            ) / (now_seen + APPEARANCE_PRIOR + ROTATION_PRIOR)
 
         each = (archive.get(player_id) or {}).get("each") or []
         spread = pstdev(each) if len(each) >= 15 else None

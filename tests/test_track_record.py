@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from liga_record_mcp.advice import ESTIMATOR
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -286,7 +288,7 @@ def test_the_recorder_marks_which_estimator_wrote_the_round(dash):
 # was entered.
 
 
-def track_row(number, *, model=50.0, mine=45.0, estimator="valuation+fixture", whole=True):
+def track_row(number, *, model=50.0, mine=45.0, estimator=ESTIMATOR, whole=True):
     return {
         "round": number,
         "settled": 23 if whole else 20,
@@ -304,6 +306,25 @@ def track_row(number, *, model=50.0, mine=45.0, estimator="valuation+fixture", w
 def verdict_of(dash, rounds):
     """The section, with whitespace flattened — the HTML wraps mid-sentence."""
     return " ".join(dash.track_section({"track": rounds}).split())
+
+
+def test_rounds_from_the_estimator_before_this_one_are_marked_and_left_out(dash):
+    """Rounds 4-7 were written before the chance of playing leaned on recent rounds.
+
+    Any name at all used to count as the model in use, so the verdict would have
+    run straight across the change of 15/09/2026 and reported it as form.
+    """
+    said = verdict_of(
+        dash,
+        [
+            track_row(6, model=80.0, mine=10.0, estimator="valuation+fixture"),
+            track_row(8, model=50.0, mine=45.0),
+        ],
+    )
+    assert "Sobre 1 jornada" in said
+    assert "<strong>50</strong>" in said
+    assert "<strong>80</strong>" not in said
+    assert "modelo antigo" in said
 
 
 def test_both_totals_span_the_same_rounds(dash):

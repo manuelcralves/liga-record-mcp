@@ -92,7 +92,9 @@ class LastSeasonSource:
         ]
 
 
-def archive_records(folder: str | Path) -> dict[str, dict[str, Any]]:
+def archive_records(
+    folder: str | Path, *, names: tuple[str, ...] = ARCHIVES
+) -> dict[str, dict[str, Any]]:
     """Appearances, points-when-playing and the round-by-round scores.
 
     The shape `advice.valuation` wants, gathered across every reconstruction on
@@ -102,10 +104,15 @@ def archive_records(folder: str | Path) -> dict[str, dict[str, Any]]:
     `points` is what he scored on the days he PLAYED, not his total: §10.3(i)'s
     -1 for the weeks he sat belongs to the other half of the estimate, and
     counting it twice would punish a rotation player for rotating.
+
+    `names` narrows which reconstructions are read. The live paths never pass
+    it. A replay does: standing inside 2025/26, the archive is 2024/25 alone,
+    and the folder also holds the season being replayed — reading that as
+    memory would hand the model every answer it is being scored on.
     """
     folder = Path(folder)
     out: dict[str, dict[str, Any]] = {}
-    for name in ARCHIVES:
+    for name in names:
         path = folder / name
         if not path.exists():
             continue

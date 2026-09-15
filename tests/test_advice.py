@@ -12,7 +12,7 @@ of which produced a squad that looked reasonable and was not.
 
 from __future__ import annotations
 
-from liga_record_mcp.advice import MIN_POOL_APPEARANCES, valuation
+from liga_record_mcp.advice import MIN_POOL_APPEARANCES, players_to_value, valuation
 from liga_record_mcp.models import Player, Position
 from liga_record_mcp.stats import UNUSED_PENALTY
 
@@ -156,8 +156,10 @@ def test_this_season_moves_the_chance_of_playing_faster_than_the_archive():
     """Being in the side is news; a team sheet from two years ago is not."""
     squad = {"a": player("a")}
     archive = {"a": record(60, 240.0, 68)}
-    dropped = valuation(squad, archive, {"a": record(0, 0.0, 6)})["a"]
-    kept = valuation(squad, archive, {"a": record(6, 24.0, 6)})["a"]
+    benched = {**record(0, 0.0, 6), "rounds": {r: False for r in range(6, 12)}}
+    picked = {**record(6, 24.0, 6), "rounds": {r: True for r in range(6, 12)}}
+    dropped = valuation(squad, archive, {"a": benched})["a"]
+    kept = valuation(squad, archive, {"a": picked})["a"]
     assert dropped["playing"] < kept["playing"] - 0.2
 
 
@@ -187,3 +189,48 @@ def test_a_player_nobody_has_a_record_for_does_not_break_it():
     view = valuation(squad, {}, {})
     assert set(view) == {"a", "b"}
     assert all(entry["appearances"] == 0 for entry in view.values())
+
+
+# --------------------------------------------------------------------------
+# One set of players behind every view
+# --------------------------------------------------------------------------
+
+
+def test_the_pools_are_the_market_plus_anyone_held_who_left_it():
+    held = [player("mine"), player("gone", club="Abroad")]
+    market = {"mine": player("mine", club="Sporting"), "other": player("other")}
+    pooled = players_to_value(held, market)
+    assert set(pooled) == {"mine", "gone", "other"}
+    # The market has his club as it is today; the man who left keeps the file's.
+    assert pooled["mine"].club == "Sporting"
+    assert pooled["gone"].club == "Abroad"
+
+
+def test_a_squad_valued_alone_is_shrunk_toward_its_own_squad_mates():
+    """Why the ledger and the eleven changed: who else is passed in moves a man.
+
+    Alone, a five-point defender is his own prior. Beside four club-mates who
+    return two, he is shrunk toward them — which is what the page's transfer
+    always did, while the eleven on the same page did the other.
+    """
+    squad = {"mine": player("mine", Position.DEF, "Arouca")}
+    league = {f"d{n}": player(f"d{n}", Position.DEF, "Arouca") for n in range(4)}
+    archive = {"mine": record(30, 150.0)}
+    archive.update({i: record(30, 60.0) for i in league})
+    alone = valuation(squad, archive, nothing(squad))["mine"]
+    everyone = players_to_value(squad.values(), league)
+    pooled = valuation(everyone, archive, nothing(everyone))["mine"]
+    assert pooled["returns"] < alone["returns"]
+
+
+def test_the_ledger_and_the_page_value_the_squad_against_the_market():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    for script in ("record_projection.py", "build_dashboard.py"):
+        source = (root / "scripts" / script).read_text(encoding="utf-8")
+        assert "players_to_value(squad.players, whole)" in source, script
+    page = (root / "scripts" / "build_dashboard.py").read_text(encoding="utf-8")
+    assert page.count("valuation(") == 1, (
+        "the page values its eleven and its transfer separately again"
+    )

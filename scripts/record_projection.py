@@ -28,7 +28,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
-from liga_record_mcp.advice import valuation  # noqa: E402
+from liga_record_mcp.advice import ESTIMATOR, players_to_value, valuation  # noqa: E402
 from liga_record_mcp.optimise import best_eleven  # noqa: E402
 from liga_record_mcp.models import FIRST_SCORING_MATCHDAY, Position  # noqa: E402
 from liga_record_mcp.source import (  # noqa: E402
@@ -156,8 +156,10 @@ def snapshot(market, history, squad, round_number):
             f"NAO REGISTO a jornada {round_number}: o total do site e os emails "
             "nao batem certo.\n  " + "\n  ".join(problems)
         )
+    # POOLED OVER THE MARKET, as the page's transfer always was. Handed only the
+    # twenty-three, `valuation` shrank each man toward his squad-mates.
     view = valuation(
-        {p.id: p for p in squad.players},
+        players_to_value(squad.players, whole),
         archive_records(ROOT / "data"),
         current_records(whole, official),
     )
@@ -768,8 +770,9 @@ def main() -> None:
         # Which estimator wrote this round. Rounds recorded before this existed
         # came from the folded `project()`; mixing the two in one accuracy
         # figure would average across a change of model and report it as
-        # weather.
-        "estimator": "valuation+fixture",
+        # weather. The name lives in `advice`, beside the estimate it names, so
+        # it cannot be left behind when the estimate moves.
+        "estimator": ESTIMATOR,
         "squad_value": squad.value(),
         "filed": (
             {
