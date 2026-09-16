@@ -31,6 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
+from liga_record_mcp.models import FIRST_SCORING_MATCHDAY  # noqa: E402
 from liga_record_mcp.source import LigaRecordClient  # noqa: E402
 from liga_record_mcp.source.live import SiteError  # noqa: E402
 
@@ -40,10 +41,57 @@ MY_TEAM_ID = 156412
 #: league is sixty-odd calls against someone else's server.
 PAUSE = 0.4
 
+#: The four numbers a round is made of here. Equal on all four is the tell that
+#: the site is still answering with the round before.
+FIELDS = ("points_round", "points_total", "position", "position_round")
+
 
 def scored_rounds(client: LigaRecordClient) -> list[int]:
     """Rounds with at least one completed match, oldest first."""
     return sorted({f.round_number for f in client.fixtures() if f.played})
+
+
+def site_round(matchday: int) -> int:
+    """The number the standings service calls this matchday.
+
+    It renumbered when the official phase began: its round 1 is matchday 6, the
+    same renumbering the weekly score emails use. Asked for a matchday number it
+    answers with an empty row — team id 0, every number zero — so the question
+    has to be put in its own terms.
+
+    A trial matchday has no number here at all. That table was erased, and
+    asking for round zero would fetch exactly the empty row that started this.
+    """
+    if matchday < FIRST_SCORING_MATCHDAY:
+        raise ValueError(
+            f"matchday {matchday} is from the trial phase, which the site erased"
+        )
+    return matchday - FIRST_SCORING_MATCHDAY + 1
+
+
+def same_as_before(row: dict, previous: dict | None) -> bool:
+    """Whether a team's row repeats the round before, number for number."""
+    return previous is not None and all(
+        row[field] == previous.get(field) for field in FIELDS
+    )
+
+
+def published(fetched: dict[str, dict], earlier: dict[str, dict]) -> bool:
+    """Whether the site has really published this round, judged over the whole field.
+
+    It publishes a round days before it folds it into the table, and until it
+    does it answers for the new round with the old numbers. On 15/09/2026 that
+    filed matchday 5's 52 points and 6326th place as matchday 6, where they
+    stayed, because a round already on file was never fetched again.
+
+    JUDGED OVER EVERY TEAM AND NEVER TEAM BY TEAM. One team repeating all four
+    numbers is ordinary — a blank round with nobody moving past him — and
+    refusing his row would drop a round that really happened. Forty teams
+    repeating all four is the site, not the football.
+    """
+    return any(
+        not same_as_before(row, earlier.get(key)) for key, row in fetched.items()
+    )
 
 
 def league_members(client: LigaRecordClient, guid: str) -> list[dict]:
@@ -59,7 +107,7 @@ def fetch_round(client: LigaRecordClient, member: dict, round_number: int) -> di
     """
     try:
         rows, _ = client.standings(
-            team=member["name"], page_size=50, round_number=round_number
+            team=member["name"], page_size=50, round_number=site_round(round_number)
         )
     except SiteError:
         return None
@@ -78,6 +126,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--round", type=int, action="append", dest="rounds")
     parser.add_argument("--me-only", action="store_true")
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="fetch rounds already on file again, for when what was filed was "
+             "the site answering with the round before",
+    )
     args = parser.parse_args()
 
     guid = os.environ.get("LIGA_RECORD_LEAGUE")
@@ -97,7 +151,15 @@ def main() -> None:
         members = league_members(client, guid)
         print(f"league: {len(members)} teams")
 
-    wanted = args.rounds or scored_rounds(client)
+    asked = args.rounds or scored_rounds(client)
+    trial = [r for r in asked if r < FIRST_SCORING_MATCHDAY]
+    wanted = [r for r in asked if r >= FIRST_SCORING_MATCHDAY]
+    if trial:
+        print(
+            f"leaving the trial rounds {trial} alone: the site erased that table "
+            "when the official phase began, so what is on file for them is all "
+            "there will ever be"
+        )
     print(f"rounds to cover: {wanted}")
 
     for round_number in wanted:
@@ -105,27 +167,53 @@ def main() -> None:
         stored = history["rounds"].setdefault(
             key, {"recorded_at": None, "teams": {}}
         )
-        missing = [m for m in members if str(m["id"]) not in stored["teams"]]
+        earlier = (history["rounds"].get(str(round_number - 1)) or {}).get("teams", {})
+        missing = [
+            m for m in members if args.refresh or str(m["id"]) not in stored["teams"]
+        ]
         if not missing:
             print(f"  round {round_number}: already complete ({len(stored['teams'])})")
             continue
 
-        found = 0
+        found: dict[str, tuple[dict, dict]] = {}
         for member in missing:
             row = fetch_round(client, member, round_number)
             if row is not None:
-                stored["teams"][str(member["id"])] = {
-                    "name": member["name"],
-                    "user": member["user"],
-                    **row,
-                }
-                found += 1
+                found[str(member["id"])] = (member, row)
             time.sleep(PAUSE)
 
-        stored["recorded_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        skipped = len(missing) - found
-        note = f", {skipped} not found" if skipped else ""
-        print(f"  round {round_number}: +{found} teams{note}")
+        if found and not published({i: r for i, (_, r) in found.items()}, earlier):
+            # NOTHING FILED. Every team came back with the previous round's
+            # numbers, which is the site answering for a round it has not folded
+            # into its table yet. Filing that put matchday 5 on file as matchday
+            # 6 on 15/09/2026, and there it stayed, because a round already on
+            # file was never fetched again.
+            print(
+                f"  round {round_number}: all {len(found)} teams are still on "
+                f"round {round_number - 1} — the site has not published this one "
+                "yet, nothing filed"
+            )
+            if not stored["teams"]:
+                del history["rounds"][key]
+            continue
+
+        for team_id, (member, row) in found.items():
+            stored["teams"][team_id] = {
+                "name": member["name"],
+                "user": member["user"],
+                **row,
+            }
+        if found:
+            stored["recorded_at"] = datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat()
+        if not stored["teams"]:
+            del history["rounds"][key]
+        lost = len(missing) - len(found)
+        print(
+            f"  round {round_number}: +{len(found)} teams"
+            + (f", {lost} not found" if lost else "")
+        )
 
     HISTORY_PATH.write_text(
         json.dumps(history, ensure_ascii=False, indent=1), encoding="utf-8"

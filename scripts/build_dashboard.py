@@ -109,9 +109,20 @@ SQUAD_PATH = ROOT / "data" / "squad.yaml"
 COACHES_PATH = ROOT / "data" / "coaches.yaml"
 
 #: Draws the transfer search plays each candidate squad through. Four
-#: hundred is where the churn stopped in testing: below it, near ties are
-#: decided by the sampling and the recommendation changes between runs.
-SWAP_DRAWS = 400
+#: A hundred was where the churn stopped in the first testing, and it was not
+#: enough. On 16/09/2026, with the best move in this squad worth about three
+#: points over a whole season, four hundred draws gave three different answers
+#: on three seeds: sell Pedro Ferreira, sell nobody, sell Nehuén Pérez. Twelve
+#: hundred ends that — every seed tried finds a move, and four of five find the
+#: same one.
+#:
+#: THE SEED THAT STILL DISAGREES IS NOT NOISE TO BE BOUGHT OFF WITH MORE DRAWS.
+#: Priced head to head at eight thousand, the two moves are worth +2.6 and +2.2
+#: points over the rest of the season, and doubling to 2400 leaves the same seed
+#: picking the same alternative. They are tied because they are worth the same.
+#: Where the answer matters the search is steady; where it wobbles, the choice
+#: is between two things of equal value and nothing is at stake.
+SWAP_DRAWS = 1200
 HISTORY_PATH = ROOT / "data" / "history.json"
 MY_TEAM_ID = 156412
 ORDER = {"GK": 0, "DEF": 1, "MID": 2, "FWD": 3}
@@ -591,6 +602,48 @@ def judged_on(
     if on_record.keys() != fresh.keys():
         return fresh
     return {i: (0.0 if i in no_fixture else v) for i, v in on_record.items()}
+
+
+def phases(rounds: list[dict]) -> tuple[list[dict], list[dict]]:
+    """The rounds to chart, and the trial rounds standing behind them.
+
+    The site wiped its table when the official phase began: matchday 5 left 240
+    points and 6326th place, matchday 6 arrived at 63 and 4029th, and neither
+    number can be read against the other. So the bars chart one phase — the
+    official one as soon as it exists — and the trial rounds are named apart
+    rather than plotted beside it, where the arrows between them would be
+    measuring the distance between two different tables.
+    """
+    trial = [r for r in rounds if r["round"] < FIRST_SCORING_MATCHDAY]
+    official = [r for r in rounds if r["round"] >= FIRST_SCORING_MATCHDAY]
+    return (official or trial), (trial if official else [])
+
+
+def movement(shown: list[dict]) -> tuple[int | None, str]:
+    """How far the team moved across the rounds on the chart, and the sentence for it.
+
+    `None` means there is nothing to compare yet. One round is not a movement:
+    on the first round of the official phase this said "▲ 0 — sem movimento na
+    tabela nacional", which reads as a team standing still rather than as a
+    table that has only just started.
+
+    The sentence also has to know which phase it is describing. Before matchday
+    6 the bars are the trial rounds, and calling one of those the first round of
+    the official phase would be a different lie from the one just fixed.
+    """
+    first, last = shown[0], shown[-1]
+    if len(shown) < 2:
+        phase = (
+            "da fase oficial" if first["round"] >= FIRST_SCORING_MATCHDAY else "da época"
+        )
+        return None, f"a primeira jornada {phase}, a {first['round']}"
+    swing = last["position"] - first["position"]
+    if not swing:
+        return 0, "sem movimento na tabela nacional"
+    return swing, (
+        f"lugares {'perdidos' if swing > 0 else 'ganhos'} entre a jornada "
+        f"{first['round']} e a {last['round']}"
+    )
 
 
 def selection_values(
@@ -1375,16 +1428,17 @@ def hero(data: dict, public: bool = False) -> str:
       </div>"""
 
     bars = ""
-    if rounds:
-        top = max(r["points_round"] for r in rounds) or 1
+    shown, trial = phases(rounds)
+    if shown:
+        top = max(r["points_round"] for r in shown) or 1
         slots = []
-        for i, row in enumerate(rounds):
+        for i, row in enumerate(shown):
             # Emitted even when empty: a column with one child fewer than its
             # neighbour sits on a different baseline, which reads as a data
             # difference rather than a missing label.
             move = '<span class="move"></span>'
             if i:
-                delta = row["position"] - rounds[i - 1]["position"]
+                delta = row["position"] - shown[i - 1]["position"]
                 if delta:
                     # Position grew means the team fell down the table.
                     arrow, cls = ("▼", "down") if delta > 0 else ("▲", "up")
@@ -1396,22 +1450,26 @@ def hero(data: dict, public: bool = False) -> str:
             {move}
           </div>"""
             )
-        first, last = rounds[0], rounds[-1]
-        swing = last["position"] - first["position"]
-        story = (
-            f"lugares {'perdidos' if swing > 0 else 'ganhos'} entre a jornada "
-            f"{first['round']} e a {last['round']}"
-            if swing
-            else "sem movimento na tabela nacional"
+        swing, story = movement(shown)
+        figure = (
+            "—" if swing is None else f"{'▼' if swing > 0 else '▲'} {group(abs(swing))}"
         )
+        erased = ""
+        if trial:
+            scored = " · ".join(f"J{r['round']} {r['points_round']}" for r in trial)
+            erased = f"""
+      <p class="footnote"><strong>Fase de testes, apagada pelo site:</strong>
+      {scored}. Esses {sum(r['points_round'] for r in trial)} pontos, e os lugares
+      que davam, deixaram de existir na tabela quando a fase oficial começou. Não
+      se comparam com os de agora.</p>"""
         bars = f"""    <div class="form">
       <div class="form-bars">
 {chr(10).join(slots)}
       </div>
       <div class="form-story">
-        <span class="form-figure">{'▼' if swing > 0 else '▲'} {group(abs(swing))}</span>
+        <span class="form-figure">{figure}</span>
         <span class="form-note">{story}</span>
-      </div>
+      </div>{erased}
     </div>"""
 
     place = me.get("position_league")
