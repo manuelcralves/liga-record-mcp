@@ -36,7 +36,7 @@ from liga_record_mcp.stats import (
 
 def test_a_thin_estimate_says_so_before_anything_else():
     """There is no point discussing the shape of a number that is not really
-    about this player. Four of Manuel's twenty-three have two matches behind
+    about this player. Four of the squad's twenty-three have two matches behind
     them: those projections are their clubs' averages wearing their names."""
     said = describe_pick(appearances=2, availability=0.61, owned_percent=8.0)
     assert said["evidence"] == "thin"

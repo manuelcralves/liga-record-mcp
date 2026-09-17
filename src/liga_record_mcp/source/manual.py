@@ -196,7 +196,7 @@ def load_final_entry(path: str | Path) -> dict:
 
     Hand-maintained, like the squad and the coaches, and for a stronger reason:
     zerozero is not read by this project at all. The entry exists only where
-    Manuel typed it, so the file IS the record of it.
+    it was typed in by hand, so the file IS the record of it.
 
     Returns `entry` (None until the lock), `locked_round`, and `chips` in the
     order they were played. A missing file is not an error — it means the entry
@@ -247,7 +247,7 @@ def load_final_entry(path: str | Path) -> dict:
 def load_unavailable(path: str | Path, round_number: int) -> dict[str, str]:
     """Who cannot play a given round, and why — hand-maintained.
 
-    THE ONE THING MANUEL KNOWS THAT THE MODEL DOES NOT. Cards are counted, so
+    THE ONE THING THE MANAGER KNOWS THAT THE MODEL DOES NOT. Cards are counted, so
     suspensions are seen without help; injuries are not published by the site —
     a player's payload carries fifteen fields and none is availability — and
     this project does not read the press.

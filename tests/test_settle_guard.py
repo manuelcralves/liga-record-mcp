@@ -2,8 +2,8 @@
 
 WHAT HAPPENED. On 25 August 2026 the scheduled job settled round 3 from the
 live API and wrote twenty scores into the ledger. Every one of them belonged to
-round 2. Manuel caught it from his weekly email — it showed Nehuén Pérez on 4
-while our ledger had recorded 9 — and the ledger, the error figures and a whole
+round 2. The weekly score email caught it — it showed Nehuén Pérez on 4
+while the ledger had recorded 9 — and the ledger, the error figures and a whole
 paragraph of analysis about a defender's goal in FC Porto 2-0 Arouca were built
 on round 2's numbers wearing round 3's label.
 
@@ -222,7 +222,7 @@ def test_the_settle_step_prefers_the_email_over_the_calendar(ledger):
 
 
 def test_nehuen_perez_is_on_four_for_round_three():
-    """The number Manuel read in his email, and the reason any of this happened."""
+    """The number in the weekly email, and the reason any of this happened."""
     import json
 
     log = json.loads(
@@ -280,7 +280,7 @@ def test_a_postponed_club_settles_only_once_15_3_has_decided_it():
 # `gained == points_round` held perfectly for every player — and twenty-one of
 # twenty-three were settled with round 3's scores under round 4's name. Santi
 # García entered on 5, which was his round 3; Pavlidis on 0, which was the
-# round Benfica did not play. Manuel's weekly email caught it, again.
+# round Benfica did not play. The weekly email caught it, again.
 #
 # No arithmetic over fields that all describe the same wrong round can recover
 # which round it is. The email says, in its subject line. So the email is now

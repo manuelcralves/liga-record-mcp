@@ -207,7 +207,7 @@ def stale_injuries(path, round_number: int) -> str | None:
     why. So `load_unavailable` ignores a file whose `jornada` is not this one.
 
     The cost of that default is the other silence: names sitting in the file
-    doing nothing, while Manuel believes the model knows about them. A man out
+    doing nothing, while the manager believes the model knows about them. A man out
     for three rounds needs the number bumped each week, and nothing would say
     so.
     """
@@ -233,8 +233,8 @@ def lock_is_settled(round_number: int) -> bool:
     """Whether the squad has already been filed for the round that locks.
 
     The alarm below is a date, and a date does not know what has been done.
-    It fired for two days after Manuel had already rebuilt the whole squad and
-    filed the sheet, telling him twice a day to go and do a thing he had
+    It fired for two days after the whole squad had already been rebuilt and
+    the sheet filed, asking twice a day for a thing that was already
     finished — which is how a warning becomes something you learn to ignore,
     and this is the one warning of the season that must not become that.
 
@@ -257,8 +257,8 @@ def lock_is_near(fixtures, within_days: int) -> tuple[bool, str]:
 
     It is also the one nobody can plan around: Record had published no date for
     matchday 5 as late as 26 August, four days after matchday 3 was played. So
-    the date appears when it appears, and if it appears in a week Manuel is not
-    running the routine, the first he hears of it is when it has gone.
+    the date appears when it appears, and if it appears in a week the routine is
+    not running, the first anyone hears of it is when it has gone.
     """
     starts = [
         moment

@@ -2,7 +2,7 @@
 
 §15.3 reads as scoring a club's players zero when their match is not played
 before the next round begins. Nobody has verified it, and it matters: ten of
-Manuel's twenty-three were from the two clubs whose round-2 fixture was
+the squad's twenty-three were from the two clubs whose round-2 fixture was
 postponed, and the projection estimates them as if they will play.
 
 The answer arrives when Sp. Braga–Gil Vicente is finally played, on a date

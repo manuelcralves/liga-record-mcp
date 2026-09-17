@@ -455,8 +455,8 @@ BONUS_ROUNDS = (18, 24, 29)
 #: change about which matchdays SCORE, which never touched this file — slid the
 #: chips to 7 and cost a week of them. The same sweep pushed
 #: `jornada_entrada` in data/tabela-final.yaml from 5 to 6, against that file's
-#: own note saying the entry was filed before the matchday-5 deadline. Manuel
-#: caught both by reading the site.
+#: own note saying the entry was filed before the matchday-5 deadline. Both
+#: were caught by reading the site.
 #: The matchday the entry is sealed on, and the first on which a chip may be
 #: played. ADJACENT BY DEFINITION — a chip corrects an entry, so there is
 #: nothing to correct until one exists, and the test below pins the two
@@ -635,8 +635,8 @@ def apply_chips(entry: Sequence[str], chips: Iterable[Mapping]) -> list[str]:
     THE ENTRY IS STATE. It is written once, at the lock, and then twenty-five
     weeks of chips move it — so the current order cannot be recomputed from
     today's model, only replayed from what was actually submitted. Recomputing
-    it would quietly show Manuel an order he never entered, and price next
-    week's chip against a position he is not in.
+    it would quietly show an order that was never entered, and price next
+    week's chip against a position the team is not in.
 
     Each chip names a club and the place it was moved to, one-based to match
     what the site shows.

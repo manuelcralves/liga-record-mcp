@@ -269,7 +269,7 @@ def main() -> None:
     )
     best_unaware = play(bought["players"], pool, scores, forecast=forecast, **blind_coach)
 
-    # 4. Manuel's own 23, had he owned them last season.
+    # 4. The manager's own 23, had they been owned last season.
     mine_players = ManualSquadSource(SQUAD_PATH).load().squad.players
     mine = [p.id for p in mine_players]
     absent = [p for p in mine_players if p.id not in pool]

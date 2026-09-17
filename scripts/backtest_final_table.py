@@ -1,9 +1,8 @@
 """Test the Final Table model the only way it can be tested.
 
-I told Manuel there was no backtest for this — one season produces one final
-table, so there is nothing to measure against. He pointed out that there is:
-use 2024/25 to predict 2025/26, under the real rules, locking at matchday 5.
-He was right and I was too quick.
+At first sight there is no backtest for this: one season produces one final
+table, so there is nothing to measure against. There is one, though: use
+2024/25 to predict 2025/26, under the real rules, locking at matchday 5.
 
 WHAT THIS DOES. Takes the world as it stood at the 2025/26 lock — the whole of
 2024/25, and that season's first four rounds, and nothing else — produces the

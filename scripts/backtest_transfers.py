@@ -158,7 +158,7 @@ def looking_ahead(history, minutes, cells, table, market, rows, mine, *, horizon
         for m in MATCHDAYS
     }
 
-    # The starting squads. Manuel's own and the model's opening pick are the
+    # The starting squads. The manager's own and the model's opening pick are the
     # two that matter, and random legal twenty-threes supply the spread — one
     # pair of seasons and two squads could not tell a real edge from a lucky
     # one.
@@ -284,8 +284,8 @@ def main() -> None:
     # EACH SIGNAL BUYS ITS OWN SQUAD. This used to buy one squad with `form
     # only` and then measure every signal's WEEKLY decisions on it — so the
     # column headed `plays x returns` described a season begun by a signal it
-    # does not use, and the squad choice of the model that actually advises
-    # Manuel was never tested at all. He spotted it: he had assumed the test
+    # does not use, and the squad choice of the model that actually gives the
+    # advice was never tested at all. The natural assumption was that the test
     # started from five matchdays and ran the whole thing forward, which is
     # what it does for transfers and was not what it did for the twenty-three.
     #

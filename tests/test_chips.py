@@ -57,8 +57,8 @@ def test_the_window_is_matchdays_6_to_29():
     The tests here used to read `FIRST_SCORING_MATCHDAY + 1`, so when that
     constant was corrected from 5 to 6 the chip window slid from 6-29 to 7-29
     and every one of them still passed. A test written against the constant it
-    is supposed to be checking cannot catch the constant moving. Manuel caught
-    it instead, by reading the site.
+    is supposed to be checking cannot catch the constant moving. It was caught
+    instead by reading the site.
     """
     assert FIRST_CHIP_ROUND == 6
     assert LAST_CHIP_ROUND == 29

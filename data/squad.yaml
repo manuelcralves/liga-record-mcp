@@ -1,4 +1,4 @@
-# O plantel do Manuel na Liga Record — equipa «Melro» (id_team 156412).
+# O plantel na Liga Record — equipa «Melro» (id_team 156412).
 #
 # RECONSTRUÍDO A 1 DE SETEMBRO e ajustado a 2, ambos dentro da janela do §6.7
 # («enquanto a quantidade de alterações é livre»), que fecha na jornada 6 — a
@@ -24,8 +24,8 @@ team:
 # Passou a 7 a 15/09/2026, depois de o modelo ler a epoca a partir dos emails.
 # Nao antes: o trabalho agendado regista a jornada que este campo indicar, e
 # com o modelo antigo teria registado a 7 a partir dos totais apagados pelo
-# site. A folha abaixo e a da jornada 6 e repete-se sozinha pelo 6.14 ate o
-# Manuel a mudar.
+# site. A folha abaixo e a da jornada 6 e repete-se sozinha pelo 6.14 ate
+# ser mudada.
 round: 7
 
 players:
@@ -256,9 +256,9 @@ players:
 # A ordem do `bench` conta: o §11.2 percorre-o por ordem quando substitui.
 #
 # UMA DIFERENCA PARA O QUE FOI ACONSELHADO, e fica registada: o modelo punha o
-# Joao Afonso como guarda-redes suplente (1,76) e o Manuel manteve o Carevic
+# Joao Afonso como guarda-redes suplente (1,76) e a folha manteve o Carevic
 # (1,70). Sao sete centesimas num quarto suplente que so joga se o titular nao
-# aparecer — nada, e a folha e dele.
+# aparecer — nada, e a folha e de quem gere a equipa.
 selection:
   starters:
     - "38800"    # Diogo Costa        GR   FC Porto

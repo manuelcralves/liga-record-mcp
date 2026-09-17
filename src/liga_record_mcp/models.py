@@ -94,9 +94,9 @@ COMPETITION_CHANGE_TRANSFERS = 1
 #:
 #: THIS WAS SETTLED THE WRONG WAY ROUND, and for a month everything downstream
 #: was a matchday early: the deadline warnings, `transfers_allowed`, the Final
-#: Table lock, the pages. Manuel said matchday 6 on 8 September and the site
+#: Table lock, the pages. Matchday 6 was reported on 8 September and the site
 #: settles it beyond argument — on that day, with round 5 already played and
-#: round 6 closing on the 12th, his squad page still carried a REABRIR PLANTEL
+#: round 6 closing on the 12th, the squad page still carried a REABRIR PLANTEL
 #: button and the standings were still headed RANKING PERÍODO EXPERIMENTAL.
 #: A squad that can be reopened has not locked.
 #:

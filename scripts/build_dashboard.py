@@ -131,7 +131,7 @@ POS_PT = {"GK": "GR", "DEF": "DEF", "MID": "MED", "FWD": "AVA"}
 # The sheet as entered on the site. Kept here rather than read back, because
 # reading a team sheet needs a login this project deliberately does not hold.
 def _filed_sheet() -> tuple[list[str], list[str], str, tuple[str, str]]:
-    """The team sheet Manuel actually entered, read from data/squad.yaml.
+    """The team sheet actually entered, read from data/squad.yaml.
 
     It used to sit here as three lists of bare ids. That made changing a team
     sheet an edit to a Python file, and the page went on showing last week's
@@ -571,7 +571,7 @@ def judged_on(
     A squad is always twenty-three, so after a transfer the two maps are the
     same SIZE while one id differs — and the stored map then gets used for a
     squad that no longer exists. The way that happens is ordinary: round N
-    kicks off, Manuel runs `transferir.py` for round N+1, which tells him to run
+    kicks off, the manager runs `transferir.py` for round N+1, which says to run
     the routine, and the page rebuilds round N against a squad already changed.
     The arrival lands with no estimate, `best_eleven` scores him at
     UNUSED_PENALTY so he can never be picked, and if he reaches `described()`
@@ -586,7 +586,7 @@ def judged_on(
     What that produced: a round where the sheet has kicked off on the other
     eight games, so `kicked_off` is true, and the "model eleven" is rebuilt
     with players who cannot score, priced as though they play, and printed
-    beside Manuel's own sheet as what he should have done.
+    beside the manager's own sheet as what should have been done.
 
     So the stored estimates are used for the round, and then the zeros are put
     back on top. Both facts are true at once: what was known before kickoff,
@@ -760,9 +760,9 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # have moved since — and they have: APPEARANCE_FLOOR went 2.0 to 1.0 and
     # tripled the fixture adjustment, all after round 3 was filed.
     #
-    # It said Manuel should have captained Begraoui over Pavlidis. The
+    # It said the captain should have been Begraoui, not Pavlidis. The
     # projections ON RECORD, written before kickoff, put Pavlidis at 9.19 and
-    # Begraoui at 5.39 — the model of the day agreed with him. Telling someone
+    # Begraoui at 5.39 — the model of the day agreed with the choice. Telling someone
     # they chose badly using information that did not exist when they chose is
     # the same error as scoring a prediction after the result, wearing a
     # different hat.
@@ -780,7 +780,7 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         no_fixture={i for i, week in fixture_of.items() if week is None},
     )
 
-    # WHO IS KNOWN TO BE OUT, which is the one thing Manuel can tell the model
+    # WHO IS KNOWN TO BE OUT, which is the one thing the manager can tell the model
     # that it cannot work out for itself. Cards it counts; injuries the site
     # does not publish and this project does not read the press.
     #
@@ -1070,8 +1070,8 @@ def model_section(data: dict) -> str:
     found = data.get("model") or {}
     # WHICH RULE IS IN FORCE THIS WEEK. This block used to say "§6.8, one a
     # round" in every week of the season, including the ones where §6.7 lets
-    # the whole twenty-three be rebuilt for free — telling Manuel he had one
-    # move on the very week he had unlimited ones, which is the most expensive
+    # the whole twenty-three be rebuilt for free — announcing one move on the
+    # very week there were unlimited ones, which is the most expensive
     # week to be wrong about.
     window, article = transfers_allowed(data.get("round") or FIRST_SCORING_MATCHDAY)
     limit = (
@@ -1414,8 +1414,8 @@ def hero(data: dict, public: bool = False) -> str:
     if league:
         leader = league[0]
         gap = leader["points_total"] - me["points_total"]
-        # The gap is Manuel's own number; the name attached to it is not his to
-        # publish, so the public build states the total without the team.
+        # The gap is the owner's own number; the name attached to it is not the
+        # owner's to publish, so the public build states the total without the team.
         note = (
             f"o líder tem {leader['points_total']}"
             if public
@@ -1734,8 +1734,8 @@ def versus_section(data: dict) -> str:
     )
 
     # THE ARMBAND, SAID OUT LOUD. Both columns already carry a C, so a reader
-    # comparing them line by line can see the disagreement — and Manuel read
-    # this page and missed it, because nothing named it. §10.3(l) doubles the
+    # comparing them line by line can see the disagreement — and a reader of
+    # this page missed it, because nothing named it. §10.3(l) doubles the
     # captain rather than replacing him, so the difference between two choices
     # is exactly the gap between the two men, and it is the cheapest points on
     # the page: no transfer, no cost, one tap on the site.
@@ -2068,11 +2068,11 @@ def final_table(round_number: int) -> dict:
     clubs = [row["club"] for row in table]
     proposed = best_order(spread, clubs=clubs)
 
-    # WHAT MANUEL IS ACTUALLY IN, which is not what the model would write today.
+    # WHAT THE TEAM IS ACTUALLY IN, which is not what the model would write today.
     # Once the entry is submitted it is fixed, and only chips move it — so the
     # order priced here has to be replayed from the file, never recomputed.
-    # Recomputing would show him an order he never entered and price this
-    # week's chip against a position he is not in.
+    # Recomputing would show an order that was never entered and price this
+    # week's chip against a position the team is not in.
     filed = load_final_entry(ENTRY_PATH)
     entry = filed["entry"]
     mismatch = None
@@ -2127,7 +2127,7 @@ def chip_advice(found: dict) -> str:
 
     A week where nothing clears the threshold is still an answer, and it is
     printed. Silence would read as "the page is broken", and a chip is lost if
-    unused, so "spend nothing" has to be a decision Manuel sees taken.
+    unused, so "spend nothing" has to be a decision the manager sees taken.
     """
     if not found.get("filed"):
         locked = found.get("locked_round") or FIRST_CHIP_ROUND - 1
@@ -2984,9 +2984,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     # DEFAULTS TO THE ROUND IN squad.yaml, not to a number typed here. It was
     # `default=3`, and `record_projection` has always read the file — so the
-    # week Manuel moved the sheet to round 4 the ledger would record round 4
+    # week the sheet moved to round 4 the ledger would record round 4
     # while every page went on drawing round 3, with no error anywhere. One
-    # source for "which round are we on", and it is the file he edits.
+    # source for "which round are we on", and it is the file that gets edited.
     parser.add_argument(
         "--round",
         type=int,

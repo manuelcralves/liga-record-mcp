@@ -85,7 +85,7 @@ ARCHIVE_OFFSET = -LAST_MATCHDAY
 #:
 #: DERIVED ON PURPOSE, unlike `FIRST_CHIP_ROUND` — this is the same concept as
 #: `FIRST_SCORING_MATCHDAY`, not a second number that happens to match it, so
-#: they should move together. It read 5 on Manuel's account that the squad
+#: they should move together. It read 5 on an earlier account that the squad
 #: locked then; the site says 6, and §16.4 agrees. The old value also put the
 #: February window at matchday 20 through `args.first + REOPENED_FIRST_ROUND
 #: - 1`, where §6.9 puts it at 21.
@@ -101,7 +101,7 @@ def load(market, *, use_archive: bool = True, order_seed: int | None = None):
     Two seasons, not one. The squad is bought at matchday 5 and four rounds is
     almost nothing to buy on — this report used to do exactly that, and the
     number it produced was a measurement of the model with its memory removed.
-    The pages Manuel actually reads have always used both reconstructions; only
+    The pages that actually get read have always used both reconstructions; only
     the backtest was starved, because it was written before the second one
     existed and nobody went back.
 

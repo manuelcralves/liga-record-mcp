@@ -1,6 +1,6 @@
 """Nothing belonging to other people may enter a public repository.
 
-Three files now hold data that is not Manuel's to publish — the league's
+Three files now hold data that is not the owner's to publish — the league's
 round-by-round history, the private dashboard, and anything carrying the league
 guid. All three are gitignored, and all three have been committed by accident at
 least once. `data/history.json` reached the public remote with twenty-nine other
@@ -36,8 +36,8 @@ FORBIDDEN_PATHS = (
 #: once already put twenty-nine other people's names on a public remote.
 FORBIDDEN_DIRS = ("docs/private",)
 
-#: Manuel's own team. His name and results are his to publish; the other
-#: twenty-nine members' are not.
+#: The owner's own team. Its name and results are the owner's to publish; the
+#: other twenty-nine members' are not.
 MY_TEAM_ID = "156412"
 
 #: Extensions worth scanning. Everything the project tracks is text.
@@ -73,7 +73,7 @@ def tracked_text(tracked: list[Path]) -> dict[Path, str]:
 
 
 def other_members() -> set[str]:
-    """Team names and usernames from the local history, excluding Manuel's own.
+    """Team names and usernames from the local history, excluding the owner's own.
 
     Read at run time from an untracked file so the forbidden strings never have
     to be written down anywhere that git can see.
@@ -113,7 +113,9 @@ def test_the_private_pages_are_ignored_as_a_directory(tracked: list[Path]):
     may write six next month, and the sixth has to be covered without anyone
     remembering to cover it."""
     for folder in FORBIDDEN_DIRS:
-        assert git("check-ignore", folder).strip() == folder, (
+        # With the trailing slash: git applies a directory rule to a path given
+        # without one only when that folder exists, so a fresh clone would fail.
+        assert git("check-ignore", folder + "/").strip() == folder + "/", (
             f"{folder} is not gitignored, and every page in it carries the league"
         )
         inside = [
@@ -175,7 +177,7 @@ def test_the_league_guid_appears_nowhere(tracked_text: dict[Path, str]):
 def test_my_own_data_is_still_allowed(tracked_text: dict[Path, str]):
     """The guard must not be so broad that it forbids the project's own subject.
 
-    Without this, a future tightening could quietly start rejecting Manuel's
+    Without this, a future tightening could quietly start rejecting the owner's
     squad and results — the thing the repository exists to hold.
     """
     joined = "\n".join(tracked_text.values())

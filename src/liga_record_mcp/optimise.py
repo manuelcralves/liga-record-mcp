@@ -89,7 +89,7 @@ def left_the_league(
 
     So callers ask this first and say the names out loud. Nothing here guesses
     a replacement: which defender to buy is a decision, and the point of
-    naming him is that Manuel gets to make it.
+    naming him is that the manager gets to make it.
     """
     return [i for i in squad_ids if i not in market]
 
@@ -248,7 +248,7 @@ def squad_value(
     #
     # Measured before deciding it did not matter. Postponements run at 1.1% of
     # club-rounds — seventeen fixtures in the five seasons openfootball holds —
-    # and at that rate, on Manuel's squad:
+    # and at that rate, on the current squad:
     #
     #     drawn per club (what happens)    44.795
     #     drawn per player (what this does) 44.865

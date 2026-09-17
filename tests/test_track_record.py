@@ -154,9 +154,9 @@ def test_the_recorder_stores_the_filed_sheet(dash):
 # verdict on a choice already made — and computing it fresh judges that choice
 # with constants that have since moved. APPEARANCE_FLOOR went from 2.0 to 1.0
 # after round 3 was filed, tripling the fixture adjustment, and the page began
-# telling Manuel he should have captained Begraoui. The projections on record,
+# saying the captain should have been Begraoui. The projections on record,
 # written before kickoff, had Pavlidis at 9.19 against Begraoui's 5.39: the
-# model of the day agreed with him.
+# model of the day agreed with the choice.
 
 
 def test_an_open_round_is_judged_on_todays_estimates(dash):
@@ -190,8 +190,8 @@ def test_a_round_with_no_record_at_all_falls_back(dash):
 # twenty-three — so after a transfer the two maps matched on count while one id
 # differed, and the stored map was used for a squad that no longer existed.
 #
-# The sequence is ordinary, not contrived. Round N kicks off. Manuel runs
-# `transferir.py` for round N+1, which ends by telling him to run the routine.
+# The sequence is ordinary, not contrived. Round N kicks off. The manager runs
+# `transferir.py` for round N+1, which ends by saying to run the routine.
 # The routine rebuilds round N, which has already kicked off, against a squad
 # that now contains someone who was never in it. He is scored at
 # UNUSED_PENALTY, so he can never be picked; and if he reaches `described()`
@@ -407,7 +407,7 @@ def test_a_round_with_a_filed_eleven_but_no_model_one_is_also_unpaired(dash):
 #
 # The round it fires on: eight of nine games played, so `kicked_off` is true,
 # and the "model eleven" comes back full of men who cannot score, priced as
-# though they play, printed beside Manuel's sheet as what he should have done.
+# though they play, printed beside the manager's sheet as what should have been done.
 #
 # Latent while Record keeps a postponed game in its original round without a
 # date — the club stays in the calendar and is never zeroed. It fires when a
@@ -467,7 +467,7 @@ def test_the_page_passes_the_zeroes_in(dash):
 
 # --- the advice is recorded, not re-derived -----------------------------------
 #
-# The ledger kept Manuel's `filed` eleven from the start and never kept its own.
+# The ledger kept the manager's `filed` eleven from the start and never kept its own.
 # The model's was derived on demand from the projections beside it, which sounds
 # equivalent and is not: the derivation runs today's `model_sheet`, which reads
 # today's §15.3 zeros and today's injury file. So "the advice for round 3" could

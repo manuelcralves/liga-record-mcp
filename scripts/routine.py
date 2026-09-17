@@ -110,7 +110,7 @@ STEPS = [
     ),
     # Last, and it changes nothing: it says what the ledger is still waiting
     # for. Everything above records what the site says; this names the part
-    # only Manuel knows, which is the part that goes missing.
+    # only the manager knows, which is the part that goes missing.
     Step("pendentes", "decisões em falta", ["scripts/pending_decisions.py"]),
 ]
 

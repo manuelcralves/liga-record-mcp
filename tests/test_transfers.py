@@ -108,7 +108,7 @@ def test_cannot_buy_a_player_already_in_the_squad(squad: Squad):
 # line citing §6.8. That is the wrong rule in two of the three windows — and the
 # wrong ADVICE in the one that matters most, because before matchday 5 §6.7 lets
 # the whole twenty-three be rebuilt at once and a ladder is a list nobody has to
-# climb. Manuel had to say so himself, twice, before it was fixed.
+# climb. It was reported twice before it was fixed.
 
 
 from liga_record_mcp.models import (

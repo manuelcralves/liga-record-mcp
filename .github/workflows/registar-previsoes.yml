@@ -1,7 +1,7 @@
 # The ledger, written by a machine that is never switched off.
 #
-# WHY THIS EXISTS. The scheduled task on Manuel's PC does the same two steps,
-# and does them well — but only while the PC is on and he is logged in. Almost
+# WHY THIS EXISTS. The scheduled task on the owner's PC does the same two steps,
+# and does them well — but only while the PC is on and someone is logged in. Almost
 # every step of the routine survives being missed, because it recomputes from
 # whatever is true when it next runs. One does not: `record` stores what the
 # model expected BEFORE a round kicks off, and refuses afterwards, on purpose.
@@ -122,15 +122,15 @@ jobs:
           git add -- data/projections.json
           git commit -m "$subject" -m "Trabalho agendado. Registar recusa depois do apito, e liquidar só preenche clubes que já jogaram — o que este commit contém é o que o regulamento deixou fazer no momento em que correu."
 
-          # He commits from the laptop too. Rebasing one file's commit onto
-          # whatever he pushed meanwhile is almost always clean; when it is
+          # Commits also come from the laptop. Rebasing one file's commit onto
+          # whatever was pushed meanwhile is almost always clean; when it is
           # not, failing is correct — a ledger silently resolved by a machine
           # is worse than one that needs a minute of attention.
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push
 
       # THE ONE DEADLINE WITH NO SECOND CHANCE, and the only channel that
-      # actually reaches him.
+      # actually reaches the owner.
       #
       # Miss a team sheet and a round is lost. Miss matchday 5 and the squad is
       # fixed for the season, the top-scorer bet with it, and unlimited

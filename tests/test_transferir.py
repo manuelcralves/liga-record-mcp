@@ -207,7 +207,7 @@ def test_the_captain_line_is_not_touched_by_a_squad_swap(mod):
 # `SQUAD_PATH.write_text` used to run first, and when the ledger then refused
 # the script printed "o squad.yaml foi escrito, mas o ledger recusou" and
 # returned — leaving the squad file and the decisions ledger disagreeing about
-# what Manuel did, which is the one thing this script exists to keep straight.
+# what was actually done, which is the one thing this script exists to keep straight.
 #
 # Not hypothetical: the scheduled job records rounds through `settle_decision`,
 # so a round is often already on file by the time a transfer is entered.

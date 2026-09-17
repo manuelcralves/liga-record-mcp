@@ -282,8 +282,8 @@ def snapshot(market, history, squad, round_number):
 def advised_sheet(rows: dict) -> dict | None:
     """The eleven the model would field, recorded rather than reconstructed.
 
-    THE LEDGER KEPT MANUEL'S SHEET AND NOT ITS OWN ADVICE. His `filed` eleven
-    was on record from the start; the model's was derived on demand from the
+    THE LEDGER KEPT THE MANAGER'S SHEET AND NOT ITS OWN ADVICE. The `filed`
+    eleven was on record from the start; the model's was derived on demand from the
     projections beside it, which sounds equivalent and is not. The derivation
     runs today's `model_sheet`, and that reads today's §15.3 zeros and today's
     injury file — so the "advice for round 3" could quietly change months after
@@ -418,7 +418,7 @@ def round_is_published(rows: dict, live: dict) -> bool:
     "the round you asked about", and the site publishes it days before it folds
     it into `points_total`. On 25 August the API served round 2's figures under
     `points_round` while round 3 had already been played and was sitting in
-    Manuel's weekly email. The settle step read that field and wrote round 2's
+    the owner's weekly email. The settle step read that field and wrote round 2's
     points into round 3's ledger for twenty players — Nehuén Pérez entered as 9
     when he had scored 4 — and then reported a mean error against them as if it
     measured anything.
@@ -671,10 +671,10 @@ def main() -> None:
             return
         # THE SHEET IS NOT A PREDICTION, and it moves after the snapshot.
         #
-        # `filed` records the eleven Manuel entered, and he keeps entering it:
+        # `filed` records the eleven actually entered, and that keeps changing:
         # round 4 was snapshotted on 25 August with Santi García starting, the
-        # Record's injury bulletin landed on the 27th, and he swapped in Samu
-        # before the deadline. The ledger kept the old sheet, so it scored his
+        # Record's injury bulletin landed on the 27th, and Samu was swapped in
+        # before the deadline. The ledger kept the old sheet, so it scored the
         # round at 53 against the site's 57 — Santi García's -1 where Samu's 3
         # belonged, and the difference is exactly four.
         #

@@ -7,7 +7,7 @@ assembled team by team through the national search, matching on team id because
 names are not unique.
 
 That is worth doing once. A position is only a fact about today; the shape of a
-season is in how it moved. Manuel's own two rounds already say more than the
+season is in how it moved. The team's own two rounds already say more than the
 current table does: 1246th after round one, 6598th after round two.
 
 Rounds already on file are never refetched, so a later run costs one round's

@@ -4,10 +4,10 @@ Cards it counts, so suspensions it sees. Injuries it does not: the site
 publishes no availability — a player's payload carries fifteen fields and none
 of them is it — and this project does not read the press.
 
-WHAT IT IS WORTH. Playing a full season out from matchday 6 with Manuel's
+WHAT IT IS WORTH. Playing a full season out from matchday 6 with the current
 squad, picking the XI blind scores 1246 points; knowing who is out scores 1306;
 adding the weekly transfer on top scores 1326. Knowing who is injured is worth
-three times the entire transfer channel, and it is the only input he can give
+three times the entire transfer channel, and it is the only input the manager can give
 the model that it cannot get for itself.
 
 TWO NUMBERS FOR ONE FACT, deliberately. In the ledger an unavailable man is
@@ -218,14 +218,14 @@ def test_nobody_out_leaves_the_sheet_exactly_as_it_was(page):
 # --- the list expires, and says so when it has --------------------------------
 #
 # The file names a round and stops applying when that round passes. That is the
-# right default and it answers Manuel's question directly: a man out for one
+# right default and it answers the manager's question directly: a man out for one
 # round is fit the next, and nothing has to be deleted by hand. A list that
 # carried forward would bench a fit player silently — he would simply not be
 # picked, with no error anywhere to say why.
 #
 # The cost of that default is the other silence. A man out for three rounds
 # needs the number bumped every week, and names sitting in an expired file do
-# nothing while Manuel believes the model knows about them.
+# nothing while the manager believes the model knows about them.
 
 
 @pytest.fixture(scope="module")

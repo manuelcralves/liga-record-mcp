@@ -1,4 +1,4 @@
-"""The team sheet Manuel entered lives in the squad file, not in a script.
+"""The team sheet as entered lives in the squad file, not in a script.
 
 It used to be three lists of bare player ids near the top of
 build_dashboard.py. Changing a team sheet meant editing Python, and until

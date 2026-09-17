@@ -197,8 +197,8 @@ def test_the_lock_is_not_announced_once_it_has_passed(mod):
 def test_the_sheet_deadline_is_the_last_line(mod):
     """routine.py logs the final line of a step, so the order is the message.
 
-    On a day Manuel does not open the page, that one line is everything he
-    sees. Everything else pending_decisions prints describes work that can be
+    On a day nobody opens the page, that one line is everything that gets
+    seen. Everything else pending_decisions prints describes work that can be
     done whenever; the sheet closing is the only thing with a clock on it, so
     it goes last and survives the truncation.
     """
@@ -307,8 +307,8 @@ def test_no_open_round_says_nothing_rather_than_raising(mod):
 #
 # And nobody can plan around it: Record had published no date for matchday 5 as
 # late as 26 August, four days after matchday 3 was played. It appears when it
-# appears, and if that week is one Manuel is not running the routine, the first
-# he hears of it is when it has gone.
+# appears, and if that week is one where the routine is not running, the first
+# anyone hears of it is when it has gone.
 #
 # A step that PRINTS a warning changes nothing — the Actions log is a page
 # nobody opens. A step that FAILS sends an email, which is the only push this
@@ -390,9 +390,9 @@ def test_the_scheduled_job_runs_it():
 
 # --- a date does not know what has been done ----------------------------------
 #
-# The alarm fired twice a day for two days after Manuel had already rebuilt the
-# whole squad and filed the sheet, telling him each time to go and do a thing he
-# had finished. That is how a warning becomes something you learn to ignore, and
+# The alarm fired twice a day for two days after the whole squad had already
+# been rebuilt and the sheet filed, asking each time for a thing that was already
+# finished. That is how a warning becomes something you learn to ignore, and
 # this is the one warning of the season that must not become that.
 #
 # The squad file carries the round it was entered for, so it knows.

@@ -604,7 +604,7 @@ def test_a_squad_member_the_market_dropped_is_named_not_swallowed():
 
 
 def test_departures_come_back_in_squad_order_and_without_duplicates():
-    """Order matters: it is printed to Manuel as a list of names to act on."""
+    """Order matters: it is printed as a list of names to act on."""
     from liga_record_mcp.optimise import left_the_league
 
     assert left_the_league(["x", "y", "z"], {}) == ["x", "y", "z"]

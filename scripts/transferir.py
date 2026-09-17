@@ -1,10 +1,10 @@
 """Record a transfer once, in the two places that both have to know.
 
-THE FAILURE THIS EXISTS TO PREVENT. Manuel makes a transfer on the site, and
-nothing here can see it — reading his own team sheet needs a login the project
+THE FAILURE THIS EXISTS TO PREVENT. A transfer is made on the site, and
+nothing here can see it — reading the team sheet needs a login the project
 deliberately does not hold. So two files have to be updated by hand:
-data/squad.yaml, or every page goes on comparing him against a squad that is no
-longer his, and data/decisions.json, or the ledger can never answer whether
+data/squad.yaml, or every page goes on comparing against a squad that no
+longer exists, and data/decisions.json, or the ledger can never answer whether
 following the model would have paid.
 
 Forget either and nothing breaks. The pages render, every number beside the
@@ -343,7 +343,7 @@ def main() -> None:
     #
     # This ran after `SQUAD_PATH.write_text` and printed "o squad.yaml foi
     # escrito, mas o ledger recusou" — leaving the two files disagreeing about
-    # what Manuel did, which is the exact failure this script exists to
+    # what was actually done, which is the exact failure this script exists to
     # prevent. Not hypothetical either: the scheduled job records rounds
     # through `settle_decision`, so a round can already be on file when this
     # runs.
