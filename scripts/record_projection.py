@@ -61,10 +61,11 @@ COACHES_PATH = ROOT / "data" / "coaches.yaml"
 #: Who cannot play, hand-maintained — the site does not publish it.
 UNAVAILABLE_PATH = ROOT / "data" / "indisponiveis.yaml"
 
-#: The coach on the sheet. A coach scores every round (§6.15, §6.17) and the
-#: eighteen spanned 14 points to -2 after two, so leaving him out of the record
-#: was leaving out roughly seven points a round of spread.
-CHOSEN_COACH = "890"  # Farioli, FC Porto
+# THE COACH COMES FROM THE SHEET, in data/squad.yaml, like the eleven. It was
+# a constant here, Farioli's id, until 18/09/2026, and round 7 was recorded
+# with him while the sheet had Rui Borges. A coach scores every round (§6.15,
+# §6.17) and the eighteen spanned 14 points to -2 after two, so recording the
+# wrong one is not a rounding error.
 
 #: Where the coach's matches are counted from. NOT the official phase: the
 #: coach totals are the hand copy in data/coaches.yaml, taken on 19/08/2026 —
@@ -310,8 +311,8 @@ def advised_sheet(rows: dict) -> dict | None:
         "formation": sheet.get("formation"),
     }
 
-def coach_snapshot(history, counts, round_number):
-    """The chosen coach, with what is expected of him this round.
+def coach_snapshot(history, counts, round_number, coach_id):
+    """The coach on the sheet, with what is expected of him this round.
 
     His actual score cannot be computed from the calendar. Fitting the eighteen
     against wins, draws, clean sheets and margins reaches r-squared 0.85 with
@@ -319,11 +320,17 @@ def coach_snapshot(history, counts, round_number):
     editorial rating that dominates a player's score. So this records the
     projection and the total he starts from, and `--settle` reads the new total
     out of the hand-maintained coach file.
+
+    `coach_id` is the coach on the filed sheet. None when the sheet names
+    none: §6.17 scores that round zero, and inventing one would record a
+    projection for a coach nobody picked.
     """
+    if coach_id is None:
+        return None
     coaches = load_coaches(COACHES_PATH)
-    chosen = next((c for c in coaches if c.id == CHOSEN_COACH), None)
+    chosen = next((c for c in coaches if c.id == coach_id), None)
     if chosen is None:
-        raise SystemExit(f"coach {CHOSEN_COACH} is not in {COACHES_PATH}")
+        raise SystemExit(f"coach {coach_id} is not in {COACHES_PATH}")
 
     records = history.club_records()
     league_ga, league_gf = league_rates(records)
@@ -349,6 +356,29 @@ def coach_snapshot(history, counts, round_number):
         **detail,
         "actual": None,
     }
+
+
+def sheet_coach(snapshot_of_squad) -> str | None:
+    """The coach id on the filed sheet, or None if the sheet names none."""
+    picked = snapshot_of_squad.selection
+    return picked.coach_id if picked is not None and picked.coach_id else None
+
+
+def sheet_moved(stored: dict, held: set, out_now: set, coach_now: str | None) -> bool:
+    """Whether the round on file was recorded for a team that has since changed.
+
+    Three things make it so, and each re-records the round before kickoff:
+    the twenty-three changed, the list of who is out changed, or the coach
+    changed. The coach joined on 18/09/2026, when round 7 was on file with
+    Farioli, then a constant here, while the sheet had Rui Borges.
+    """
+    out_then = {i for i, r in stored["players"].items() if r.get("unavailable")}
+    coach_then = (stored.get("coach") or {}).get("id")
+    return (
+        held != set(stored["players"])
+        or out_now != out_then
+        or coach_now != coach_then
+    )
 
 
 def settle_wrote_anything(
@@ -654,11 +684,17 @@ def main() -> None:
         # The first version of this script had no coach. Adding one to a round
         # that has not kicked off is still a prediction; adding one afterwards
         # would not be, so the round's own fixtures decide whether it is allowed.
-        if "coach" not in stored and not clubs_playing_in(market.fixtures(), int(key)):
+        chosen_coach = sheet_coach(snapshot_of_squad)
+        if (
+            "coach" not in stored
+            and chosen_coach is not None
+            and not clubs_playing_in(market.fixtures(), int(key))
+        ):
             stored["coach"] = coach_snapshot(
                 OpenFootballClient(timeout=60.0),
                 matches_played(market.fixtures(), since=COACH_TOTALS_SINCE),
                 int(key),
+                chosen_coach,
             )
             LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
             coach = stored["coach"]
@@ -702,8 +738,7 @@ def main() -> None:
         # before kickoff. Knowing it and not writing it down is the one thing
         # this file is for.
         fora_agora = set(load_unavailable(UNAVAILABLE_PATH, int(key)))
-        fora_antes = {i for i, r in stored["players"].items() if r.get("unavailable")}
-        mexeu = held != set(stored["players"]) or fora_agora != fora_antes
+        mexeu = sheet_moved(stored, held, fora_agora, sheet_coach(snapshot_of_squad))
         if mexeu and not clubs_playing_in(
 
             market.fixtures(), int(key)
@@ -793,6 +828,7 @@ def main() -> None:
             history,
             matches_played(market.fixtures(), since=COACH_TOTALS_SINCE),
             snapshot_of_squad.round_number,
+            sheet_coach(snapshot_of_squad),
         ),
     }
     LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")

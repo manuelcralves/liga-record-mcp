@@ -646,6 +646,15 @@ def movement(shown: list[dict]) -> tuple[int | None, str]:
     )
 
 
+def formation_of(starters: list[str], rows: dict[str, dict]) -> str:
+    """The shape of an eleven, counted from the positions of the men in it."""
+    shape = {
+        pos: sum(1 for p in starters if rows[p]["position"] == pos)
+        for pos in ("DEF", "MID", "FWD")
+    }
+    return f"{shape['DEF']}-{shape['MID']}-{shape['FWD']}"
+
+
 def selection_values(
     expected: dict[str, float], *, unavailable: dict[str, str], gone: list[str]
 ) -> tuple[dict[str, float], dict[str, float]]:
@@ -1596,10 +1605,14 @@ def sheet_section(data: dict) -> str:
             f"{esc(coach['name'])} <span class=\"muted\">{esc(coach['club'])} · "
             f"{coach['projected_rate']:.1f}</span>"
         )
+    # COUNTED FROM THE SHEET. This read "3-4-3" in the markup itself, and went on
+    # saying it after the sheet became a 4-3-3 on 18/09/2026.
+    formation = formation_of(XI, rows)
 
-    return f"""      <p class="lede">Escalada antes do fecho. Os dois jogadores
-      marcados têm o jogo desta jornada em setembro — o Benfica a 9, o Sp. Braga
-      a 10 — portanto os pontos deles chegam semanas depois dos outros.</p>
+    # The lede named round 3's two postponed matches, Benfica on the 9th and Sp.
+    # Braga on the 10th, and kept naming them every round after.
+    return f"""      <p class="lede">Escalada antes do fecho, com o jogo de cada um nesta
+      jornada.</p>
       <div class="cols">
         <div>
           <table class="sheet">
@@ -1615,7 +1628,7 @@ def sheet_section(data: dict) -> str:
             </tbody>
           </table>
           <dl class="facts">
-            <dt>Formação</dt><dd>3-4-3</dd>
+            <dt>Formação</dt><dd>{formation}</dd>
             <dt>Treinador</dt><dd>{coach_row}</dd>
             <dt>Total</dt><dd><span class="big">{total:.1f}</span> <span class="muted">com capitão e treinador</span></dd>
           </dl>
