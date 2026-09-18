@@ -13,6 +13,12 @@
 # valia ~+0,25 por jornada e invertia-se com 0,25 de erro, contra um erro do
 # proprio modelo de 1,49 por jogador.
 #
+# TRANSFERENCIA DA JORNADA 7, 18 de setembro: saiu o Nehuen Perez (FC Porto,
+# 1,90M), entrou o Lagerbielke (Sp. Braga, 1,55M). Foi a que o modelo
+# aconselhava, cerca de +3 pontos ate ao fim da epoca: pouco, mas positivo, e a
+# transferencia nao acumula. O Nehuen jogava 24% das jornadas; o Lagerbielke
+# joga 90%, e o Braga tem dois defesas lesionados. Ficam 0,35M de folga.
+#
 # Lido do site a 8 de setembro e conferido: quota 3-8-8-4, 40,00M de 40,00M.
 
 team:
@@ -76,14 +82,14 @@ players:
     points_total: 18
     points_round: 3
 
-  - id: "41584"
-    name: Nehuén Pérez
+  - id: "43175"
+    name: Lagerbielke
     position: DEF
-    club: FC Porto
-    value: 2000000
-    initial_value: 2000000
-    points_total: 22
-    points_round: 5
+    club: Sp. Braga
+    value: 1550000
+    initial_value: 1500000
+    points_total: 4
+    points_round: 4
 
   - id: "42927"
     name: Rodrigo Pinheiro
@@ -240,42 +246,35 @@ players:
     points_total: 23
     points_round: 2
 
-# A folha entregue no site para a jornada 6, em 3-4-3. Lida do site, nao
-# assumida a partir do que o modelo recomendou.
+# A folha entregue no site para a jornada 7, em 4-3-3, depois da transferencia.
+# O onze e o capitao foram ditos pelo Manuel a 18/09 («4-3-3 com o Suarez a
+# capitao») e sao os que o modelo aconselhava.
 #
-# ALTERADA A 12/09, DEPOIS DO ALERTA. O email da manha listou seis jogadores do
-# plantel como lesionados ou em duvida — Filipe Soares, Javi Sanchez, Liziero,
-# Weverson, Xeka e Zaidu — e so o Javi Sanchez estava no onze. Saiu ele, entrou
-# o Finn van Breemen. Os outros cinco ja estavam fora dos 15.
+# O banco e o que o modelo aconselhou, confirmado pelo Manuel a 18/09. A ordem
+# do `bench` conta, porque o §11.2 a percorre quando substitui.
 #
-# A troca vale pouco e fica dito: se o Javi ficasse e nao jogasse, o §11 metia o
-# Rodrigo Pinheiro (2,07), praticamente o mesmo que o Finn (2,03). Fez-se para
-# nao depender de a substituicao automatica disparar, e para o Rodrigo continuar
-# no banco como cobertura.
-#
-# A ordem do `bench` conta: o §11.2 percorre-o por ordem quando substitui.
-#
-# UMA DIFERENCA PARA O QUE FOI ACONSELHADO, e fica registada: o modelo punha o
-# Joao Afonso como guarda-redes suplente (1,76) e a folha manteve o Carevic
-# (1,70). Sao sete centesimas num quarto suplente que so joga se o titular nao
-# aparecer — nada, e a folha e de quem gere a equipa.
+# O TREINADOR MUDOU para o Rui Borges (Sporting, recebe o Arouca): +1,67
+# esperados nesta jornada, contra +0,12 do Farioli, que recebe o Benfica. Os
+# treinadores sao gratis (§6.15) e escolhem-se jornada a jornada, mas as
+# paginas ainda os escolhem para a epoca inteira. A conta desta jornada foi
+# feita a parte, com o modelo de golos da tabela final.
 selection:
   starters:
     - "38800"    # Diogo Costa        GR   FC Porto
     - "43299"    # Bednarek           DEF  FC Porto
+    - "42927"    # Rodrigo Pinheiro   DEF  Famalicão
+    - "43175"    # Lagerbielke        DEF  Sp. Braga
     - "43510"    # Finn van Breemen   DEF  Famalicão
-    - "41584"    # Nehuén Pérez       DEF  FC Porto
-    - "43369"    # Espen Van Ee       MED  Arouca
-    - "42835"    # Fukui              MED  Arouca
+    - "43499"    # Altimira           MED  Sporting
     - "33728"    # Samu               MED  V. Guimarães
     - "42864"    # Pedro Ferreira     MED  Santa Clara
-    - "42896"    # Pavlidis           AVA  Benfica
     - "43298"    # Luis Suárez        AVA  Sporting
-    - "26072"    # Gonçalo Paciência  AVA  Santa Clara
+    - "42896"    # Pavlidis           AVA  Benfica
+    - "42749"    # Óscar Aranda       AVA  Famalicão
   bench:
     - "43029"    # Carevic            GR   Famalicão
-    - "42927"    # Rodrigo Pinheiro   DEF  Famalicão
-    - "43499"    # Altimira           MED  Sporting
-    - "42749"    # Óscar Aranda       AVA  Famalicão
-  captain: "42896"    # Pavlidis
-  coach: "890"        # Farioli, FC Porto
+    - "42835"    # Fukui              MED  Arouca
+    - "26072"    # Gonçalo Paciência  AVA  Santa Clara
+    - "26027"    # André Geraldes     DEF  Casa Pia
+  captain: "43298"    # Luis Suárez
+  coach: "860"        # Rui Borges, Sporting

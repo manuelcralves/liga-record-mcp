@@ -2101,53 +2101,53 @@
       "fully_settled": true
     },
     "7": {
-      "recorded_at": "2026-09-18T09:12:14.114852+00:00",
+      "recorded_at": "2026-09-18T10:18:27.701104+00:00",
       "estimator": "valuation+fixture+recency",
-      "squad_value": 40000000,
+      "squad_value": 39550000,
       "filed": {
         "starters": [
           "38800",
           "43299",
+          "42927",
+          "43175",
           "43510",
-          "41584",
-          "43369",
-          "42835",
+          "43499",
           "33728",
           "42864",
-          "42896",
           "43298",
-          "26072"
+          "42896",
+          "42749"
         ],
         "bench": [
           "43029",
-          "42927",
-          "43499",
-          "42749"
+          "42835",
+          "26072",
+          "26027"
         ],
-        "captain": "42896"
+        "captain": "43298"
       },
       "advised": {
         "starters": [
           "38800",
           "43299",
           "42927",
+          "43175",
           "43510",
           "43499",
           "33728",
           "42864",
-          "42835",
           "43298",
           "42896",
           "42749"
         ],
         "bench": [
           "43029",
-          "41584",
-          "43369",
+          "26027",
+          "42835",
           "26072"
         ],
         "captain": "43298",
-        "formation": "3-4-3"
+        "formation": "4-3-3"
       },
       "players": {
         "38800": {
@@ -2246,23 +2246,23 @@
           "actual": null,
           "unavailable": "lesao muscular no adutor direito"
         },
-        "41584": {
-          "name": "Nehuén Pérez",
+        "43175": {
+          "name": "Lagerbielke",
           "position": "DEF",
-          "club": "FC Porto",
-          "value": 2000000,
-          "opponent": "Benfica",
-          "at_home": true,
-          "kickoff": "20 SET 20:30",
+          "club": "Sp. Braga",
+          "value": 1550000,
+          "opponent": "Santa Clara",
+          "at_home": false,
+          "kickoff": "20 SET 18:00",
           "club_has_history": true,
-          "season_rate": 0.11,
-          "returns": 3.56,
-          "playing": 0.243,
-          "appearances": 31,
-          "defensive_multiplier": 0.694,
-          "attacking_multiplier": 0.679,
-          "projected": -0.03,
-          "points_before": 22,
+          "season_rate": 2.4,
+          "returns": 2.77,
+          "playing": 0.902,
+          "appearances": 29,
+          "defensive_multiplier": 1.226,
+          "attacking_multiplier": 0.774,
+          "projected": 2.57,
+          "points_before": 4,
           "actual": null
         },
         "42927": {
@@ -2595,17 +2595,17 @@
         }
       },
       "coach": {
-        "id": "890",
-        "name": "Farioli",
-        "club": "FC Porto",
-        "points_before": 13,
+        "id": "860",
+        "name": "Rui Borges",
+        "club": "Sporting",
+        "points_before": 5,
         "league_baseline_rate": 1.16,
-        "matches": 6,
-        "observed_rate": 2.17,
-        "prior_rate": 1.73,
-        "projected_rate": 1.87,
-        "weight_on_form": 0.33,
-        "club_strength": 1.49,
+        "matches": 5,
+        "observed_rate": 1.0,
+        "prior_rate": 1.85,
+        "projected_rate": 1.6,
+        "weight_on_form": 0.29,
+        "club_strength": 1.6,
         "club_has_history": true,
         "actual": null
       }
