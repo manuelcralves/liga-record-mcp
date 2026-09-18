@@ -46,7 +46,7 @@ from liga_record_mcp.models import (  # noqa: E402
     SQUAD_SIZE,
     Position,
 )
-from liga_record_mcp.advice import MIN_OWN_HISTORY, valuation  # noqa: E402
+from liga_record_mcp.advice import transfer_candidates, valuation  # noqa: E402
 from liga_record_mcp.rules import transfers_allowed  # noqa: E402
 from liga_record_mcp.optimise import (  # noqa: E402
     best_eleven,
@@ -62,8 +62,11 @@ from liga_record_mcp.source import (  # noqa: E402
 )
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
+from liga_record_mcp.source.bulletin import bulletin_out, load_bulletin  # noqa: E402
 
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
+#: The Premium bulletin and suspensions board, copied each week; gitignored.
+BULLETIN_DIR = ROOT / "data" / "boletim"
 
 #: Rounds still to be played once the squad locks. Used only to turn a rate
 #: into a season, never to choose anything.
@@ -119,8 +122,20 @@ def main() -> None:
     playing = {i: entry["playing"] for i, entry in view.items()}
     expected = {i: entry["expected"] for i, entry in view.items()}
 
+    # NOBODY THE BULLETIN SAYS IS OUT, in the whole twenty-three as in the ladder
+    # below. Found by the code review of 18/09/2026: the twenty-three were
+    # built before the filter and went on proposing whoever the bulletin listed.
+    snapshot = ManualSquadSource(SQUAD_PATH).load()
+    matchday = args.jornada or snapshot.round_number
+    held_ids = {p.id for p in snapshot.squad.players}
+    left_out = bulletin_out(
+        load_bulletin(BULLETIN_DIR, matchday),
+        (market[i] for i in market if i not in held_ids),
+    )
     rows = [
-        {"id": p.id, "position": p.position, "value": p.value} for p in market.values()
+        {"id": p.id, "position": p.position, "value": p.value}
+        for p in market.values()
+        if p.id not in left_out
     ]
     bought = best_squad_under_budget(
         rows, {i: v * ROUNDS_LEFT for i, v in expected.items()}, budget=args.budget
@@ -133,17 +148,16 @@ def main() -> None:
         returns,
         playing,
         budget=args.budget,
+        candidates=[i for i in market if i not in left_out],
         draws=args.draws,
     )
 
-    snapshot = ManualSquadSource(SQUAD_PATH).load()
     # WHICH WINDOW THIS IS. The changes below used to be listed one a round,
     # best first, with a closing line citing §6.8 — which is the wrong rule in
     # two of the three windows, and the wrong ADVICE in the one that matters
     # most. Before matchday 5 §6.7 lets the whole twenty-three be rebuilt at
     # once, so a ladder is a list nobody has to climb; in February §6.9 gives
     # six for the window and switches §6.8 off entirely.
-    matchday = args.jornada or snapshot.round_number
     window, article = transfers_allowed(matchday)
     rungs = args.moves if args.moves is not None else (window or SQUAD_SIZE)
 
@@ -197,11 +211,8 @@ def main() -> None:
     # question twice, differently, is worse than one that answers it wrongly
     # once, because neither answer is its opinion. Both now search the whole
     # market, minus anyone with too little record to recommend.
-    known = [
-        i
-        for i in market
-        if view[i]["appearances"] >= MIN_OWN_HISTORY or i in covered
-    ]
+    # And nobody the bulletin says is out, found once above.
+    known = transfer_candidates(market, view, covered, left_out)
     print()
     if window is None:
         print(f"AS MUDANÇAS — {article}, sem limite ate a jornada "

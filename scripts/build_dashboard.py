@@ -42,6 +42,7 @@ from liga_record_mcp.advice import (  # noqa: E402
     ESTIMATOR,
     MIN_OWN_HISTORY,
     players_to_value,
+    transfer_candidates,
     valuation,
 )
 from liga_record_mcp.optimise import (  # noqa: E402
@@ -59,6 +60,13 @@ from liga_record_mcp.source import (  # noqa: E402
 )
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
+from liga_record_mcp.source.bulletin import (  # noqa: E402
+    bulletin_out,
+    known_out,
+    load_bulletin,
+    read_day,
+    unmatched,
+)
 from liga_record_mcp.final_table import (  # noqa: E402
     ENTRY_LOCK_MATCHDAY,
     FIRST_CHIP_ROUND,
@@ -98,6 +106,8 @@ LOG_PATH = ROOT / "data" / "projections.json"
 ENTRY_PATH = ROOT / "data" / "tabela-final.yaml"
 #: Who cannot play, hand-maintained — the site publishes no availability.
 UNAVAILABLE_PATH = ROOT / "data" / "indisponiveis.yaml"
+#: The Premium bulletin and suspensions board, copied each week; gitignored.
+BULLETIN_DIR = ROOT / "data" / "boletim"
 #: How far below a fit player someone known to be out is ranked. Large enough
 #: that no fit man is ever passed over, small enough to stay a number.
 OUT_OF_THE_RECKONING = 1000.0
@@ -801,7 +811,7 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # The estimate in the ledger stays at -1, which is what he actually
     # collects. This number is a selection device, not a forecast, and putting
     # it on file would make the error -999 and ruin the accuracy figures.
-    unavailable = load_unavailable(UNAVAILABLE_PATH, round_number)
+    unavailable = known_out(UNAVAILABLE_PATH, BULLETIN_DIR, round_number, squad.players)
 
     # TWO MAPS, BECAUSE THEY ANSWER DIFFERENT QUESTIONS. `ranking` is what the
     # optimiser sorts on and carries the penalty; `expected` stays the honest
@@ -867,11 +877,24 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # He may well be excellent. A transfer is one a round and does not
     # accumulate, so it is the wrong place to find out. And only men still on
     # the market: `wide` also values anyone held who has left it.
-    known = [
-        i
-        for i in whole
-        if wide[i]["appearances"] >= MIN_OWN_HISTORY or i in market
-    ]
+    #
+    # AND NOBODY THE BULLETIN SAYS IS OUT. It covers the whole league, where the
+    # hand file only ever covered the squad, and on 18/09/2026 the search
+    # proposed Santi García, who was on it.
+    bulletin = load_bulletin(BULLETIN_DIR, round_number)
+    left_out = bulletin_out(bulletin, (whole[i] for i in whole if i not in market))
+    known = transfer_candidates(whole, wide, market, left_out)
+    strays = unmatched(bulletin, list(whole.values()) + list(squad.players))
+    if strays:
+        print(
+            f"  boletim: {len(strays)} nome(s) sem par no mercado, e por isso sem "
+            f"efeito: {', '.join(strays)}"
+        )
+    # Named on the page only where it cost something: a man without the record
+    # to be a candidate was never going to be proposed.
+    kept_out = sorted(
+        whole[i].name for i in left_out if wide[i]["appearances"] >= MIN_OWN_HISTORY
+    )
     # The same search the squad proposal runs, capped at the one transfer §6.8
     # allows. It plays the round out hundreds of times — drawing who turns up
     # from each man's own chance of playing, applying §11's substitutions — and
@@ -1056,6 +1079,8 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         "in_not_filed": [described(i) for i in sorted(picked - filed)],
         "out_of_filed": [described(i) for i in sorted(filed - picked)],
         "transfer": move,
+        "left_out": kept_out,
+        "bulletin_day": read_day(bulletin),
         "yours": yours,
         "ideal": ideal,
         # Never negative in practice — best_eleven is exact over the same 23, so
@@ -1075,7 +1100,24 @@ def mcp_players():
     ]
 
 
-def model_section(data: dict) -> str:
+def left_out_note(names: list[str], day: str | None, public: bool) -> str:
+    """Who the bulletin kept out of the transfer search, named only in private.
+
+    The bulletin is paid content. The private page lists the names; the public
+    one says how many, which is the fact a reader needs, without republishing
+    the list.
+    """
+    if not names:
+        return ""
+    count = f"{len(names)} jogador{'es' if len(names) != 1 else ''}"
+    who = "" if public else ": " + ", ".join(esc(n) for n in names)
+    return (
+        chr(10) + f'      <p class="footnote">O boletim clínico de {day or "esta jornada"} '
+        f"deixou {count} de fora da busca, lesionados ou castigados{who}.</p>"
+    )
+
+
+def model_section(data: dict, public: bool = False) -> str:
     found = data.get("model") or {}
     # WHICH RULE IS IN FORCE THIS WEEK. This block used to say "§6.8, one a
     # round" in every week of the season, including the ones where §6.7 lets
@@ -1163,6 +1205,7 @@ def model_section(data: dict) -> str:
             "suficiente para valer a pena. Não transferir é uma decisão, e "
             "aqui é a recomendada.</p>"
         )
+    transfer += left_out_note(found.get("left_out") or [], found.get("bulletin_day"), public)
 
     return f"""      <p class="lede">Isto <strong>não</strong> é a tua folha — é a
       que o modelo entregaria, com o que sabe de {found['starters'][0]['appearances']}+
@@ -2900,7 +2943,7 @@ SECTIONS = {
     "ideal": lambda data, public: ideal_section(data),
     "exposure": lambda data, public: exposure_section(data),
     "grid": lambda data, public: grid_section(data),
-    "model": lambda data, public: model_section(data),
+    "model": lambda data, public: model_section(data, public),
     "seasons": lambda data, public: seasons_section(data),
     "best": lambda data, public: best_section(data),
     "differentials": lambda data, public: differentials_section(data),

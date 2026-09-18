@@ -35,7 +35,6 @@ from liga_record_mcp.source import (  # noqa: E402
     consistency_problems,
     load_official_rounds,
     LigaRecordClient,
-    load_unavailable,
     ManualSquadSource,
     OpenFootballClient,
     load_coaches,
@@ -54,12 +53,15 @@ from liga_record_mcp.stats import (  # noqa: E402
 
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
+from liga_record_mcp.source.bulletin import known_out  # noqa: E402
 
 LOG_PATH = ROOT / "data" / "projections.json"
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
 COACHES_PATH = ROOT / "data" / "coaches.yaml"
 #: Who cannot play, hand-maintained — the site does not publish it.
 UNAVAILABLE_PATH = ROOT / "data" / "indisponiveis.yaml"
+#: The Premium bulletin and suspensions board, copied each week; gitignored.
+BULLETIN_DIR = ROOT / "data" / "boletim"
 
 # THE COACH COMES FROM THE SHEET, in data/squad.yaml, like the eleven. It was
 # a constant here, Farioli's id, until 18/09/2026, and round 7 was recorded
@@ -168,9 +170,9 @@ def snapshot(market, history, squad, round_number):
     # Who is known to be out this round, from the one file the site cannot
     # fill. Worth more than the transfer channel: playing a season out from
     # matchday 6, picking the XI blind scores 1246 and knowing who is out 1306.
-    unavailable = load_unavailable(UNAVAILABLE_PATH, round_number)
+    unavailable = known_out(UNAVAILABLE_PATH, BULLETIN_DIR, round_number, squad.players)
     if unavailable:
-        print(f"  {len(unavailable)} fora da jornada {round_number}, por ficheiro")
+        print(f"  {len(unavailable)} fora da jornada {round_number}, pelo boletim e pelo ficheiro")
 
     rows = {}
     for player in squad.players:
@@ -737,7 +739,7 @@ def main() -> None:
         # have charged to the model as four points of error for a fact it knew
         # before kickoff. Knowing it and not writing it down is the one thing
         # this file is for.
-        fora_agora = set(load_unavailable(UNAVAILABLE_PATH, int(key)))
+        fora_agora = set(known_out(UNAVAILABLE_PATH, BULLETIN_DIR, int(key), squad.players))
         mexeu = sheet_moved(stored, held, fora_agora, sheet_coach(snapshot_of_squad))
         if mexeu and not clubs_playing_in(
 

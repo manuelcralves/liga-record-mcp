@@ -34,7 +34,7 @@ FORBIDDEN_PATHS = (
 #: page added next month covered the moment it exists — a list of filenames
 #: only protects the files somebody remembered to add to it, and forgetting
 #: once already put twenty-nine other people's names on a public remote.
-FORBIDDEN_DIRS = ("docs/private",)
+FORBIDDEN_DIRS = ("docs/private", "data/boletim")
 
 #: The owner's own team. Its name and results are the owner's to publish; the
 #: other twenty-nine members' are not.

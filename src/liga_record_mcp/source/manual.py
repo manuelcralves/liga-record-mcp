@@ -285,3 +285,32 @@ def load_unavailable(path: str | Path, round_number: int) -> dict[str, str]:
             raise SquadSourceError(f"{file}: an entry under `fora` has no `id`")
         out[str(player_id)] = str(entry.get("razao") or "sem razão dada")
     return out
+
+
+def load_back(path: str | Path, round_number: int) -> set[str]:
+    """Who the hand file declares fit this round, whatever the bulletin says.
+
+    The Premium bulletin can sit unchanged for days, and the lock-day ALERTA is
+    fresher. A man it gives as recovered goes under `aptos`, with the same
+    `jornada` rule as `fora`: a file written for another round says nothing.
+    """
+    file = Path(path)
+    if not file.is_file():
+        return set()
+    try:
+        raw = yaml.safe_load(file.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise SquadSourceError(f"{file} is not valid YAML: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise SquadSourceError(f"{file} is not a mapping")
+
+    named = raw.get("jornada")
+    if named is not None and int(named) != int(round_number):
+        return set()
+
+    back: set[str] = set()
+    for entry in raw.get("aptos") or ():
+        if not isinstance(entry, dict) or entry.get("id") is None:
+            raise SquadSourceError(f"{file}: every entry under `aptos` needs an `id`")
+        back.add(str(entry["id"]))
+    return back

@@ -39,8 +39,11 @@ from liga_record_mcp.source import (  # noqa: E402
     load_decisions,
 )
 from liga_record_mcp.stats import last_scored_round  # noqa: E402
+from liga_record_mcp.source.bulletin import stale_bulletin  # noqa: E402
 
 UNAVAILABLE_PATH = ROOT / "data" / "indisponiveis.yaml"
+#: The Premium bulletin and suspensions board, copied each week; gitignored.
+BULLETIN_DIR = ROOT / "data" / "boletim"
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
 DECISIONS_PATH = ROOT / "data" / "decisions.json"
 
@@ -406,6 +409,14 @@ def main() -> None:
     if stale:
         print()
         print(stale)
+    # AND THE BULLETIN, which applies to one round as well, for the same reason:
+    # a copy nobody has made for this round leaves the page blind to injuries.
+    reminder = stale_bulletin(
+        BULLETIN_DIR, ManualSquadSource(SQUAD_PATH).load().round_number
+    )
+    if reminder:
+        print()
+        print(reminder)
 
     fora = departed(SQUAD_PATH)
     if fora:

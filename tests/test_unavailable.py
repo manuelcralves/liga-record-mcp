@@ -113,7 +113,7 @@ def test_the_penalty_is_below_every_fit_player(page):
 
 def test_the_page_consults_the_file(page):
     source = (ROOT / "scripts" / "build_dashboard.py").read_text(encoding="utf-8")
-    assert "load_unavailable(UNAVAILABLE_PATH, round_number)" in source
+    assert "known_out(UNAVAILABLE_PATH, BULLETIN_DIR, round_number, squad.players)" in source
     assert "OUT_OF_THE_RECKONING" in source
 
 

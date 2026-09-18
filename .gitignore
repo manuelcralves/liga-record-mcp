@@ -58,3 +58,7 @@ data/postponed-watch.json
 # thing to publish, and docs/_config.yml excludes pages by NAME, so a new .md
 # here would be served by GitHub Pages rather than ignored by it.
 docs/REVISAO-*.md
+
+# The Premium injury bulletin and suspensions board, copied each week before the
+# lock. Paid content: ours to read and to act on, not to republish.
+data/boletim/

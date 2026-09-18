@@ -84,6 +84,29 @@ def players_to_value(held: Iterable[Any], market: Mapping[str, Any]) -> dict[str
     return {**{player.id: player for player in held}, **market}
 
 
+def transfer_candidates(
+    market: Iterable[str],
+    view: Mapping[str, Mapping[str, Any]],
+    held: Iterable[str],
+    left_out: Iterable[str] = (),
+) -> list[str]:
+    """Who a transfer search may buy: a real record, and not known to be out.
+
+    A man with no top-flight matches is valued at his club's pool, which is a
+    fair estimate and a poor recommendation, so he needs `MIN_OWN_HISTORY`
+    rounds of record first. A man the bulletin says is injured or suspended is
+    left out as well: on 18/09/2026 the search proposed Santi García, who was
+    on it. The squad's own players stay in whatever their state. They are
+    already held, and the search needs them to price the squad.
+    """
+    held, left_out = set(held), set(left_out)
+    return [
+        i
+        for i in market
+        if i in held or (view[i]["appearances"] >= MIN_OWN_HISTORY and i not in left_out)
+    ]
+
+
 def recent_playing(
     record: Mapping[str, Any],
     *,
