@@ -23,27 +23,54 @@
 #
 # Esvazia a lista quando a jornada mudar.
 
-jornada: 6
+jornada: 7
 
 fora:
   - id: "41670"
     nome: Zaidu
     razao: lesao muscular no adutor direito
     fonte: |
-      BOLETIM CLINICO DO SITE, consultado a 08/09 — desta vez lista-o (na 5.a
-      nao listava, e o email e que o apanhou). Confirmado tambem pela
-      imprensa: saiu ao min 17 da jornada 4 (Ac. Viseu), exames deram lesao no
-      adutor direito, dois meses de paragem, falha os quatro jogos de setembro
-      — Moreirense, Man. City, Casa Pia e Benfica — e so volta as opcoes
-      depois da pausa internacional. Marcou -1 na jornada 5. FONTE FORTE.
+      Boletim clinico do site, consultado a 18/09, e o ALERTA de 12/09. Dois
+      meses de paragem desde a jornada 4; falha o Porto-Benfica e so volta
+      depois da pausa internacional. FONTE FORTE.
   - id: "43304"
     nome: Liziero
     razao: lesionado
     fonte: |
-      Boletim clinico do site, consultado a 08/09, e email ALERTA da 5.a. A
-      imprensa poe-no fora do jogo com o Sporting (5.a jornada) ao lado de
-      Jose Gomes e Ulisses Wilson, que o boletim tambem lista. Marcou -1 na
-      jornada 5. FONTE FORTE.
+      Boletim clinico de 18/09 e ALERTA de 12/09. FONTE FORTE.
+  - id: "41718"
+    nome: Filipe Soares
+    razao: lesao na perna direita
+    fonte: |
+      Boletim clinico de 18/09 e ALERTA de 12/09. A 08/09 o boletim ainda nao
+      o listava; agora lista.
+  - id: "43426"
+    nome: Javi Sánchez
+    razao: lesionado
+    fonte: |
+      Boletim clinico de 18/09 e ALERTA de 12/09.
+  - id: "42544"
+    nome: Weverson
+    razao: lesionado
+    fonte: |
+      Boletim clinico de 18/09 e ALERTA de 12/09.
+  - id: "31229"
+    nome: Xeka
+    razao: lesionado
+    fonte: |
+      Boletim clinico de 18/09 e ALERTA de 12/09.
+
+# COMO FOI VERIFICADO, A 18/09. O boletim clinico (Premium, ativo ate 25 de
+# maio) lista 43 jogadores, e estes seis sao os do plantel. O «Samu» do boletim
+# e o avancado do FC Porto, nao o Samu do V. Guimaraes que temos. O quadro
+# negro nao tem castigados, nem jogadores nem treinadores. Nenhum dos seis esta
+# no onze nem no banco que o modelo propoe.
+#
+# FALTA O ALERTA DE SABADO DE MANHA. Se trouxer mais alguem, entra aqui antes
+# das 15:15, e o ledger regista a jornada outra vez.
+
+# ---------------------------------------------------------------------------
+# O QUE FICOU DA JORNADA 6, para memoria.
 
 # QUEM O EMAIL FALHOU E O BOLETIM ESCLARECEU. Filipe Soares (41718, Nacional) e
 # Javi Sanchez (43426, Arouca) marcaram ambos -1 na 5.a e nenhum estava no
