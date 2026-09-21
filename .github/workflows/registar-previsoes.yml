@@ -69,8 +69,17 @@ jobs:
       # mean "declined on purpose" live in exactly one place. A second copy
       # here would drift, and the drift would show up as a red job for a step
       # that did precisely what it was designed to do.
+      #
+      # --no-rerecord, because this checkout sees less than the laptop does.
+      # data/boletim/ and the archive are both gitignored, so here the list of
+      # who is out is the hand file alone. When the bulletin names a squad
+      # player the hand file does not, a round the laptop recorded looks moved
+      # from here and only from here. Recording it again would file a poorer
+      # prediction under the same estimator, and the two writers would take
+      # turns until kickoff. So this job records a round nobody has recorded,
+      # and leaves a round on file alone.
       - name: Registar e liquidar
-        run: python scripts/routine.py --only registar liquidar
+        run: python scripts/routine.py --only registar liquidar --no-rerecord
 
       - name: Guardar o que mudou
         run: |

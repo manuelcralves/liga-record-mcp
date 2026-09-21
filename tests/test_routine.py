@@ -156,6 +156,61 @@ def test_a_round_already_complete_is_left_alone(settle):
     )
 
 
+# --- ...and only one of them sees the bulletin ---------------------------------
+#
+# data/boletim/ and the archive are gitignored, so to the job the list of who is
+# out is the hand file alone. A snapshot naming a squad player the hand file
+# does not makes the job see a round move that has not, and it would record the
+# round again without either; the laptop would record it back, and the two
+# would take turns until kickoff. tests/test_two_writers.py runs the ledger
+# script itself. These tie the job to the flag that stops it.
+
+
+def the_job_line(workflow) -> str:
+    return next(
+        step["run"]
+        for step in workflow["jobs"]["ledger"]["steps"]
+        if "--only" in (step.get("run") or "")
+    )
+
+
+def test_the_job_never_records_a_round_twice(workflow):
+    assert "--no-rerecord" in the_job_line(workflow).split(), (
+        "the job records rounds again — it cannot see data/boletim/ or the "
+        "archive, and would take turns with the laptop until kickoff"
+    )
+
+
+def test_the_job_line_reaches_the_ledger_with_the_flag(routine, workflow, monkeypatch):
+    """The workflow's own line, parsed by routine.py, with the steps faked."""
+    ran = []
+
+    def run(command):
+        ran.append(command)
+        return 0, "ok"
+
+    monkeypatch.setattr(routine, "run", run)
+    monkeypatch.setattr("sys.argv", the_job_line(workflow).split()[1:])
+    routine.main()
+    assert ran == [
+        ["scripts/record_projection.py", "--no-rerecord"],
+        ["scripts/record_projection.py", "--settle"],
+    ]
+
+
+def test_only_the_recording_step_takes_the_flag(routine):
+    told = {
+        step.slug
+        for step in routine.STEPS
+        if "--no-rerecord" in routine.command_for(step, no_rerecord=True)
+    }
+    assert told == {"registar"}
+    assert not any(
+        "--no-rerecord" in routine.command_for(step, no_rerecord=False)
+        for step in routine.STEPS
+    )
+
+
 # --- The job must not describe work it did not do -----------------------------
 #
 # The commit subject was fixed prose: "o ledger, registado antes do apito". The

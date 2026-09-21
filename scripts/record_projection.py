@@ -486,6 +486,13 @@ def main() -> None:
         help="with --settle: close a PAST round instead of the squad's current "
         "one, such as a round held open by a postponed match",
     )
+    parser.add_argument(
+        "--no-rerecord",
+        action="store_true",
+        help="record a round nobody has recorded, but never record one on file "
+        "again. For a writer that cannot see data/boletim/ or the archive, "
+        "such as the job on GitHub",
+    )
     args = parser.parse_args()
     # Only a settle may look backwards. Recording a round is a prediction, and a
     # prediction for a round that has started proves nothing. The refusal
@@ -741,8 +748,31 @@ def main() -> None:
         # this file is for.
         fora_agora = set(known_out(UNAVAILABLE_PATH, BULLETIN_DIR, int(key), squad.players))
         mexeu = sheet_moved(stored, held, fora_agora, sheet_coach(snapshot_of_squad))
-        if mexeu and not clubs_playing_in(
-
+        # BUT NEVER BY A WRITER THAT CANNOT SEE WHAT THE ROUND WAS RECORDED WITH.
+        #
+        # The ledger has two writers: the laptop, and the job on GitHub, which
+        # runs this on a fresh checkout. data/boletim/ is gitignored, and so is
+        # the archive, so to the job the list of who is out is the hand file
+        # alone. A snapshot naming a squad player the hand file does not makes
+        # the round look moved to the job and to nobody else. It would record
+        # the round again without the bulletin or the archive, under the same
+        # estimator; the laptop would record it back; and the two would take
+        # turns until kickoff, whichever wrote last being the prediction on
+        # file. Round 7 escaped on 18/09 only because the six squad players on
+        # that snapshot were the six in the hand file.
+        #
+        # So the job passes --no-rerecord. It still records a round nobody has,
+        # which is why it exists, and still files the sheet below, which comes
+        # from data/squad.yaml and reads the same on both. What it gives up is
+        # re-recording a team changed from another machine while the laptop
+        # is off, and that re-record was always the poorer model.
+        if mexeu and args.no_rerecord:
+            print(
+                f"round {key}: a equipa mudou desde o instantaneo, mas com "
+                "--no-rerecord uma jornada no ficheiro nao se regista de novo — "
+                "fica para o portatil, que ve o boletim e o arquivo."
+            )
+        if mexeu and not args.no_rerecord and not clubs_playing_in(
             market.fixtures(), int(key)
         ):
             print(
@@ -762,6 +792,11 @@ def main() -> None:
                 if picked is not None
                 else None
             )
+            # Under --no-rerecord this also runs after a transfer, and the sheet
+            # entered can then name a player the round holds no row for. It is
+            # filed all the same: `filed` is the eleven actually entered, and
+            # the track record leaves that round's own total blank rather than
+            # score an older sheet nobody entered.
             if fresh != stored.get("filed") and not clubs_playing_in(
                 market.fixtures(), int(key)
             ):

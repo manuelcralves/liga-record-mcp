@@ -133,6 +133,26 @@ def test_his_sheet_is_read_from_the_round_it_was_filed_with(dash):
     assert without["mine"] is None, "a round with no filed sheet cannot score one"
 
 
+def test_a_sheet_naming_a_player_the_round_never_recorded_scores_nothing(dash):
+    """The sheet entered after a transfer, on a round recorded before it.
+
+    `record_projection --no-rerecord` leaves a round's projections alone and
+    still files the sheet actually entered, so the job can file a starter the
+    round holds no row for. That starter has no score here, and ten starters
+    are not the eleven entered: the total is blank, never the ten that are left.
+    """
+    rows = squad_rows({}, {str(i): 2 for i in range(1, 24)})
+    filed = {
+        "starters": [str(i) for i in [1, 4, 5, 6, 12, 13, 14, 15, 20, 21]]
+        + ["bought"],
+        "bench": ["2", "7", "16", "23"],
+        "captain": "20",
+    }
+    row = dash.track_rounds({"stored": ledger(rows, filed)})[0]
+    assert row["whole"] is True
+    assert row["mine"] is None
+
+
 def test_a_round_with_nothing_settled_is_left_out(dash):
     rows = squad_rows({}, {str(i): None for i in range(1, 24)})
     assert dash.track_rounds({"stored": ledger(rows)}) == []

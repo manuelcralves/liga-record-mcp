@@ -3,9 +3,9 @@
 Every step below refuses to do the wrong thing rather than doing it quietly,
 which is what makes running this on a timer sound rather than reckless:
 
-  record   refuses once the round has kicked off, and refuses to overwrite a
-           round already on file. So it writes exactly once per round, on the
-           first run after the squad file names a new one.
+  record   refuses once the round has kicked off. A round already on file is
+           recorded again only when the team has moved before kickoff, and
+           never under --no-rerecord, which the job on GitHub passes.
   settle   only fills in players whose club has actually played, leaves the
            rest pending, and never re-settles what is already recorded.
   history  skips rounds it already holds.
@@ -80,6 +80,10 @@ class Step(NamedTuple):
     #: Only the private page reads the private league; warning about it while
     #: running steps that never touch it trains the reader to ignore warnings.
     needs_league: bool = False
+    #: Whether this step can record a round on file again, which --no-rerecord
+    #: forbids. The job on GitHub passes that flag: data/boletim/ and the
+    #: archive are gitignored, so it cannot see what the laptop recorded with.
+    rerecords: bool = False
 
 
 STEPS = [
@@ -88,6 +92,7 @@ STEPS = [
         "registar projeções",
         ["scripts/record_projection.py"],
         ("already on file", "has already begun"),
+        rerecords=True,
     ),
     Step("liquidar", "liquidar a jornada", ["scripts/record_projection.py", "--settle"]),
     Step("historico", "histórico por jornada", ["scripts/record_history.py"]),
@@ -113,6 +118,13 @@ STEPS = [
     # only the manager knows, which is the part that goes missing.
     Step("pendentes", "decisões em falta", ["scripts/pending_decisions.py"]),
 ]
+
+
+def command_for(step: Step, *, no_rerecord: bool) -> list[str]:
+    """The step's command line, with --no-rerecord passed on where it applies."""
+    if no_rerecord and step.rerecords:
+        return [*step.command, "--no-rerecord"]
+    return step.command
 
 
 def run(args: list[str]) -> tuple[int, str]:
@@ -151,6 +163,15 @@ def main() -> None:
             "that failed silently for however long it took someone to notice"
         ),
     )
+    parser.add_argument(
+        "--no-rerecord",
+        action="store_true",
+        help=(
+            "passed on to the recording step: record a round nobody has "
+            "recorded, but never record one on file again. The job on GitHub "
+            "passes it, because it cannot see data/boletim/ or the archive"
+        ),
+    )
     args = parser.parse_args()
 
     said: list[str] = []
@@ -167,19 +188,19 @@ def main() -> None:
         say("LIGA_RECORD_LEAGUE is not set — the private league will be missing")
 
     failures = []
-    for slug, label, command, declines, _ in chosen:
-        code, output = run(command)
+    for step in chosen:
+        code, output = run(command_for(step, no_rerecord=args.no_rerecord))
         tail = output.splitlines()[-1] if output else ""
-        declined = any(phrase in output for phrase in declines)
+        declined = any(phrase in output for phrase in step.declines)
 
         if code == 0:
-            say(f"  ✓ {label}: {tail}")
+            say(f"  ✓ {step.label}: {tail}")
         elif declined:
             if not args.quiet:
-                say(f"  · {label}: nada a fazer ({tail})")
+                say(f"  · {step.label}: nada a fazer ({tail})")
         else:
-            failures.append(label)
-            say(f"  ✗ {label}: {tail}")
+            failures.append(step.label)
+            say(f"  ✗ {step.label}: {tail}")
 
     if args.log:
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
