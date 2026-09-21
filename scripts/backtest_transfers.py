@@ -270,7 +270,18 @@ def looking_ahead(
 
     `search="improve"` asks it of the search the page runs, `improve_squad`,
     and plays only `epoca` and `ahead`: at the page's draws the horizon costs
-    five times the search, and `semana` answers nothing the page asks.
+    five times the search, and `semana` answers nothing the page asks. On
+    21/09/2026, K=5, the same paths, cut at 27 a season on the clock before
+    they were read (the full 64 would have taken until the evening):
+
+                                  2025/26       2024/25        both
+        ahead over epoca         +33.3 ± 8.9   +26.2 ± 9.4   +29.8 ± 6.5
+        paths won                  22 of 27      21 of 27
+
+    Larger than through `best_transfer`, and this is the number that wired the
+    horizon into the page. Both searches trade in 28 or 29 rounds of 29 in
+    every arm, so the regime is the same; what differs is that this one plays
+    the round out with absences and §11.
 
     A SEASON IS ONE PATH and this script's own docstring says so: about
     twenty-five decisions, swinging a hundred points with no pattern, and

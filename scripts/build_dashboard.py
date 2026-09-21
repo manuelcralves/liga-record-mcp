@@ -133,6 +133,25 @@ COACHES_PATH = ROOT / "data" / "coaches.yaml"
 #: Where the answer matters the search is steady; where it wobbles, the choice
 #: is between two things of equal value and nothing is at stake.
 SWAP_DRAWS = 1200
+#: Rounds ahead the weekly transfer is priced over, each against its own
+#: opponent. Fixed at five on 8/9/2026, before any of the numbers below: the
+#: horizons measured cannot be told apart, and choosing one by its result
+#: would be choosing the noise.
+#:
+#: Measured on 21/09/2026 against what the page did until then — the season
+#: value with no opponent at all — over 64 paired paths of each reconstructed
+#: season, on the model's own valuation (`backtest_transfers.py --lookahead 5`):
+#:
+#:                                 2025/26       2024/25        both
+#:     through best_transfer     +8.2 ± 4.8   +12.1 ± 4.3   +10.1 ± 3.2
+#:     through this search      +33.3 ± 8.9   +26.2 ± 9.4   +29.8 ± 6.5
+#:
+#: Points a season. The second line is the one that decided it, because it is
+#: `improve_squad` with `max_swaps=1` at SWAP_DRAWS — this page's own search —
+#: and it wins 22 paths of 27 and 21 of 27, medians +22 in both. It stops at 27
+#: a season, three rounds of nine processes: a limit set on the clock, before
+#: those paths were read, when the full 64 would have run to the evening.
+LOOKAHEAD = 5
 HISTORY_PATH = ROOT / "data" / "history.json"
 MY_TEAM_ID = 156412
 ORDER = {"GK": 0, "DEF": 1, "MID": 2, "FWD": 3}
@@ -516,14 +535,18 @@ def holiday_section(data: dict) -> str:
     )
 
 
-def round_fixtures(round_number: int) -> dict[str, dict]:
-    """Each club's opponent that round, and how hard it looks.
+def fixture_weeks(round_numbers: list[int]) -> dict[int, dict[str, dict]]:
+    """Each club's opponent in each of these rounds, and how hard it looks.
 
     The same multipliers `fixture_grid` draws, lifted out so the grid and the
-    recommendation cannot disagree about a week. A club missing from the result
+    recommendation cannot disagree about a week. A club missing from a round
     has no fixture at all that round — which is not a hard week, it is no week,
     and §15.3 scores its players zero if the game is not played before the next
     round begins.
+
+    Several rounds in one call because the transfer is priced over the next
+    `LOOKAHEAD` of them, and the club records behind the multipliers are one
+    download, not one a round.
     """
     fixtures = mcp._market.fixtures()
     records = OpenFootballClient(timeout=60.0).club_records()
@@ -537,9 +560,9 @@ def round_fixtures(round_number: int) -> dict[str, dict]:
             return league_ga, league_gf
         return record.goals_against_per_match, record.goals_for_per_match
 
-    out: dict[str, dict] = {}
+    out: dict[int, dict[str, dict]] = {number: {} for number in round_numbers}
     for fixture in fixtures:
-        if fixture.round_number != round_number:
+        if fixture.round_number not in out:
             continue
         for club, opponent, at_home in (
             (fixture.home, fixture.away, True),
@@ -550,7 +573,7 @@ def round_fixtures(round_number: int) -> dict[str, dict]:
             defensive, attacking = fixture_multipliers(
                 own_ga, own_gf, opp_ga, opp_gf, league_ga, league_gf, at_home=at_home
             )
-            out[club] = {
+            out[fixture.round_number][club] = {
                 "opponent": opponent,
                 "at_home": at_home,
                 "defensive": defensive,
@@ -725,8 +748,9 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # only the twenty-three in the pools and the transfer with the whole market,
     # so the same man carried two numbers on one page — and the replay only ever
     # measured the second.
+    valued = players_to_value(squad.players, whole)
     wide = valuation(
-        players_to_value(squad.players, whole),
+        valued,
         archive,
         now,
         owned={i: q.get("owned_percent") for i, q in quoted.items()},
@@ -739,17 +763,22 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         {"id": p.id, "position": p.position, "value": p.value} for p in squad.players
     ]
 
-    # THE OPPONENT MOVES THE ELEVEN, NOT THE TRANSFER. A team sheet is set one
-    # round at a time and a defender away at Porto is not the same bet as the
-    # same defender at home to the weakest attack in the league. A transfer
-    # runs to May, and over thirty rounds the fixtures average out — adjusting
-    # it for one week would sell a good player for a bad week.
+    # THE OPPONENT MOVES THE ELEVEN ON THIS WEEK, THE TRANSFER ON THE NEXT FIVE.
+    # A team sheet is set one round at a time and a defender away at Porto is
+    # not the same bet as the same defender at home to the weakest attack in
+    # the league. A transfer runs to May, and pricing it on one week would sell
+    # a good player for a bad Saturday — measured, that loses to ignoring the
+    # opponent altogether. Priced on the next `LOOKAHEAD` rounds it beats both.
     #
     # And the adjustment scales what he returns WHEN HE PLAYS, never the
     # blended estimate: §10.3(i)'s -1 for a week he does not play is the same
     # -1 whoever the opponent is, and scaling it would make an easy fixture
     # look like a reason to own someone who is not in the side.
-    weeks = round_fixtures(round_number)
+    rounds_ahead = [round_number] + list(
+        range(round_number + 1, min(round_number + LOOKAHEAD, LAST_MATCHDAY + 1))
+    )
+    weeks_ahead = fixture_weeks(rounds_ahead)
+    weeks = weeks_ahead[round_number]
     expected = {}
     fixture_of = {}
     for player_id, entry in view.items():
@@ -903,21 +932,43 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # different players, which is the worst way for a model to be wrong: not
     # visibly, but in two voices.
     #
-    # Season values, not this week's. A transfer runs to May, and adjusting it
-    # for one fixture would sell a good player for a bad Saturday.
+    # PRICED ON THE NEXT `LOOKAHEAD` ROUNDS, each against its own opponent —
+    # not on this week's alone, which sells a good player for a bad Saturday,
+    # and not on the season value alone, which is what this did until
+    # 21/09/2026 and what the lookahead beat when measured. A club with no
+    # fixture in one of those rounds keeps his season value there: the replay
+    # never saw that case, and the season value is what the page always used.
+    #
     # A man who has left the league is not in `whole`, and every call below
     # would die looking him up. Found once, above, with the names carried out
     # to the page — never dropped quietly, which is how this went unseen.
     still_here = [p.id for p in squad.players if p.id not in gone]
+    season_returns = {i: v["returns"] for i, v in wide.items()}
+    ahead = []
+    for number in rounds_ahead:
+        by_club = weeks_ahead[number]
+        moved = {}
+        for player_id, rate in season_returns.items():
+            person = valued[player_id]
+            week = by_club.get(person.club)
+            moved[player_id] = (
+                rate
+                if week is None
+                else adjust_for_fixture(
+                    rate, person.position, week["defensive"], week["attacking"]
+                )
+            )
+        ahead.append(moved)
     improved = improve_squad(
         still_here,
         whole,
-        {i: v["returns"] for i, v in wide.items()},
+        season_returns,
         {i: v["playing"] for i, v in wide.items()},
         budget=squad.budget,
         candidates=known,
         max_swaps=1,
         draws=SWAP_DRAWS,
+        horizon=ahead,
     )
     move = None
     if improved["swaps"]:
@@ -925,8 +976,8 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         out_id = next(i for i in held if i not in improved["players"])
         in_id = next(i for i in improved["players"] if i not in held)
         # Per round, and over the rounds that are left. The search reports what
-        # the swap is worth in a single round; a reader deciding whether to
-        # spend a transfer wants the season.
+        # the swap is worth in an average round of the horizon; a reader
+        # deciding whether to spend a transfer wants the season.
         #
         # EVERY step, not the first one. `swaps` is the trail the search left,
         # not a list of transfers to make: one net change can be reached in
@@ -952,6 +1003,7 @@ def model_sheet(stored: dict, round_number: int) -> dict:
                 "field": FIELD_PT.get(wide[in_id]["field_label"], ""),
             },
             "gain": gain,
+            "rounds": len(ahead),
         }
 
     # THE TWENTY-THREE THE MODEL WOULD BUY, which is a different question from
@@ -964,8 +1016,9 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # transfers and none at all is a few dozen. This is the decision that
     # matters, and it has a deadline.
     #
-    # Season values, not this week's, for the same reason the transfer uses
-    # them: a squad is held to May.
+    # Season values, not this week's: a squad is held to May. The transfer's
+    # horizon stays with the transfer — it was measured on one move a round,
+    # not on twenty-three at once.
     ideal = {}
     season_view = {i: v["expected"] for i, v in wide.items()}
     bought = best_squad_under_budget(
@@ -1184,6 +1237,11 @@ def model_section(data: dict, public: bool = False) -> str:
     move = found.get("transfer")
     if move and move["out"]:
         arrival = move["in"]
+        against = (
+            "o adversário da próxima jornada"
+            if move["rounds"] == 1
+            else f"os adversários das próximas {move['rounds']} jornadas"
+        )
         transfer = (
             f'      <p class="lede"><strong>A transferência ({article}).</strong> '
             f"Sai <strong>{esc(move['out']['name'])}</strong> "
@@ -1194,7 +1252,8 @@ def model_section(data: dict, public: bool = False) -> str:
             f"de evidência) — <strong>{esc(arrival['label'])}</strong>"
             + (f", {esc(arrival['field'])}" if arrival["field"] else "")
             + f". Vale cerca de <strong>{move['gain']:.0f} pontos</strong> até ao "
-            "fim da época. Só entram na busca jogadores com registo a sério — "
+            f"fim da época, com {against} no preço. Só entram na busca "
+            "jogadores com registo a sério — "
             "quem não tem jogos é valorizado pelo clube dele, o que dá uma "
             f"estimativa justa e uma recomendação má. {limit}</p>"
         )
