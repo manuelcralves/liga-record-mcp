@@ -27,12 +27,11 @@ team:
   bonus: 0
   penalties: 0
 
-# Passou a 7 a 15/09/2026, depois de o modelo ler a epoca a partir dos emails.
-# Nao antes: o trabalho agendado regista a jornada que este campo indicar, e
-# com o modelo antigo teria registado a 7 a partir dos totais apagados pelo
-# site. A folha abaixo e a da jornada 6 e repete-se sozinha pelo 6.14 ate
-# ser mudada.
-round: 7
+# Passou a 8 a 21/09/2026, com a jornada 7 fechada pelo email (44 pontos).
+# O trabalho agendado regista a jornada que este campo indicar, por isso a 8
+# foi registada logo a seguir no portatil, que tem o arquivo. A folha abaixo e
+# a da jornada 7 e repete-se sozinha pelo 6.14 ate ser mudada.
+round: 8
 
 players:
   # --- Guarda-redes (3) ---
