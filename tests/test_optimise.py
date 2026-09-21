@@ -585,6 +585,130 @@ def test_the_climb_lands_in_the_same_place_whatever_order_it_reads_the_market_in
         assert again["expected_round"] == first["expected_round"]
 
 
+# --- a horizon of rounds ahead --------------------------------------------------
+
+
+def graded_problem():
+    """The squad the two tests above climb from: spent to the last euro, a good
+    keeper among three, and the four good forwards all outside it."""
+    market = squad_market()
+    squad = (
+        ["GK0", "GK1", "GK2"]
+        + [f"DEF{n}" for n in range(8)]
+        + [f"MID{n}" for n in range(8)]
+        + [f"FWD{n}" for n in range(8, 12)]
+    )
+    returns = {
+        i: (
+            market[i].value / 1_000_000
+            if market[i].position in (Position.DEF, Position.MID)
+            else 1.0
+        )
+        for i in market
+    }
+    returns["GK0"] = 4.0
+    for n in range(4):
+        returns[f"FWD{n}"] = 20.0 - n
+    playing = {i: 0.95 for i in market}
+    return market, squad, sum(market[i].value for i in squad), returns, playing
+
+
+def test_without_a_horizon_the_search_is_the_one_it_always_was():
+    """The horizon is new, and everything the search did before must still be
+    what it does without one — to the last player, swap and hundredth.
+
+    The numbers below were read off the search the day the horizon was added,
+    BEFORE the change, on the whole climb and on the one transfer a round the
+    page asks for. A horizon of one round equal to the season values must give
+    them too: it is the same arithmetic, divided by one. If `squad_value`
+    itself ever changes on purpose, read them again from the new code; what
+    this holds is that the horizon changed nothing on its own.
+    """
+    market, squad, budget, returns, playing = graded_problem()
+    before = {
+        "whole climb": (
+            dict(budget=budget, draws=64, passes=2),
+            {
+                "players": [
+                    "DEF0", "DEF1", "DEF10", "DEF11", "DEF2", "DEF3", "DEF4",
+                    "DEF7", "FWD0", "FWD1", "FWD2", "FWD3", "GK0", "GK2", "GK3",
+                    "MID0", "MID1", "MID10", "MID11", "MID2", "MID4", "MID6",
+                    "MID7",
+                ],
+                "swaps": [
+                    {"out": "GK1 + FWD10", "in": "GK3 + FWD0", "gain": 33.359},
+                    {"out": "DEF5 + FWD11", "in": "DEF10 + FWD1", "gain": 16.359},
+                    {"out": "MID3 + FWD8", "in": "MID10 + FWD2", "gain": 15.161},
+                    {"out": "DEF3 + FWD9", "in": "DEF11 + FWD3", "gain": 2.158},
+                    {"out": "MID5 + DEF6", "in": "MID11 + DEF3", "gain": 0.342},
+                ],
+                "expected_round": 97.86,
+                "cost": 43_600_000,
+            },
+        ),
+        "one transfer": (
+            dict(budget=budget + 3_000_000, draws=64, max_swaps=1),
+            {
+                "players": [
+                    "DEF0", "DEF1", "DEF2", "DEF3", "DEF4", "DEF5", "DEF6",
+                    "DEF7", "FWD0", "FWD11", "FWD8", "FWD9", "GK0", "GK1", "GK2",
+                    "MID0", "MID1", "MID2", "MID3", "MID4", "MID5", "MID6",
+                    "MID7",
+                ],
+                "swaps": [{"out": "FWD10", "in": "FWD0", "gain": 33.359}],
+                "expected_round": 63.84,
+                "cost": 46_200_000,
+            },
+        ),
+    }
+    for name, (settings, expected) in before.items():
+        for horizon in (None, [returns]):
+            found = improve_squad(
+                squad, market, returns, playing, horizon=horizon, **settings
+            )
+            assert sorted(found["players"]) == expected["players"], name
+            assert found["swaps"] == expected["swaps"], name
+            assert found["expected_round"] == expected["expected_round"], name
+            assert found["cost"] == expected["cost"], name
+
+
+def test_a_horizon_prefers_a_steady_run_to_one_easy_week():
+    """What the horizon is for: a transfer runs to May, not to Saturday.
+
+    X is worth more on the season values, so without a horizon he is the buy.
+    But his value is one easy week followed by four hard ones, and Y is the
+    same every week and better on the average of the five. Priced over the
+    rounds ahead, Y is the buy — and this is the whole of the idea, so it has
+    to be visible in one transfer, the one the page asks for each week.
+    """
+    market = squad_market()
+    market["FWDX"] = as_player(row("FWDX", Position.FWD, 500_000))
+    market["FWDY"] = as_player(row("FWDY", Position.FWD, 500_000))
+    squad = (
+        ["GK0", "GK1", "GK2"]
+        + [f"DEF{n}" for n in range(8)]
+        + [f"MID{n}" for n in range(8)]
+        + [f"FWD{n}" for n in range(8, 12)]
+    )
+    budget = sum(market[i].value for i in squad)
+    season = {i: 1.0 for i in market}
+    season.update(FWDX=10.0, FWDY=9.0)
+    ahead = [
+        {**season, "FWDX": week, "FWDY": 9.5} for week in (16.0, 7.5, 7.5, 7.5, 7.5)
+    ]
+    playing = {i: 0.95 for i in market}
+
+    def bought(horizon):
+        found = improve_squad(
+            squad, market, season, playing, budget=budget, draws=64,
+            max_swaps=1, horizon=horizon,
+        )
+        return set(found["players"]) - set(squad)
+
+    assert bought(None) == {"FWDX"}
+    assert bought(ahead) == {"FWDY"}
+
+
 # --- a man who has left the league --------------------------------------------
 
 

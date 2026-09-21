@@ -314,6 +314,7 @@ def improve_squad(
     draws: int = 400,
     seed: int = 0,
     max_swaps: int | None = None,
+    horizon: Sequence[Mapping[str, float]] | None = None,
 ) -> dict[str, Any]:
     """Trade players for as long as the team sheet improves.
 
@@ -364,12 +365,41 @@ def improve_squad(
 
     `passes` is how many times the two searches alternate, not how many players
     change hands: each runs itself out before handing over.
+
+    `horizon` LOOKS PAST SATURDAY. Without it a squad is priced on `returns`
+    alone, the season values, as though every week left were an average one.
+    Given one `returns` map per round ahead, each moved by that round's
+    opponent, a squad is priced in every round and the prices averaged, and the
+    shortlist is ranked on the same average so the candidates and the price
+    agree. `playing` stays as it is: an opponent moves what a man returns when
+    he plays, not whether he does.
+
+    The margin becomes the mean of each round's standard error. The rounds
+    share their draws, so they move together and the exact error of the average
+    can only be smaller — the margin is a shade wider than it needs to be, and
+    never narrower. Without a horizon, or with one round equal to `returns`,
+    every number here is the one it always was; a test holds that.
+
+    Measured in `scripts/backtest_transfers.py` before it was wired, against the
+    season values this search had always used alone.
     """
     squad = list(squad_ids)
     pool = list(candidates if candidates is not None else market)
     by_position: dict[Position, list[str]] = {}
     for identifier in pool:
         by_position.setdefault(market[identifier].position, []).append(identifier)
+
+    # The rounds a squad is priced over. One round of season values is the
+    # search as it always was: the arithmetic below divides by one.
+    rounds: list[Mapping[str, float]] = list(horizon) if horizon else [returns]
+    ranking: Mapping[str, float] = (
+        {
+            i: sum(view.get(i, 0.0) for view in rounds) / len(rounds)
+            for i in dict.fromkeys(p for view in rounds for p in view)
+        }
+        if horizon
+        else returns
+    )
 
     def affordable(position: Position, held: set[str], headroom: int) -> list[str]:
         """The best few this squad could actually pay for, and the cheapest.
@@ -389,7 +419,7 @@ def improve_squad(
             for i in by_position.get(position, ())
             if i not in held and market[i].value <= headroom
         ]
-        options.sort(key=lambda i: (-returns.get(i, 0.0), i))
+        options.sort(key=lambda i: (-ranking.get(i, 0.0), i))
         cheapest = min(options, key=lambda i: (market[i].value, i), default=None)
         best = options[:shortlist]
         if cheapest is not None and cheapest not in best:
@@ -407,15 +437,16 @@ def improve_squad(
     #: sorts on a total key, and §11 indexes the bench by id — so the same
     #: twenty-three price bit-for-bit identically however they are shuffled.
     #: Nothing else the price depends on — the market, the two projections,
-    #: `draws`, `seed` — can move inside one call.
+    #: the horizon, `draws`, `seed` — can move inside one call.
     priced: dict[frozenset[str], float] = {}
 
     def value_of(ids: Sequence[str]) -> float:
         key = frozenset(ids)
         if key not in priced:
-            priced[key] = squad_value(
-                ids, market, returns, playing, draws=draws, seed=seed
-            )
+            priced[key] = sum(
+                squad_value(ids, market, view, playing, draws=draws, seed=seed)
+                for view in rounds
+            ) / len(rounds)
         return priced[key]
 
     started = set(squad)
@@ -430,9 +461,12 @@ def improve_squad(
         """
         return max_swaps is None or len(started.difference(trial)) <= max_swaps
 
-    value, variation = squad_value(
-        squad, market, returns, playing, draws=draws, seed=seed, spread=True
-    )
+    starting = [
+        squad_value(squad, market, view, playing, draws=draws, seed=seed, spread=True)
+        for view in rounds
+    ]
+    value = sum(price for price, _ in starting) / len(starting)
+    variation = sum(spread for _, spread in starting) / len(starting)
     # Two squads sharing twenty-two players are usually a near tie, and a near
     # tie sampled a few hundred times comes out differently every seed. Without
     # a margin the climb churns forever on those, spending real transfers to
