@@ -24,6 +24,7 @@ from liga_record_mcp.backtest import (
     best_transfer,
     play_round,
     replay,
+    replay_with_search,
     replay_with_transfers,
     settle_transfers,
     shrunk_projection,
@@ -660,3 +661,48 @@ def test_a_gentle_saturday_stops_deciding_the_season():
         horizon={7: saturday, 8: later, 9: later, 10: later},
     )
     assert ahead[1] == steady
+
+
+# --- the page's own search ----------------------------------------------------
+
+
+def test_the_page_search_makes_one_transfer_a_round_and_plays_what_it_holds():
+    """§6.8 is one transfer a round, and the replay has to hold the page to it.
+
+    `improve_squad` climbs, and inside one climb it may buy a man and then a
+    better one for the same place; only the net move is a transfer. Two spare
+    forwards better than anyone held, so a search free of the cap would take
+    both at once. The first round must take the better one alone, the second
+    the other, and the season must then be scored on the squad it ended with.
+    """
+    market = market_of(extra=2)
+    squad = squad_of(market)
+    spares = [i for i in market if i.startswith("FWD") and i not in squad]
+    returns = {i: 1.0 for i in market}
+    returns[spares[0]], returns[spares[1]] = 9.0, 8.0
+    playing = {i: 0.95 for i in market}
+    history = flat_history(market, points=1.0)
+    for i in spares:
+        history[i] = {m: returns[i] for m in MATCHDAYS}
+
+    played = replay_with_search(
+        squad, market, history, MATCHDAYS,
+        budget=99_000_000,
+        parts={m: (playing, returns) for m in MATCHDAYS},
+        forecasts={m: returns for m in MATCHDAYS},
+        draws=32,
+    )
+    # One move in each of the first two rounds and none after: everyone else
+    # is worth the same, and the margin keeps the search from churning them.
+    assert [(t["matchday"], t["in_id"]) for t in played["transfers"]] == [
+        (MATCHDAYS[0], spares[0]),
+        (MATCHDAYS[1], spares[1]),
+    ]
+    assert set(spares) <= set(played["final_squad"])
+    assert len(played["final_squad"]) == len(squad)
+    # From the second round on both play, and the eleven they are in is what
+    # scores — a replay that moved the squad and scored the old one would not.
+    assert played["rounds"][2] == play_round(
+        played["final_squad"], market, history, MATCHDAYS[2], forecast=returns,
+        knows_availability=True,
+    )["points"]

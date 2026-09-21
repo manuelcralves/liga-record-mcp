@@ -10,11 +10,13 @@ So one rule runs through this module: a decision taken before matchday M may
 read matchdays strictly before M, and nothing else. Every function that could
 break it takes `upto` and honours it.
 
-Three things get replayed:
+Four things get replayed:
 
     replay                 a fixed squad, round by round
     replay_with_transfers  a squad that changes, one transfer a round under §6.8
     best_transfer          the swap the projection would actually recommend
+    replay_with_search     the same season, each transfer chosen by the search
+                           the page runs (`optimise.improve_squad`)
 
 The first two also come in a hindsight flavour, by handing them the real scores
 as the forecast. That is not cheating as long as it is labelled: the gap
@@ -51,7 +53,7 @@ from statistics import mean
 from typing import Any
 
 from .models import Player, Position, Selection, Squad
-from .optimise import best_eleven
+from .optimise import best_eleven, improve_squad
 from .rules import simulate_autosubs
 from .stats import (
     STARTER_MINUTES,
@@ -1116,6 +1118,91 @@ def replay_with_transfers(
     summary = _summarise(per_round, substitutions, transfers=transfers, final=list(squad))
     summary["coach_points"] = round(coach_points_won, 1)
     return summary
+
+
+def replay_with_search(
+    opening: Sequence[str],
+    market: Mapping[str, Player],
+    history: Mapping[str, Mapping[int, float]],
+    matchdays: Sequence[int],
+    *,
+    budget: int,
+    parts: Mapping[int, tuple[Mapping[str, float], Mapping[str, float]]],
+    forecasts: Mapping[int, Mapping[str, float]],
+    horizons: Mapping[int, Sequence[Mapping[str, float]]] | None = None,
+    draws: int = 400,
+    seed: int = 0,
+    knows_availability: bool = True,
+) -> dict[str, Any]:
+    """`replay_with_transfers`, with each transfer chosen the way the page does.
+
+    That one decides with `best_transfer`, which adds up an eleven. The page
+    decides with `improve_squad`, which plays the round out — who turns up drawn
+    from each man's chance of playing, §11 repairing what it can — and moves
+    only on a gain that clears one standard error of it. A rule measured on the
+    first is a rule measured on a sibling of the advice, and a number read off
+    a sibling has been quoted as the model's before.
+
+    `parts` is {matchday: (playing, returns)}, the two halves `improve_squad`
+    takes, from data before the matchday. `horizons` is {matchday: one
+    `returns` map per round ahead} and goes to it as its horizon; keeping every
+    map in it honest is the caller's job, as it is for `replay_with_transfers`.
+    `forecasts` picks the eleven, as everywhere else in this module.
+
+    One transfer a round under §6.8: `max_swaps=1` counts the net change, so
+    the search may buy a man and then a better one for the same place inside
+    one climb, and only the move it lands on is a transfer.
+    """
+    squad = list(opening)
+    per_round, substitutions = [], 0
+    transfers: list[dict[str, Any]] = []
+
+    for index, matchday in enumerate(matchdays):
+        playing, returns = parts[matchday]
+        found = improve_squad(
+            squad,
+            market,
+            returns,
+            playing,
+            budget=budget,
+            max_swaps=1,
+            draws=draws,
+            seed=seed,
+            horizon=None if horizons is None else horizons.get(matchday),
+        )
+        gone = [i for i in squad if i not in found["players"]]
+        if gone:
+            (out_id,) = gone
+            (in_id,) = [i for i in found["players"] if i not in squad]
+            rounds_left = len(matchdays) - index
+            squad[squad.index(out_id)] = in_id
+            transfers.append(
+                {
+                    "matchday": matchday,
+                    "out": market[out_id].name,
+                    "in": market[in_id].name,
+                    # The search reports a round; the page prints the season.
+                    "projected_gain": round(
+                        sum(swap["gain"] for swap in found["swaps"]) * rounds_left, 1
+                    ),
+                    "out_id": out_id,
+                    "in_id": in_id,
+                    "rounds_left": rounds_left,
+                }
+            )
+
+        played = play_round(
+            squad,
+            market,
+            history,
+            matchday,
+            forecast=forecasts[matchday],
+            knows_availability=knows_availability,
+        )
+        per_round.append(played["points"])
+        substitutions += played["substitutions"]
+
+    return _summarise(per_round, substitutions, transfers=transfers, final=list(squad))
 
 
 def settle_transfers(

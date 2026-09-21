@@ -41,6 +41,8 @@ different problem and blurring it into "one a round" would answer neither.
 
     python scripts/backtest_transfers.py
     python scripts/backtest_transfers.py --thresholds 0 5 10 20
+    python scripts/backtest_transfers.py --lookahead 5 --paths 64
+    python scripts/backtest_transfers.py --lookahead 5 --paths 64 --search improve --workers 16
 """
 
 from __future__ import annotations
@@ -51,14 +53,18 @@ import random
 import statistics
 import sys
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "src")]
+sys.path[:0] = [str(ROOT / "src"), str(ROOT / "scripts")]
 
+from liga_record_mcp.advice import valuation  # noqa: E402
 from liga_record_mcp.backtest import (  # noqa: E402
     ABSENT,
     replay,
+    replay_with_search,
     replay_with_transfers,
     rescale_for_fixture,
     settle_transfers,
@@ -74,6 +80,13 @@ from liga_record_mcp.models import (  # noqa: E402
 )
 from liga_record_mcp.optimise import best_squad_under_budget  # noqa: E402
 from liga_record_mcp.source import LigaRecordClient, ManualSquadSource  # noqa: E402
+from liga_record_mcp.source.last_season import archive_records  # noqa: E402
+from replay_valuation import (  # noqa: E402
+    SEASONS as REPLAYED,
+    club_before,
+    rows_by_round,
+    season_so_far,
+)
 
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
 
@@ -81,6 +94,14 @@ SEASON_PATH = ROOT / "data" / "last-season.json"
 
 MATCHDAYS = list(range(FIRST_SCORING_MATCHDAY, LAST_MATCHDAY + 1))
 ALL_MATCHDAYS = list(range(1, LAST_MATCHDAY + 1))
+
+#: The season each reconstruction may remember, as `replay_valuation` has it:
+#: 2025/26 remembers 2024/25, and 2024/25 remembers nothing.
+ARCHIVE_FOR = {season: archive for _, season, archive in REPLAYED}
+
+#: What the page plays each candidate squad through: `SWAP_DRAWS` in
+#: build_dashboard.py. The page's search at another count is another search.
+PAGE_DRAWS = 1200
 
 
 def load(market, season_path=None):
@@ -113,29 +134,154 @@ def load(market, season_path=None):
     return history, minutes, cells, fixture_table([(loaded, 0)])
 
 
-def looking_ahead(history, minutes, cells, table, market, rows, mine, *, horizon, paths, seed):
-    """Does pricing a transfer over the next few rounds beat pricing this one?
+def projection_halves(estimator, history, minutes, cells, season_path):
+    """{matchday: (playing, returns, cells)}, each from rounds strictly before it.
 
-    THE ONLY DIFFERENCE BETWEEN THE ARMS IS THE HORIZON. Both are handed the
-    same fixture-aware projection, so a win cannot be the fixture term arriving
-    — that term is in both. Arm A values a swap on the round being decided and
-    multiplies by the rounds left, which is what the model does today; arm B
-    averages the weekly edge across the next `horizon` rounds first, each
-    priced against its own opponent, and multiplies after.
+    `harness` is `two_part_projection`, the estimator the 8/9 measurement used.
+    `valuation` is the one the page uses: `advice.valuation` with the recent
+    rule, remembering the season before where one was reconstructed, and
+    pooling each man with his club AS IT STOOD before the round. So the cells
+    come back per matchday, and the fixture step has to be handed those.
+    """
+    if estimator == "harness":
+        return {
+            m: (*two_part_projection(history, minutes, cells, upto=m, parts=True), cells)
+            for m in MATCHDAYS
+        }
+    loaded = json.loads(season_path.read_text(encoding="utf-8"))["players"]
+    by_round = rows_by_round(loaded)
+    # Everyone the replay carries, the held men with no row this season among
+    # them: every round counts, so they read as never having played.
+    season = {i: by_round.get(i, {}) for i in history}
+    remembered = ARCHIVE_FOR.get(season_path.name)
+    archive = archive_records(ROOT / "data", names=(remembered,)) if remembered else {}
+    halves = {}
+    for m in MATCHDAYS:
+        clubs = {
+            i: (club_before(rows, m) if rows else cells[i][0])
+            for i, rows in season.items()
+        }
+        view = valuation(
+            {
+                i: SimpleNamespace(club=clubs[i], position=Position(cells[i][1]))
+                for i in season
+            },
+            archive,
+            season_so_far(season, first=1, upto=m, every_round=True),
+        )
+        halves[m] = (
+            {i: view[i]["playing"] for i in season},
+            {i: view[i]["returns"] for i in season},
+            {i: (clubs[i], cells[i][1]) for i in season},
+        )
+    return halves
+
+
+#: What every path needs, handed to each worker process once rather than once
+#: a path.
+_SHARED: dict = {}
+
+
+def _share(shared):
+    _SHARED.clear()
+    _SHARED.update(shared)
+
+
+def _play_the_arms(start):
+    """One starting squad through every arm: {arm: (points, transfers made)}."""
+    name, held = start
+    shared = _SHARED
+    common = dict(
+        market=shared["market"], history=shared["history"], matchdays=MATCHDAYS,
+        budget=BASE_BUDGET, forecasts=shared["per_round"], knows_availability=True,
+    )
+    if shared["search"] == "improve":
+        played = {
+            arm: replay_with_search(
+                held, parts=shared["parts"], horizons=horizons,
+                draws=shared["draws"], **common,
+            )
+            for arm, horizons in (("epoca", None), ("ahead", shared["ahead"]))
+        }
+    else:
+        played = {
+            arm: replay_with_transfers(
+                held, cells=shared["cells"], horizons=horizons, **common
+            )
+            for arm, horizons in (
+                ("semana", None),
+                ("epoca", shared["season_value"]),
+                ("ahead", shared["ahead"]),
+            )
+        }
+    return name, {arm: (r["points"], len(r["transfers"])) for arm, r in played.items()}
+
+
+def paired(label, diffs):
+    """How often one arm beat the other, and by how much — never the mean alone."""
+    wins = sum(1 for d in diffs if d > 0)
+    error = statistics.stdev(diffs) / len(diffs) ** 0.5 if len(diffs) > 1 else 0.0
+    return (
+        f"  {label:<18}ganha em {wins:>3} de {len(diffs)}, media "
+        f"{statistics.mean(diffs):+6.1f}, erro padrao {error:4.1f}, mediana "
+        f"{statistics.median(diffs):+6.1f}"
+    )
+
+
+def looking_ahead(
+    history, minutes, cells, table, market, rows, mine, *,
+    horizon, paths, seed, estimator, search, workers, draws, season_path,
+):
+    """Does pricing a transfer over the next few rounds beat what the page does?
+
+    THREE WAYS OF PRICING THE SAME TRANSFER, paired over the same starting
+    squads. Every arm picks the eleven each round on that round's fixture, as
+    the page does, so the arms differ in one thing only:
+
+        semana   this round's fixture, times the rounds left
+        epoca    the season value with no fixture at all, times the rounds
+                 left — THE PAGE'S RULE since 21/08/2026 ("Season values, not
+                 this week's", in build_dashboard.model_sheet)
+        ahead    the mean over the next `horizon` rounds, each against its own
+                 opponent, times the rounds left
+
+    `epoca` WAS MISSING UNTIL 21/09/2026, and it is the arm that matters. The
+    8/9 version compared `ahead` with `semana` alone and called `semana` "what
+    the model does today", which it was not, then or since. Its +16.7 a season
+    did not survive either: run again on 21/09, unchanged, against that day's
+    market, 2025/26 at K=5 gave 6 paths in 16 and -15.3 where 8/9 had 12 and
+    +14.2. Its p of 0.016 had counted six configurations as independent that
+    shared their paths.
+
+    Measured on 21/09/2026 through `best_transfer`, 64 paths a season, on the
+    model's own estimator:
+
+                                  2025/26       2024/25        both
+        ahead over epoca   K=3   +2.7 ± 4.7    +5.1 ± 4.1    +3.9 ± 3.1
+                           K=5   +8.2 ± 4.8   +12.1 ± 4.3   +10.1 ± 3.2
+                           K=8   +8.3 ± 4.6   +13.3 ± 4.3   +10.8 ± 3.2
+        epoca over semana       +30.6 ± 5.9    +0.9 ± 4.4   +15.8 ± 3.7
+
+    Positive in every cell, the harness's included, and small: at K=5 it wins
+    71 paths of 128, with medians of +2.6 and +10.6 — a tail of paths that gain
+    a lot. The last line is the first measurement of the page's own rule, and
+    it holds; on the harness it flips (-8.9 ± 3.8), which is why the line
+    quoted is the model's.
+
+    `search="improve"` asks it of the search the page runs, `improve_squad`,
+    and plays only `epoca` and `ahead`: at the page's draws the horizon costs
+    five times the search, and `semana` answers nothing the page asks.
 
     A SEASON IS ONE PATH and this script's own docstring says so: about
     twenty-five decisions, swinging a hundred points with no pattern, and
     anything read off a single run is noise wearing a number. So the answer
     here is a PAIRED DISTRIBUTION over many starting squads — same season, same
     projections, same draws, one squad at a time — and the thing reported is
-    how often B beats A, not what B scored.
+    how often one arm beats another, not what either scored.
     """
     # The expensive half once per matchday; the fixture step is a dictionary
     # walk and can be repeated for every round in the horizon.
-    halves = {
-        m: two_part_projection(history, minutes, cells, upto=m, parts=True)
-        for m in MATCHDAYS
-    }
+    halves = projection_halves(estimator, history, minutes, cells, season_path)
 
     def blended(playing, returns):
         return {
@@ -143,20 +289,42 @@ def looking_ahead(history, minutes, cells, table, market, rows, mine, *, horizon
             for i, rate in returns.items()
         }
 
-    def priced(upto, for_matchday):
-        playing, returns = halves[upto]
-        return blended(
-            playing,
-            rescale_for_fixture(
-                returns, cells, table, upto=upto, for_matchday=for_matchday
-            ),
-        )
-
-    per_round = {m: priced(m, m) for m in MATCHDAYS}
-    horizons = {
-        m: {f: priced(m, f) for f in range(m, min(m + horizon, MATCHDAYS[-1] + 1))}
+    # What each man returns when he plays in every round ahead, from data
+    # before the decision: `upto` fixes the strengths and only the calendar
+    # moves.
+    ahead_of = {
+        m: list(range(m, min(m + horizon, MATCHDAYS[-1] + 1))) for m in MATCHDAYS
+    }
+    moved = {
+        m: {
+            f: rescale_for_fixture(
+                halves[m][1], halves[m][2], table, upto=m, for_matchday=f
+            )
+            for f in ahead_of[m]
+        }
         for m in MATCHDAYS
     }
+    per_round = {m: blended(halves[m][0], moved[m][m]) for m in MATCHDAYS}
+
+    shared = dict(
+        market=market, history=history, cells=cells, per_round=per_round,
+        search=search, draws=draws,
+    )
+    if search == "improve":
+        arms = ("epoca", "ahead")
+        shared["parts"] = {m: (halves[m][0], halves[m][1]) for m in MATCHDAYS}
+        shared["ahead"] = {m: [moved[m][f] for f in ahead_of[m]] for m in MATCHDAYS}
+    else:
+        arms = ("semana", "epoca", "ahead")
+        # The season value as a horizon of one round: priced with no fixture,
+        # while the eleven is still picked on this week's.
+        shared["season_value"] = {
+            m: {m: blended(halves[m][0], halves[m][1])} for m in MATCHDAYS
+        }
+        shared["ahead"] = {
+            m: {f: blended(halves[m][0], moved[m][f]) for f in ahead_of[m]}
+            for m in MATCHDAYS
+        }
 
     # The starting squads. The manager's own and the model's opening pick are the
     # two that matter, and random legal twenty-threes supply the spread — one
@@ -177,28 +345,48 @@ def looking_ahead(history, minutes, cells, table, market, rows, mine, *, horizon
             starts.append((f"aleatorio {len(starts) - 1}", drawn["players"]))
 
     print()
-    print(f"  LOOKAHEAD DE {horizon} JORNADAS, {len(starts)} caminhos emparelhados")
-    print(f"  {'plantel de partida':<22}{'hoje':>9}{'lookahead':>11}{'dif':>8}")
-    wins, diffs = 0, []
-    for name, held in starts:
-        common = dict(
-            market=market, history=history, matchdays=MATCHDAYS, cells=cells,
-            budget=BASE_BUDGET, forecasts=per_round, knows_availability=True,
-        )
-        today = replay_with_transfers(held, **common)["points"]
-        ahead = replay_with_transfers(held, horizons=horizons, **common)["points"]
-        diffs.append(ahead - today)
-        wins += ahead > today
-        print(f"  {name:<22}{today:>9.0f}{ahead:>11.0f}{ahead - today:>+8.0f}")
+    print(
+        f"  LOOKAHEAD DE {horizon} JORNADAS, {len(starts)} caminhos emparelhados, "
+        f"estimador {estimator}, busca {search}"
+    )
+    print(
+        f"  {'plantel de partida':<22}"
+        + "".join(f"{arm:>9}" for arm in arms)
+        + "   trocas"
+    )
+    results = []
 
-    mean_diff = statistics.mean(diffs)
-    spread = statistics.stdev(diffs) if len(diffs) > 1 else 0.0
-    error = spread / (len(diffs) ** 0.5) if diffs else 0.0
+    def show(name, row):
+        results.append(row)
+        print(
+            f"  {name:<22}"
+            + "".join(f"{row[arm][0]:>9.0f}" for arm in arms)
+            + "   "
+            + "/".join(str(row[arm][1]) for arm in arms),
+            flush=True,
+        )
+
+    if workers > 1:
+        with ProcessPoolExecutor(
+            max_workers=workers, initializer=_share, initargs=(shared,)
+        ) as pool:
+            for name, row in pool.map(_play_the_arms, starts):
+                show(name, row)
+    else:
+        _share(shared)
+        for start in starts:
+            show(*_play_the_arms(start))
+
+    diffs = {
+        "ahead - epoca": [r["ahead"][0] - r["epoca"][0] for r in results],
+    }
+    if "semana" in arms:
+        diffs["ahead - semana"] = [r["ahead"][0] - r["semana"][0] for r in results]
+        diffs["epoca - semana"] = [r["epoca"][0] - r["semana"][0] for r in results]
     print()
-    print(f"  o lookahead ganha em {wins} de {len(diffs)} caminhos")
-    print(f"  diferenca media {mean_diff:+.1f}, desvio {spread:.1f}, "
-          f"erro padrao {error:.1f}")
-    return {"wins": wins, "paths": len(diffs), "mean": mean_diff, "error": error}
+    for label, values in diffs.items():
+        print(paired(label, values))
+    return diffs
 
 
 def main() -> None:
@@ -223,6 +411,32 @@ def main() -> None:
         type=int,
         default=12,
         help="how many starting squads the lookahead comparison is paired over",
+    )
+    parser.add_argument(
+        "--estimator",
+        choices=("valuation", "harness"),
+        default="valuation",
+        help="what the lookahead prices with: the model's valuation, or the "
+        "two-part projection the 8/9 measurement used",
+    )
+    parser.add_argument(
+        "--search",
+        choices=("best", "improve"),
+        default="best",
+        help="which search picks each transfer in the lookahead comparison: "
+        "best_transfer, or improve_squad as the page runs it",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="processes to spread the lookahead's paths over",
+    )
+    parser.add_argument(
+        "--draws",
+        type=int,
+        default=PAGE_DRAWS,
+        help="draws per candidate squad under --search improve",
     )
     parser.add_argument(
         "--story",
@@ -259,6 +473,8 @@ def main() -> None:
         looking_ahead(
             history, minutes, cells, table, market, rows, mine,
             horizon=args.lookahead, paths=args.paths, seed=args.seed,
+            estimator=args.estimator, search=args.search, workers=args.workers,
+            draws=args.draws, season_path=args.season or SEASON_PATH,
         )
         return
 
