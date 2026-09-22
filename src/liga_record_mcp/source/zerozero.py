@@ -62,6 +62,9 @@ CLUB_ALIASES: dict[str, tuple[str, ...]] = {
     "Rio Ave": ("rio ave",),
     "Marítimo": ("maritimo",),
     "Académico": ("academico viseu", "academico de viseu", "ac viseu"),
+    # The site's label since the official phase. The old one stays for the
+    # files written before it.
+    "Académico Viseu": ("academico", "academico de viseu", "ac viseu"),
     "Alverca": ("alverca",),
     "Arouca": ("arouca",),
     "Benfica": ("benfica",),
@@ -79,6 +82,9 @@ CLUB_ALIASES: dict[str, tuple[str, ...]] = {
 #: refuses.
 CLUB_PATHS: dict[str, str] = {
     "Académico": "/equipa/academico/2181",
+    # Without it the squad-page fallback refused every Académico player whose
+    # name search was inconclusive: the site writes the club this way now.
+    "Académico Viseu": "/equipa/academico/2181",
     "Alverca": "/equipa/fc-alverca/1",
     "Arouca": "/equipa/fc-arouca/3555",
     "Benfica": "/equipa/benfica",

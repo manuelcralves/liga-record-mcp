@@ -18,8 +18,14 @@ not asking is both faster and better manners.
 Resumable by construction: interrupt it and run it again.
 
     python scripts/build_player_history.py             # everyone who has played
+    python scripts/build_player_history.py --market    # the whole market
     python scripts/build_player_history.py --squad     # just the 23
     python scripts/build_player_history.py --limit 40  # a taste, for trying it
+
+`--market` drops the skip, and phase 2 needs it. Since the site put its totals
+back to zero, "never played" means -1 in the official rounds only, and a man
+who rotated through August is exactly who the rounds 1-5 of this season are
+for: the reconstruction can only read the players linked here.
 """
 
 from __future__ import annotations
@@ -56,6 +62,11 @@ def league_line(seasons):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--squad", action="store_true", help="only the 23 under contract")
+    parser.add_argument(
+        "--market",
+        action="store_true",
+        help="every player on the market, including those who have only scored -1",
+    )
     parser.add_argument("--limit", type=int, help="stop after this many players")
     parser.add_argument("--pause", type=float, default=2.0, help="seconds between reads")
     args = parser.parse_args()
@@ -69,11 +80,12 @@ def main() -> None:
         players = [p for p in players if p.id in wanted]
 
     # Nothing to learn about a man who has not played, and not asking is both
-    # faster and better manners.
+    # faster and better manners — unless the whole market was asked for.
     playing = [
         p
         for p in players
-        if counts.get(p.club, 0) > 0 and not never_played(p, counts.get(p.club, 0))
+        if args.market
+        or (counts.get(p.club, 0) > 0 and not never_played(p, counts.get(p.club, 0)))
     ]
     skipped = len(players) - len(playing)
     if args.limit:

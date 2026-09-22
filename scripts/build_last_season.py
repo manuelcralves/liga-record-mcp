@@ -72,6 +72,24 @@ ARCHIVE_TAGS: dict[int, str] = {
 }
 
 
+def output_path(season: int, out: Path | None) -> Path:
+    """Where a reconstruction of `season` may be written.
+
+    `last-season.json` is 2025/26 and nothing else: the archive reads it as
+    last season, so another season written there — 2026/27 for phase 2, run
+    without `--out` — would replace the model's memory of 2025/26 with a
+    season it is also being scored on. Refused before the reading starts,
+    because the reading takes half an hour.
+    """
+    target = out or OUT_PATH
+    if season != LAST_SEASON and target.resolve() == OUT_PATH.resolve():
+        raise SystemExit(
+            f"season {season} is not {LAST_SEASON} and would overwrite "
+            f"{OUT_PATH.name} — pass --out, e.g. --out data/season-2026-27.json"
+        )
+    return target
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit", type=int)
@@ -83,6 +101,7 @@ def main() -> None:
     )
     parser.add_argument("--pause", type=float, default=2.0)
     args = parser.parse_args()
+    out_path = output_path(args.season, args.out)
 
     if not HISTORY_PATH.exists():
         raise SystemExit("no data/players.json — run build_player_history.py first")
@@ -259,7 +278,6 @@ def main() -> None:
             awarded += 1
 
     covered = {pid: p for pid, p in players.items() if p["matches"]}
-    out_path = args.out or OUT_PATH
     out_path.write_text(
         json.dumps(
             {

@@ -169,6 +169,17 @@ def test_club_names_are_matched_across_the_two_sites():
     assert clubs_agree("Marítimo", "Maritimo")
 
 
+def test_the_sites_new_name_for_academico_reaches_its_squad_page():
+    """The site writes "Académico Viseu" since the official phase, and the
+    squad-page fallback knew only "Académico": every nickname at the club
+    that the name search could not settle was refused."""
+    from liga_record_mcp.source.zerozero import CLUB_PATHS
+
+    assert CLUB_PATHS["Académico Viseu"] == CLUB_PATHS["Académico"]
+    assert clubs_agree("Académico Viseu", "Académico")
+    assert clubs_agree("Académico Viseu", "Académico de Viseu")
+
+
 def test_different_clubs_do_not_agree():
     assert not clubs_agree("Benfica", "Sporting")
     assert not clubs_agree("FC Porto", "FC Marko")
