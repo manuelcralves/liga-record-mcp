@@ -156,6 +156,10 @@ week and accumulates a history that needs no key, no account and no third
 party. Rounds where a club had no match are excluded from the denominator, so a
 postponed fixture never reads as being dropped.
 
+The model no longer reads that history. Since 15/09/2026 it reads who played
+from the weekly score emails, because the site's totals were reset and its
+round scores lag; `record_appearances` now feeds `appearance_history` alone.
+
 One honest limit: a player who took the field and scored exactly −1 is
 indistinguishable from one who sat out. Uncommon — playing carries an editorial
 rating of roughly 2–3 — and it washes out over rounds, but a single round is
@@ -164,11 +168,29 @@ not certain.
 This is also the only part of the project that writes anything, and it writes
 one local file.
 
-### The projection, and why it is not a prediction
+### The projection, and why it is one function
 
-`project_points` blends observed form with a prior from completed seasons
-(openfootball, open data, no key) and Record's own pricing. Three measurements
-shaped it:
+`project_points` gives the pages' numbers, and so does the ledger: since
+22/09/2026 all three read a round from `advice.round_projection`, over
+`advice.valuation`.
+
+- **The valuation** splits each player into his chance of playing, weighted
+  toward his last rounds, and what he returns when he does. It reads two
+  reconstructed seasons of archive — on disk only, not ours to redistribute —
+  and this season's weekly score emails, filed in `data/pontuacoes/`.
+- **The round** moves what he returns by the opponent, from the clubs' goal
+  rates (openfootball, open data, no key), and never the −1 for a week he sits
+  out: §10.3(i) pays the same −1 whoever the opponent is.
+- **Three rules bind first:** 0 for a man who has left the league, 0 for a club
+  with no match (§15.3, injured or not), and −1 for a man known to be out
+  (§10.3(i)) — the hand file and the Premium bulletin, each for its own round.
+
+Until then the page, the ledger and the server each kept their own copy, and
+the copies disagreed at the edges: the page printed −1 for an injured man
+whose club had no match, where the ledger filed 0, and `project_points` ran an
+older estimator with no opponent, no archive and no emails.
+
+Three measurements shaped the model before any of that:
 
 - **62% of a Liga Record score is the editorial rating** — a journalist's
   opinion, published nowhere. It cannot be reconstructed from any stats feed,
@@ -181,9 +203,11 @@ shaped it:
   factor by a club factor counted the same fact twice, so price is now measured
   net of the club's own price level.
 
-The model is unvalidated by construction: past Liga Record scores do not exist
-to test against. The only honest check is forward — record projections now,
-compare in a few rounds.
+It is checked two ways. Forward: the ledger (`data/projections.json`) files
+every projection before kickoff and settles it from the email, and
+`track_record` reads it. Backward: a change to the estimator is replayed over
+the reconstructed seasons first — `scripts/replay_valuation.py` measured the
+recent-rounds chance of playing before it was adopted.
 
 ### Why the coach list is a file
 

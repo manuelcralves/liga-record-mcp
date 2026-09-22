@@ -26,20 +26,33 @@ def dash():
     return module
 
 
-def test_a_man_who_left_the_league_is_shown_at_nothing_and_ranked_last(dash):
+def test_a_man_who_left_the_league_is_ranked_last_at_the_nothing_he_is_shown(dash):
+    """`advice.round_projection` has already put him at 0.0; this only ranks him."""
     shown, ranking = dash.selection_values(
-        {"gone": 9.0, "fit": 2.0}, unavailable={}, gone=["gone"]
+        {"gone": 0.0, "fit": 2.0}, unavailable={}, gone=["gone"]
     )
     assert shown == {"gone": 0.0, "fit": 2.0}
     assert ranking["gone"] < ranking["fit"]
 
 
-def test_an_unavailable_man_is_shown_at_minus_one_and_ranked_last(dash):
+def test_an_unavailable_man_is_ranked_last_at_the_minus_one_he_is_shown(dash):
     shown, ranking = dash.selection_values(
-        {"hurt": 6.0, "fit": 1.5}, unavailable={"hurt": "lesionado"}, gone=[]
+        {"hurt": -1.0, "fit": 1.5}, unavailable={"hurt": "lesionado"}, gone=[]
     )
     assert shown == {"hurt": -1.0, "fit": 1.5}
     assert ranking["hurt"] < ranking["fit"]
+
+
+def test_the_printed_number_is_the_projection_not_a_second_rule(dash):
+    """Out, with no match: §15.3's zero, as the ledger files it.
+
+    Until 22/09/2026 this applied the -1 a second time, so the page printed
+    -1 for a man the ledger had at 0."""
+    shown, ranking = dash.selection_values(
+        {"idle": 0.0, "fit": 1.5}, unavailable={"idle": "lesionado"}, gone=[]
+    )
+    assert shown["idle"] == 0.0
+    assert ranking["idle"] < ranking["fit"]
 
 
 def test_with_nobody_out_the_ranking_is_the_estimate(dash):

@@ -8,14 +8,30 @@ so a tool that is written but never exposed cannot pass silently.
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 
 import pytest
 from helpers import make_squad, squad_document, write_squad_file
 
 from liga_record_mcp import server as mcp_server
-from liga_record_mcp.models import Squad, TeamStanding
+from liga_record_mcp.advice import (
+    players_to_value,
+    round_projection,
+    round_weeks,
+    valuation,
+)
+from liga_record_mcp.models import (
+    ClubRecord,
+    Fixture,
+    MarketPlayer,
+    Position,
+    Squad,
+    TeamStanding,
+)
 from liga_record_mcp.source import SiteError
+from liga_record_mcp.source.appearances import current_records
+from liga_record_mcp.source.scores import load_official_rounds
 
 XI = (
     "GK1",
@@ -55,7 +71,13 @@ def offline(monkeypatch: pytest.MonkeyPatch) -> None:
         def standings(self, **kwargs):
             return [], 0
 
+    class NoArchive:
+        def club_records(self):
+            return {}
+
     monkeypatch.setattr(mcp_server, "_market", Offline())
+    # The club archive is fetched from openfootball, and two tools read it now.
+    monkeypatch.setattr(mcp_server, "_history", NoArchive())
 
 
 @pytest.fixture(autouse=True)
@@ -199,12 +221,143 @@ def test_validate_selection_says_when_the_coach_went_unchecked(monkeypatch):
     assert "not checked against the real 18" in result["coach_unverified"]
 
 
-def test_list_coaches_ranks_by_points():
-    result = mcp_server.list_coaches()
+def test_list_coaches_ranks_on_the_rounds_match(monkeypatch):
+    """Ranked as the pages rank them: on the club's match this round, not on
+    the stale totals of the hand file — which is what this tool did until
+    22/09/2026, while the pages ranked on the match."""
+
+    class Calendar:
+        def fixtures(self):
+            return [
+                Fixture(round_number=5, home="Sporting", away="Arouca"),
+                Fixture(round_number=5, home="FC Porto", away="Benfica"),
+            ]
+
+    def club(name, scored, conceded):
+        return ClubRecord(club=name, matches=68, goals_for=scored, goals_against=conceded)
+
+    class Archive:
+        def club_records(self):
+            return {
+                "Sporting": club("Sporting", 170, 50),
+                "FC Porto": club("FC Porto", 140, 55),
+                "Benfica": club("Benfica", 150, 50),
+                "Arouca": club("Arouca", 75, 110),
+            }
+
+    monkeypatch.setattr(mcp_server, "_market", Calendar())
+    monkeypatch.setattr(mcp_server, "_history", Archive())
+    result = mcp_server.list_coaches(round_number=5)
     assert result["count"] == 18
-    totals = [c["points_total"] for c in result["coaches"]]
-    assert totals == sorted(totals, reverse=True)
-    assert result["coaches"][0]["name"] in {"Van der Gaag", "Vasco Seabra"}
+    top = result["coaches"][0]
+    assert (top["club"], top["opponent"], top["at_home"]) == ("Sporting", "Arouca", True)
+    # A club with no match this round comes last, at nothing.
+    idle = [c for c in result["coaches"] if c["opponent"] is None]
+    assert len(idle) == 14 and all(c["expected"] == 0.0 for c in idle)
+    assert result["coaches"][-1]["opponent"] is None
+    # The hand file's totals stay, for reference.
+    assert all("points_total" in c for c in result["coaches"])
+
+
+def test_project_points_is_the_pages_projection(monkeypatch, tmp_path):
+    """`advice.round_projection` over `advice.valuation`, as the pages and the
+    ledger compute it — not `stats.project`, the folded average this tool ran
+    until 22/09/2026 with no opponent, no archive and no emails.
+
+    Checked against the library called directly on the same data, and on the
+    three edges: out with a match, out without one, and gone."""
+    squad = mcp_server._load().squad
+    # FWD4 has left the league: the market no longer lists him.
+    listed = [p for p in squad.players if p.id != "FWD4"]
+    market = [
+        MarketPlayer(
+            id=p.id,
+            name=p.name,
+            position=p.position,
+            club=p.club,
+            value=p.value,
+            initial_value=p.initial_value,
+        )
+        for p in listed
+    ]
+    # Clubs 7 and 8 have no match in round 8.
+    calendar = [
+        Fixture(round_number=8, home="Club 1", away="Club 2"),
+        Fixture(round_number=8, home="Club 3", away="Club 4"),
+        Fixture(round_number=8, home="Club 5", away="Club 6"),
+    ]
+    records = {
+        f"Club {i}": ClubRecord(
+            club=f"Club {i}", matches=34, goals_for=40 + 5 * i, goals_against=60 - 4 * i
+        )
+        for i in range(1, 9)
+    }
+
+    class Site:
+        def search(self, position, **kwargs):
+            return [m for m in market if m.position is position]
+
+        def fixtures(self):
+            return calendar
+
+    class Archive:
+        def club_records(self):
+            return records
+
+    data = tmp_path / "data"
+    (data / "pontuacoes").mkdir(parents=True)
+    for number in (6, 7):
+        emails = {f"{p.name}|{p.club}": (i + number) % 7 - 1 for i, p in enumerate(listed)}
+        (data / "pontuacoes" / f"{number}.json").write_text(
+            json.dumps({"ronda": number, "jogadores": emails}), encoding="utf-8"
+        )
+    (data / "indisponiveis.yaml").write_text(
+        "jornada: 8\nfora:\n"
+        "  - id: DEF1\n    razao: lesionado\n"
+        "  - id: MID7\n    razao: castigado\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mcp_server, "_market", Site())
+    monkeypatch.setattr(mcp_server, "_history", Archive())
+    monkeypatch.setattr(mcp_server, "DATA_DIR", data)
+
+    result = mcp_server.project_points(round_number=8)
+    got = {row["id"]: row for row in result["players"]}
+
+    whole = {m.id: m.as_player() for m in market}
+    view = valuation(
+        players_to_value(squad.players, whole),
+        {},
+        current_records(whole, load_official_rounds(data / "pontuacoes", first_round=6)),
+    )
+    direct = round_projection(
+        squad.players,
+        view,
+        round_weeks(records, calendar, 8),
+        unavailable={"DEF1": "lesionado", "MID7": "castigado"},
+        gone=["FWD4"],
+    )
+    assert {i: row["expected"] for i, row in got.items()} == {
+        i: round(row["expected"], 2) for i, row in direct.items()
+    }
+    fit = {row["expected"] for row in got.values() if row["why"] is None}
+    assert len(fit) > 10, "the comparison above would pass on a constant"
+    assert (got["DEF1"]["expected"], got["DEF1"]["why"]) == (-1.0, "lesionado")
+    assert got["MID7"]["expected"] == 0.0 and "§15.3" in got["MID7"]["why"]
+    assert (got["FWD4"]["expected"], got["FWD4"]["why"]) == (0.0, "left the league")
+    assert (got["MID1"]["opponent"], got["MID1"]["at_home"]) == ("Club 2", True)
+    assert got["MID1"]["why"] is None
+    assert result["estimator"] == "valuation+fixture+recency"
+    assert "NO ARCHIVE" in result["evidence"]
+
+
+def test_project_points_says_when_the_site_cannot_be_read(monkeypatch):
+    class Down:
+        def fixtures(self):
+            raise SiteError("timed out")
+
+    monkeypatch.setattr(mcp_server, "_market", Down())
+    assert "could not read" in mcp_server.project_points(round_number=8)["detail"]
 
 
 def test_list_coaches_reports_a_missing_file(monkeypatch):

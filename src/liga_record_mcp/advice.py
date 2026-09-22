@@ -45,7 +45,9 @@ from .stats import (
     ROTATION_PRIOR,
     ROTATION_WINDOW,
     UNUSED_PENALTY,
+    adjust_for_fixture,
     describe_pick,
+    fixture_multipliers,
 )
 
 #: How many appearances a club-and-position group needs before it is worth more
@@ -312,3 +314,121 @@ def valuation(
             ),
         }
     return out
+
+
+def round_weeks(
+    records: Mapping[str, Any], fixtures: Iterable[Any], round_number: int
+) -> dict[str, dict[str, Any]]:
+    """Each club's match in one round: the opponent, where, when, how hard.
+
+    The multipliers come from the archive's club records, a club without one —
+    promoted, or unknown — standing at the league's mean, which is the mean of
+    the clubs that have one. A club missing from the result has no match that
+    round: not a hard week, no week.
+
+    The page and the ledger each computed this in a copy of their own until
+    22/09/2026. One copy now, for them and for the server.
+    """
+    known = [r for r in records.values() if getattr(r, "has_history", False)]
+    league_ga = (
+        sum(r.goals_against_per_match for r in known) / len(known) if known else 1.0
+    )
+    league_gf = sum(r.goals_for_per_match for r in known) / len(known) if known else 1.0
+
+    def rates(club: str) -> tuple[float, float]:
+        record = records.get(club)
+        if record is None or not record.has_history:
+            return league_ga, league_gf
+        return record.goals_against_per_match, record.goals_for_per_match
+
+    weeks: dict[str, dict[str, Any]] = {}
+    for fixture in fixtures:
+        if fixture.round_number != round_number:
+            continue
+        for club, opponent, at_home in (
+            (fixture.home, fixture.away, True),
+            (fixture.away, fixture.home, False),
+        ):
+            own_ga, own_gf = rates(club)
+            opp_ga, opp_gf = rates(opponent)
+            defensive, attacking = fixture_multipliers(
+                own_ga, own_gf, opp_ga, opp_gf, league_ga, league_gf, at_home=at_home
+            )
+            weeks[club] = {
+                "opponent": opponent,
+                "at_home": at_home,
+                "kickoff": getattr(fixture, "kickoff", None),
+                "defensive": defensive,
+                "attacking": attacking,
+            }
+    return weeks
+
+
+def round_projection(
+    players: Iterable[Any],
+    view: Mapping[str, Mapping[str, Any]],
+    weeks: Mapping[str, Mapping[str, Any]],
+    *,
+    unavailable: Mapping[str, str] | None = None,
+    gone: Iterable[str] = (),
+) -> dict[str, dict[str, Any]]:
+    """What each player is expected to score in one round, and why.
+
+    THE ONE PROJECTION. The page's eleven, the ledger and the server's
+    `project_points` all read a player's round from here; until 22/09/2026 the
+    page and the ledger each built it in a copy of their own, and the copies
+    disagreed at the edges.
+
+    `view` is `valuation`'s output and `weeks` is `round_weeks` for the round.
+    The rules, in the order they bind:
+
+        left the league      0 — nothing he does now scores for this team
+        no match this round  0 — §15.3 scores a match not played before the
+                             next round begins at nothing, injured or not
+        known to be out      -1 — what §10.3(i) pays a man who does not play
+        otherwise            his chance of playing times what he returns,
+                             moved by the opponent, and -1 for the rest
+
+    The opponent moves what he returns WHEN HE PLAYS and never the blend:
+    §10.3(i)'s -1 is the same -1 whoever the opponent is.
+
+    The two edges the copies disagreed on, settled here: out AND without a
+    match reads 0, not -1, because without a match nobody scores; and a man
+    who has left the league reads 0 in the ledger too, not whatever his old
+    club's fixture says.
+    """
+    out_list = unavailable or {}
+    departed = set(gone)
+    rows: dict[str, dict[str, Any]] = {}
+    for player in players:
+        entry = view[player.id]
+        week = weeks.get(player.club)
+        if player.id in departed or week is None:
+            expected = 0.0
+        elif player.id in out_list:
+            expected = float(UNUSED_PENALTY)
+        else:
+            expected = entry["playing"] * adjust_for_fixture(
+                entry["returns"], player.position, week["defensive"], week["attacking"]
+            ) + (1 - entry["playing"]) * float(UNUSED_PENALTY)
+        rows[player.id] = {
+            "expected": expected,
+            "season": entry["expected"],
+            "returns": entry["returns"],
+            "playing": entry["playing"],
+            "appearances": entry["appearances"],
+            "opponent": None if week is None else week["opponent"],
+            "at_home": None if week is None else week["at_home"],
+            "kickoff": None if week is None else week.get("kickoff"),
+            "defensive": None if week is None else week["defensive"],
+            "attacking": None if week is None else week["attacking"],
+            "no_fixture": week is None,
+            # Why he is on the out list, whichever rule set his number, and
+            # nobody else. The ledger re-records a round when the out list
+            # changes, comparing the list to this field, so it must hold the
+            # list exactly: an out man without a match left off it, or a
+            # departed man put on it, would look like a change on every run.
+            "unavailable": out_list.get(player.id),
+            "gone": player.id in departed,
+        }
+    return rows

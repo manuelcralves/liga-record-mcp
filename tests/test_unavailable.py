@@ -117,18 +117,37 @@ def test_the_page_consults_the_file(page):
     assert "OUT_OF_THE_RECKONING" in source
 
 
+def out_man():
+    """One defender with a match, known to be out."""
+    from types import SimpleNamespace
+
+    from liga_record_mcp.advice import round_projection
+    from liga_record_mcp.models import Position
+
+    man = SimpleNamespace(id="d1", club="Benfica", position=Position.DEF)
+    view = {"d1": {"returns": 5.0, "playing": 0.9, "expected": 4.4, "appearances": 40}}
+    weeks = {"Benfica": {"opponent": "Arouca", "at_home": True, "kickoff": None,
+                         "defensive": 1.2, "attacking": 1.1}}
+    return round_projection([man], view, weeks, unavailable={"d1": "lesionado"})["d1"]
+
+
 def test_the_ledger_records_minus_one_not_the_selection_penalty():
-    """The number that reaches the ledger is an estimate and gets scored."""
+    """The number that reaches the ledger is an estimate and gets scored.
+
+    Since 22/09/2026 the ledger, the page and the server read it from one
+    function, `advice.round_projection`, so the rule is pinned there."""
+    assert out_man()["expected"] == -1.0
     source = (ROOT / "scripts" / "record_projection.py").read_text(encoding="utf-8")
-    assert "adjusted = float(UNUSED_PENALTY)" in source
+    assert "round_projection(" in source
     assert "OUT_OF_THE_RECKONING" not in source, (
         "the selection penalty reached the ledger — every error would be -999"
     )
 
 
 def test_the_ledger_says_why_he_is_out():
+    assert out_man()["unavailable"] == "lesionado"
     source = (ROOT / "scripts" / "record_projection.py").read_text(encoding="utf-8")
-    assert '"unavailable": why' in source
+    assert 'row["unavailable"] = found["unavailable"]' in source
 
 
 # --- the eleven actually changes ----------------------------------------------
@@ -299,7 +318,12 @@ def test_the_selection_penalty_is_not_the_displayed_estimate(page):
     assert "sheet = best_eleven(rows, ranking)" in source, (
         "the optimiser and the display share one map again"
     )
-    assert 'float(UNUSED_PENALTY) if i in unavailable else v' in source
+    # Shown at the -1 the projection gives him, ranked far below it.
+    shown, ranking = page.selection_values(
+        {"out": -1.0, "fit": 1.5}, unavailable={"out": "lesionado"}, gone=[]
+    )
+    assert shown["out"] == -1.0
+    assert ranking["out"] < -900
 
 
 def test_the_page_says_why_he_is_worth_minus_one():

@@ -42,6 +42,8 @@ from liga_record_mcp.advice import (  # noqa: E402
     ESTIMATOR,
     MIN_OWN_HISTORY,
     players_to_value,
+    round_projection,
+    round_weeks,
     transfer_candidates,
     valuation,
 )
@@ -91,7 +93,6 @@ from liga_record_mcp.models import (  # noqa: E402
 )
 from liga_record_mcp.rules import transfers_allowed  # noqa: E402
 from liga_record_mcp.source import OpenFootballClient  # noqa: E402
-from liga_record_mcp.coaches import rank_coaches, round_strengths  # noqa: E402
 from liga_record_mcp.holiday import (  # noqa: E402
     LAST_HOLIDAY_ROUND,
     WEEKLY_SPREAD,
@@ -471,14 +472,12 @@ def scorer_section(data: dict) -> str:
 def round_coaches(round_number: int) -> list[dict]:
     """The eighteen coaches ranked on this round's match.
 
-    `coaches.rank_coaches` on the live calendar and the Final Table's goal
-    model — the same function, on the same inputs, the ledger files the coach
-    on the sheet with (`record_projection.coach_snapshot`).
+    The server's `list_coaches`, which ranks them with `coaches.rank_coaches`
+    on the live calendar and the Final Table's goal model — the function the
+    ledger files the coach on the sheet with (`record_projection.coach_snapshot`).
+    One call, so the page and a chat about coaches cannot disagree.
     """
-    fixtures = mcp._market.fixtures()
-    strength = round_strengths(OpenFootballClient(timeout=60.0).club_records(), fixtures)
-    coaches = mcp.list_coaches().get("coaches") or []
-    return rank_coaches(coaches, fixtures, strength, round_number)
+    return mcp.list_coaches(round_number).get("coaches") or []
 
 
 def coach_fixture(row: dict) -> str:
@@ -637,36 +636,7 @@ def fixture_weeks(round_numbers: list[int]) -> dict[int, dict[str, dict]]:
     """
     fixtures = mcp._market.fixtures()
     records = OpenFootballClient(timeout=60.0).club_records()
-    known = [r for r in records.values() if r.has_history]
-    league_ga = sum(r.goals_against_per_match for r in known) / len(known)
-    league_gf = sum(r.goals_for_per_match for r in known) / len(known)
-
-    def rates(club):
-        record = records.get(club)
-        if record is None or not record.has_history:
-            return league_ga, league_gf
-        return record.goals_against_per_match, record.goals_for_per_match
-
-    out: dict[int, dict[str, dict]] = {number: {} for number in round_numbers}
-    for fixture in fixtures:
-        if fixture.round_number not in out:
-            continue
-        for club, opponent, at_home in (
-            (fixture.home, fixture.away, True),
-            (fixture.away, fixture.home, False),
-        ):
-            own_ga, own_gf = rates(club)
-            opp_ga, opp_gf = rates(opponent)
-            defensive, attacking = fixture_multipliers(
-                own_ga, own_gf, opp_ga, opp_gf, league_ga, league_gf, at_home=at_home
-            )
-            out[fixture.round_number][club] = {
-                "opponent": opponent,
-                "at_home": at_home,
-                "defensive": defensive,
-                "attacking": attacking,
-            }
-    return out
+    return {number: round_weeks(records, fixtures, number) for number in round_numbers}
 
 
 def horizon_rounds(round_number: int) -> list[int]:
@@ -823,17 +793,18 @@ def selection_values(
 ) -> tuple[dict[str, float], dict[str, float]]:
     """What the page prints for each man, and what the eleven is picked on.
 
-    Two maps, for the reasons written where `model_sheet` calls this. A man
-    known to be out is shown at the -1 §10.3(i) pays him, and a man who has left
-    the league at the nothing he now scores. Both are ranked below every fit
-    player rather than removed, so a squad short of keepers still fields a
-    legal eleven.
+    Two maps, for the reasons written where `model_sheet` calls this. The
+    printed number is the projection as it comes: `advice.round_projection`
+    has already put a man known to be out at the -1 §10.3(i) pays him, a man
+    who has left the league at the nothing he now scores, and a man without a
+    match at §15.3's zero — out or not, since without a match nobody scores.
+    Applying those rules here again, as this did until 22/09/2026, made the
+    page print -1 where the ledger filed 0. The out and the gone are ranked
+    below every fit player rather than removed, so a squad short of keepers
+    still fields a legal eleven.
     """
     departed = set(gone)
-    shown = {
-        i: 0.0 if i in departed else float(UNUSED_PENALTY) if i in unavailable else v
-        for i, v in expected.items()
-    }
+    shown = dict(expected)
     ranking = {
         i: v - OUT_OF_THE_RECKONING if i in departed or i in unavailable else v
         for i, v in shown.items()
@@ -907,26 +878,29 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     rounds_ahead = horizon_rounds(round_number)
     weeks_ahead = fixture_weeks(rounds_ahead)
     weeks = weeks_ahead[round_number]
-    expected = {}
-    fixture_of = {}
-    for player_id, entry in view.items():
-        person = market[player_id]
-        week = weeks.get(person.club)
-        if week is None:
-            # No fixture. §15.3 gives zero if the game is not played before the
-            # next round begins, which is worse than a hard week and better
-            # than -1 — and either way he should not be in the eleven.
-            expected[player_id] = 0.0
-            fixture_of[player_id] = None
-            continue
-        adjusted = adjust_for_fixture(
-            entry["returns"], person.position, week["defensive"], week["attacking"]
-        )
-        expected[player_id] = (
-            entry["playing"] * adjusted
-            + (1 - entry["playing"]) * float(UNUSED_PENALTY)
-        )
-        fixture_of[player_id] = week
+
+    # WHO IS KNOWN TO BE OUT, which is the one thing the manager can tell the
+    # model that it cannot work out for itself. Cards it counts; injuries the
+    # site does not publish and this project does not read the press.
+    unavailable = known_out(UNAVAILABLE_PATH, BULLETIN_DIR, round_number, squad.players)
+    # AND WHO HAS LEFT THE LEAGUE, asked before the eleven is picked. `wide`
+    # still values him — `players_to_value` keeps him so he can be priced and
+    # sold — and pooled over the whole market his stale number could win him a
+    # place, or the armband. Found by the code review of 15/09/2026.
+    gone = left_the_league([p.id for p in squad.players], whole)
+
+    # THE ROUND, AS THE LEDGER AND THE SERVER SEE IT: `advice.round_projection`,
+    # one function for all three since 22/09/2026 — the page and the ledger
+    # each had a copy, and the copies disagreed at the edges. No match reads 0
+    # (§15.3), out reads -1 (§10.3(i)), gone reads 0.
+    projected = round_projection(
+        squad.players, wide, weeks, unavailable=unavailable, gone=gone
+    )
+    expected = {i: row["expected"] for i, row in projected.items()}
+    fixture_of = {
+        i: None if row["no_fixture"] else weeks[market[i].club]
+        for i, row in projected.items()
+    }
 
     # ONCE THE ROUND HAS KICKED OFF, JUDGE THE DECISION BY WHAT WAS KNOWN THEN.
     #
@@ -956,39 +930,11 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         no_fixture={i for i, week in fixture_of.items() if week is None},
     )
 
-    # WHO IS KNOWN TO BE OUT, which is the one thing the manager can tell the model
-    # that it cannot work out for itself. Cards it counts; injuries the site
-    # does not publish and this project does not read the press.
-    #
-    # Ranked below every fit player rather than removed, so a squad whose three
-    # keepers are all out can still field a legal eleven instead of refusing.
-    # And BELOW the -1 of §10.3(i) too — a man who is out and a man who merely
-    # might not start both collect -1, and only one of them is certain.
-    #
-    # The estimate in the ledger stays at -1, which is what he actually
-    # collects. This number is a selection device, not a forecast, and putting
-    # it on file would make the error -999 and ruin the accuracy figures.
-    unavailable = known_out(UNAVAILABLE_PATH, BULLETIN_DIR, round_number, squad.players)
-
     # TWO MAPS, BECAUSE THEY ANSWER DIFFERENT QUESTIONS. `ranking` is what the
-    # optimiser sorts on and carries the penalty; `expected` stays the honest
-    # estimate and is what the page prints.
-    #
-    # They were one map, and the -1000 reached the screen: the page showed
-    # "Santi García — -996.94" beside his fixture, which is not a forecast of
-    # anything. A number nobody can act on teaches the reader to distrust the
-    # ones beside it.
-    #
-    # What he is actually worth is what §10.3(i) pays a man who does not play,
-    # and that is the same -1 the rest of this file uses.
-    #
-    # AND WHO HAS LEFT THE LEAGUE, asked here rather than after the eleven is
-    # picked. `wide` still values him — `players_to_value` keeps him so he can
-    # be priced and sold — and pooled over the whole market his stale number
-    # could win him a place, or the armband. Found by the code review of
-    # 15/09/2026. He is shown at the nothing he now scores, and ranked with the
-    # unavailable.
-    gone = left_the_league([p.id for p in squad.players], whole)
+    # optimiser sorts on, with the out and the gone below every fit player so a
+    # squad whose keepers are all out still fields a legal eleven; `expected`
+    # stays the honest estimate and is what the page prints. They were one map,
+    # and the -1000 reached the screen as "Santi García — -996.94".
     expected, ranking = selection_values(expected, unavailable=unavailable, gone=gone)
 
     sheet = best_eleven(rows, ranking)

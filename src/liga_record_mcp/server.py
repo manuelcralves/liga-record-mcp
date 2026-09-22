@@ -20,6 +20,19 @@ from typing import Any
 from mcp.server import MCPServer
 
 from . import __version__
+from .advice import (
+    ESTIMATOR,
+    players_to_value,
+    round_projection,
+    round_weeks,
+    valuation,
+)
+from .coaches import rank_coaches, round_strengths
+from .optimise import left_the_league
+from .source.appearances import current_records
+from .source.bulletin import known_out
+from .source.last_season import archive_records
+from .source.scores import load_official_rounds
 from .models import (
     BASE_BUDGET,
     BENCH_SIZE,
@@ -72,13 +85,10 @@ from .stats import (
     COACH_WIN,
     NO_MATCH,
     PLAYED,
-    PRIOR_STRENGTH,
     UNUSED,
     appearance_rate,
     classify_appearance,
     club_concentration,
-    club_price_index,
-    availability,
     clubs_playing_in,
     decompose_round,
     differential_rows,
@@ -90,8 +100,6 @@ from .stats import (
     never_played,
     ownership_baseline,
     per_match,
-    position_baselines,
-    project,
     rate_rows,
     season_summary,
 )
@@ -121,6 +129,11 @@ from .source import (
 # `track_record` and a function called `track_record` cannot both win.
 from .source.decisions import recorded_rounds as recorded_decisions  # noqa: E402
 from .source.decisions import track_record as track_record_of  # noqa: E402
+
+#: The project's data folder: the archive, the weekly emails, the hand files
+#: and the bulletin. The archive and the bulletin are gitignored, and every tool
+#: that reads them has to survive their absence.
+DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
 #: Module level so the caches survive across tool calls.
 _market = LigaRecordClient()
@@ -180,8 +193,8 @@ def _load() -> SquadSnapshot:
     """Read the squad fresh on each call.
 
     The manual source is a local file, so this is cheap and always current —
-    edit the YAML and the next tool call sees it. Caching becomes a real
-    question in step 4, when the source is a network call.
+    edit the YAML and the next tool call sees it. The pages and the ledger
+    read the same file, so the three cannot disagree about who is held.
     """
     return ManualSquadSource(SQUAD_PATH).load()
 
@@ -334,8 +347,8 @@ def search_squad(
 ) -> dict[str, Any]:
     """Filter the squad. `position` is one of GK, DEF, MID, FWD.
 
-    This searches the 23 players already owned, not the transfer market — the
-    market needs the live source that step 4 adds.
+    This searches the 23 players already owned, not the transfer market —
+    `search_market` searches that.
     """
     snapshot = _load()
     found = list(snapshot.squad.players)
@@ -504,9 +517,10 @@ def check_transfer(
 ) -> dict[str, Any]:
     """Check one swap against §6.4 and §6.8.
 
-    The incoming player is described by hand because there is no market data
-    yet — step 4 replaces these arguments with a lookup. `window` is one of
-    in_season, closed (February) or reopened.
+    The incoming player is described by hand, for a what-if or a player the
+    market does not list; `check_market_transfer` takes a market id and his
+    live quote instead. `window` is one of in_season, closed (February) or
+    reopened.
     """
     snapshot = _load()
     try:
@@ -894,29 +908,51 @@ def standings(
 
 
 @server.tool()
-def list_coaches() -> dict[str, Any]:
-    """The 18 selectable coaches (§6.15), best-scoring first.
+def list_coaches(round_number: int | None = None) -> dict[str, Any]:
+    """The 18 selectable coaches (§6.15), ranked on the round's match.
 
-    A coach is free — picking one never costs budget — and a round with none
-    selected scores zero (§6.17). So there is no reason not to have one, and
-    every reason to take the best available.
+    A coach is free — picking one never costs budget — a round with none
+    selected scores zero (§6.17), and he may be changed every round. What he
+    scores rides on his club's result, so the ranking is the round's:
+    `coaches.rank_coaches`, the one the pages rank on and the ledger files —
+    §14.3 over every scoreline of his club's match, from the Final Table's goal
+    model, plus the editorial mark every coach is credited on average. Measured
+    before it was used: choosing this way beat one coach for the season by +9
+    and +3 points in 2024/25 and 2025/26.
+
+    `points_total` is the hand copy in data/coaches.yaml, taken on 19/08/2026
+    before the site reset its totals, and is shown for reference only. It is
+    what this tool ranked on until 22/09/2026.
     """
     coaches = _coaches()
     if coaches is None:
         return {"detail": f"could not read the coach list at {COACHES_PATH}"}
-    ranked = sorted(coaches, key=lambda c: (-c.points_total, c.name))
+    target = round_number if round_number is not None else _load().round_number
+    try:
+        fixtures = _market.fixtures()
+        strength = round_strengths(_history.club_records(), fixtures)
+    except SiteError as exc:
+        return {"detail": f"could not read the calendar or the club archive: {exc}"}
+    if target is None:
+        return {"detail": "no round to rank the coaches on — pass round_number"}
+    filed = {c.id: c for c in coaches}
+    ranked = rank_coaches([c.model_dump() for c in coaches], fixtures, strength, target)
     return {
-        "source": "manual",
+        "source": "manual list, ranked on the calendar",
+        "round": target,
         "count": len(ranked),
         "coaches": [
             {
-                "id": c.id,
-                "name": c.name,
-                "club": c.club,
-                "points_total": c.points_total,
-                "points_round": c.points_round,
+                "id": row["id"],
+                "name": row["name"],
+                "club": row["club"],
+                "expected": round(row["expected"], 2),
+                "opponent": row["opponent"],
+                "at_home": row["at_home"],
+                "points_total": filed[row["id"]].points_total,
+                "points_round": filed[row["id"]].points_round,
             }
-            for c in ranked
+            for row in ranked
         ],
     }
 
@@ -1353,136 +1389,99 @@ def club_strength() -> dict[str, Any]:
 
 
 @server.tool()
-def project_points(rounds_remaining: int = 32, prior_strength: float = PRIOR_STRENGTH) -> dict[str, Any]:
-    """Project each squad player's scoring rate for the rest of the season.
+def project_points(round_number: int | None = None) -> dict[str, Any]:
+    """What each squad player is expected to score in a round — the pages' model.
 
-    Blends what has been seen with a prior built from the club's record over
-    completed seasons and the price Record set before the season began. Early
-    on the prior dominates; as matches accumulate the observed form takes over.
+    THE SAME PROJECTION AS THE PAGES AND THE LEDGER, since 22/09/2026:
+    `advice.round_projection` over `advice.valuation`. The valuation reads two
+    seasons of archive and this season from the weekly emails, and splits each
+    man into his chance of playing and what he returns when he does; the round
+    then moves what he returns by the opponent, and three rules bind first:
+    nothing for a man who has left the league, §15.3's zero for a club with no
+    match, and §10.3(i)'s -1 for a man known to be out — the hand file and the
+    Premium bulletin, each for its own round only.
 
-    Every projection shows its working — `components` carries the position
-    baseline, the club factor and the price factor — so the number can be
-    argued with rather than taken on faith.
+    Until then this tool ran `stats.project`, the folded average, with no
+    opponent, no archive and no emails, and a chat about a player could get a
+    number the page would never show.
 
-    `prior_strength` is how many matches the prior is worth; raise it to lean
-    harder on history, lower it to trust the current season more.
+    Checked round by round: the ledger files these same numbers before every
+    kickoff and settles them from the email (`track_record`).
 
-    Partly validated, and it is worth knowing which part. Liga Record still
-    publishes no past scores, so no projection this tool has made has ever been
-    checked against a real season — record them now and settle them later.
-
-    What has been measured is `prior_strength`, on a season reconstructed from
-    §10.3 and zerozero's match record. Over 4232 player-splits, blending beat
-    both extremes, and a player's own season to date turned out to be WORSE
-    evidence than what a player at his club in his position typically returns.
-    That is why the prior is worth ten rounds here and not four: early-season
-    form is mostly not about the player.
+    `appearances` is how many matches each number rests on. Without the
+    archive — a fresh clone; the reconstructions are not ours to redistribute —
+    the valuation leans on this season alone, and `evidence` says so.
     """
     snapshot = _load()
-    matches = _matches_by_club()
-    if matches is None:
-        return {**_provenance(snapshot), "detail": "the calendar could not be read"}
+    target = round_number if round_number is not None else snapshot.round_number
+    if target is None:
+        return {**_provenance(snapshot), "detail": "no round to project — pass round_number"}
     try:
+        fixtures = _market.fixtures()
         records = _history.club_records()
+        pool = [p for position in Position for p in _market.search(position)]
     except SiteError as exc:
-        return {**_provenance(snapshot), "detail": f"no season archive: {exc}"}
+        return {
+            **_provenance(snapshot),
+            "detail": f"could not read the site or the club archive: {exc}",
+        }
 
-    pool: list[Player] = []
-    for position in Position:
-        try:
-            pool.extend(_market.search(position))
-        except MarketError as exc:
-            return {**_provenance(snapshot), "detail": f"could not read the market: {exc}"}
-
-    market_players = [p.as_player() for p in pool]
-    baselines = position_baselines(market_players, matches)
-    played = [p for p in market_players if matches.get(p.club, 0) > 0]
-    league_ga = sum(
-        r.goals_against_per_match or 0 for r in records.values() if r.has_history
-    ) / max(1, sum(1 for r in records.values() if r.has_history))
-    league_gf = sum(
-        r.goals_for_per_match or 0 for r in records.values() if r.has_history
-    ) / max(1, sum(1 for r in records.values() if r.has_history))
-
-    mean_value: dict[Position, float] = {}
-    for position in Position:
-        same = [p.value for p in played if p.position is position]
-        mean_value[position] = sum(same) / len(same) if same else 0.0
-
-    league_mean_value = (
-        sum(p.value for p in played) / len(played) if played else 0.0
+    squad = snapshot.squad
+    whole = {p.id: p.as_player() for p in pool}
+    archive = archive_records(DATA_DIR)
+    view = valuation(
+        players_to_value(squad.players, whole),
+        archive,
+        current_records(
+            whole,
+            load_official_rounds(DATA_DIR / "pontuacoes", first_round=FIRST_SCORING_MATCHDAY),
+        ),
     )
-    club_index = club_price_index(played, league_mean_value)
-
-    # Whether a man is in the side is the largest single fact about him, and it
-    # is the one the running average hides. The record of who actually played
-    # comes from §10.3(i)'s -1, which is the only signal Liga Record gives:
-    # `record_appearances` writes it down after each round.
-    seen: dict[str, dict[str, str]] = {}
-    league_availability = None
-    try:
-        store = load_appearances(APPEARANCES_PATH)
-        if recorded_rounds(store):
-            seen = {p.id: history_for(store, p.id) for p in snapshot.squad.players}
-            everyone = [
-                status
-                for rounds in (store.get("rounds") or {}).values()
-                for status in (rounds.get("players") or {}).values()
-                if status != NO_MATCH
-            ]
-            if everyone:
-                league_availability = sum(
-                    1 for status in everyone if status == PLAYED
-                ) / len(everyone)
-    except SquadSourceError:
-        # An unreadable record is a reason to project the old way, not to
-        # refuse to project.
-        seen, league_availability = {}, None
+    projected = round_projection(
+        squad.players,
+        view,
+        round_weeks(records, fixtures, target),
+        unavailable=known_out(
+            DATA_DIR / "indisponiveis.yaml", DATA_DIR / "boletim", target, squad.players
+        ),
+        gone=left_the_league([p.id for p in squad.players], whole),
+    )
 
     rows = []
-    for player in snapshot.squad.players:
-        history = seen.get(player.id) or {}
-        appearances = (
-            sum(1 for status in history.values() if status == PLAYED)
-            if history and league_availability
-            else None
-        )
+    for player in squad.players:
+        found = projected[player.id]
         rows.append(
-            project(
-                player,
-                matches.get(player.club, 0),
-                records.get(player.club),
-                baselines,
-                mean_value.get(player.position, 0.0),
-                league_ga,
-                league_gf,
-                club_index=club_index.get(player.club, 1.0),
-                prior_strength=prior_strength,
-                rounds_remaining=rounds_remaining,
-                appearances=appearances,
-                expected_availability=(
-                    availability(history, league_rate=league_availability)
-                    if appearances is not None
-                    else None
+            {
+                "id": player.id,
+                "name": player.name,
+                "position": player.position.value,
+                "club": player.club,
+                "expected": round(found["expected"], 2),
+                "season_rate": round(found["season"], 2),
+                "playing": round(found["playing"], 3),
+                "returns": round(found["returns"], 2),
+                "appearances": found["appearances"],
+                "opponent": found["opponent"],
+                "at_home": found["at_home"],
+                "why": (
+                    "left the league"
+                    if found["gone"]
+                    else "no match this round (§15.3)"
+                    if found["no_fixture"]
+                    else found["unavailable"]
                 ),
-                league_availability=league_availability,
-            )
+            }
         )
-    rows.sort(key=lambda r: -(r["projected_rate"] or 0))
+    rows.sort(key=lambda r: (-r["expected"], r["name"]))
     return {
         **_provenance(snapshot),
-        "rounds_remaining": rounds_remaining,
-        "prior_strength_matches": prior_strength,
-        "league_goals_against_per_match": round(league_ga, 2),
-        "availability_split": (
-            "off — no appearance record yet; run record_appearances after a round"
-            if league_availability is None
-            else f"on, against a league rate of {league_availability:.0%}"
-        ),
-        "unvalidated": (
-            "no projection made here has been checked against a finished "
-            "season — treat it as a reasoned estimate. Its shrinkage weight is "
-            "measured; its output is not"
+        "round": target,
+        "estimator": ESTIMATOR,
+        "evidence": (
+            f"archive of {len(archive)} players plus this season's emails"
+            if archive
+            else "NO ARCHIVE in this checkout — this season's emails only, so "
+            "every number rests on few matches; read `appearances`"
         ),
         "players": rows,
     }
@@ -2090,7 +2089,9 @@ def pick_starting_xi() -> str:
         "one.\n\n"
         "Pick a coach. He scores every round and the eighteen have spanned "
         "fourteen points to minus two, so leaving him as an afterthought throws "
-        "away more than most transfers gain. list_coaches ranks them.\n\n"
+        "away more than most transfers gain. list_coaches ranks them on this "
+        "round's match, as the pages do — a coach is picked every round, so "
+        "rank them again every round.\n\n"
         "Finish by calling validate_selection on the exact proposal — starters, "
         "bench order, captain and coach id. Do not tell me the sheet is legal "
         "without having run it. Quote the `as_of` timestamp rather than "
@@ -2139,18 +2140,22 @@ def settle_the_round() -> str:
         "Every projection this server produces is reasoned, not measured — Liga "
         "Record has never published past scores, so there is nothing to test "
         "against except the record we keep ourselves. This is that step.\n\n"
-        "Call record_appearances for the round so the squad's appearance "
-        "history grows: §10.3 pays an unused player -1, which is the only "
-        "signal available for who actually took the field.\n\n"
+        "Call record_appearances for the round so appearance_history grows: "
+        "§10.3 pays an unused player -1, which is how the site says who took "
+        "the field. The model does not read it — project_points, the pages "
+        "and the ledger read who played from the weekly score emails, which "
+        "the site's round scores lag.\n\n"
         "Only settle players whose club has actually played. A club with a "
         "postponed fixture leaves its players at 0, and that 0 is pending, not "
         "scored — entering it as a result would record an error against a "
         "projection that was never tested. get_fixtures shows which matches of "
         "the round are complete.\n\n"
-        "Then look at the gap between projected and actual: is the model biased "
-        "high or low, is it worse for one position than another, and did the "
-        "opponent adjustment help or hurt? Two rounds is far too little to "
-        "conclude anything — say so rather than reading a trend into noise.\n\n"
+        "Then call track_record for the gap between what the ledger filed "
+        "before kickoff and what the email paid — the same numbers "
+        "project_points gives. Is the model biased high or low, is it worse for "
+        "one position than another, and did the opponent adjustment help or "
+        "hurt? A few rounds is far too little to conclude anything — say so "
+        "rather than reading a trend into noise.\n\n"
         "Finally call standings to see where the round left me, nationally and "
         "in the private league."
     )

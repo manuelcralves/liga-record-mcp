@@ -28,13 +28,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
-from liga_record_mcp.advice import ESTIMATOR, players_to_value, valuation  # noqa: E402
+from liga_record_mcp.advice import (  # noqa: E402
+    ESTIMATOR,
+    players_to_value,
+    round_projection,
+    round_weeks,
+    valuation,
+)
 from liga_record_mcp.coaches import (  # noqa: E402
     coach_points_by_club,
     rank_coaches,
     round_strengths,
 )
-from liga_record_mcp.optimise import best_eleven  # noqa: E402
+from liga_record_mcp.optimise import best_eleven, left_the_league  # noqa: E402
 from liga_record_mcp.models import FIRST_SCORING_MATCHDAY, Position  # noqa: E402
 from liga_record_mcp.source import (  # noqa: E402
     consistency_problems,
@@ -44,16 +50,7 @@ from liga_record_mcp.source import (  # noqa: E402
     OpenFootballClient,
     load_coaches,
 )
-from liga_record_mcp.stats import (  # noqa: E402
-    adjust_for_fixture,
-    club_price_index,
-    clubs_playing_in,
-    fixture_multipliers,
-    matches_played,
-    position_baselines,
-    project,
-    UNUSED_PENALTY,
-)
+from liga_record_mcp.stats import clubs_playing_in  # noqa: E402
 
 from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
@@ -74,53 +71,20 @@ BULLETIN_DIR = ROOT / "data" / "boletim"
 # wrong one is not a rounding error.
 
 
-def league_rates(records):
-    """Mean goals for and against among clubs with a record to read."""
-    known = [r for r in records.values() if r.has_history]
-    return (
-        sum(r.goals_against_per_match for r in known) / len(known),
-        sum(r.goals_for_per_match for r in known) / len(known),
-    )
-
-
-def club_rates(records, club, league_ga, league_gf):
-    """A club's scoring rates, or the league's if it was promoted."""
-    record = records.get(club)
-    if record is None or not record.has_history:
-        return league_ga, league_gf, False
-    return record.goals_against_per_match, record.goals_for_per_match, True
-
-
 def snapshot(market, history, squad, round_number):
-    """Everything known about the coming round, per player."""
+    """Everything known about the coming round, per player.
+
+    The projection itself is `advice.round_projection`, the one the page and
+    the server read too; what is here is the ledger's own: the guard that the
+    site's totals and the emails agree, and the row it files.
+    """
     records = history.club_records()
     fixtures = market.fixtures()
-    counts = matches_played(fixtures, since=FIRST_SCORING_MATCHDAY)
-    league_ga, league_gf = league_rates(records)
-
     everyone = [m.as_player() for pos in Position for m in market.search(pos)]
-    baselines = position_baselines(everyone, counts)
-    # Before the first official round is played, nobody has a match inside the
-    # window. Prices do not depend on matches, so the price context falls back
-    # to the whole market instead of dividing by nobody, which is what
-    # recording the first official round would do now that the trial rounds no
-    # longer count.
-    played = [p for p in everyone if counts.get(p.club, 0) > 0] or everyone
-    mean_value = sum(p.value for p in played) / len(played)
-    index = club_price_index(played, mean_value)
-    position_mean = {
-        pos: sum(p.value for p in played if p.position is pos)
-        / max(1, sum(1 for p in played if p.position is pos))
-        for pos in Position
-    }
 
-    this_round = [f for f in fixtures if f.round_number == round_number]
-    if not this_round:
+    weeks = round_weeks(records, fixtures, round_number)
+    if not weeks:
         raise SystemExit(f"the calendar has no round {round_number}")
-    opponents = {}
-    for f in this_round:
-        opponents[f.home] = (f.away, True, f.kickoff)
-        opponents[f.away] = (f.home, False, f.kickoff)
 
     # THE ESTIMATOR THE PAGES ADVISE WITH, and until now this was not it.
     #
@@ -170,110 +134,64 @@ def snapshot(market, history, squad, round_number):
     if unavailable:
         print(f"  {len(unavailable)} fora da jornada {round_number}, pelo boletim e pelo ficheiro")
 
+    missing = [p.name for p in squad.players if p.id not in view]
+    if missing:
+        raise SystemExit(f"{', '.join(missing)} has no valuation — cannot record a round")
+    projected = round_projection(
+        squad.players,
+        view,
+        weeks,
+        unavailable=unavailable,
+        gone=left_the_league([p.id for p in squad.players], whole),
+    )
+
     rows = {}
     for player in squad.players:
-        # The player's own estimate first, because none of it depends on who he
-        # plays: `returns`, `playing` and the season rate are properties of the
-        # man, and the fixture only scales them afterwards.
-        entry = view.get(player.id)
-        if entry is None:
-            raise SystemExit(f"{player.name} has no valuation — cannot record a round")
-        season_rate = float(entry["expected"])
-        own_ga, own_gf, known = club_rates(records, player.club, league_ga, league_gf)
+        found = projected[player.id]
+        record = records.get(player.club)
 
-        # A CLUB WITH NO FIXTURE IS A ROW, NOT A REFUSAL.
+        # A CLUB WITH NO FIXTURE IS A ROW, NOT A REFUSAL — §15.3 scores the
+        # match at nothing, and `round_projection` writes 0.0. Refusing made one
+        # player from a club missing from the calendar cost the WHOLE round,
+        # and an unrecorded round is gone from the track record for good.
+        # Only the fixture's own fields are null; `fixture_grid` scales
+        # `season_rate` for future rounds and the players table prints it.
         #
-        # This raised SystemExit, so one player from a club missing from the
-        # calendar made the WHOLE round unrecordable — and an unrecorded round
-        # is gone from the track record for good, because the snapshot has to
-        # be taken before kickoff and there is no going back to take it.
-        #
-        # build_dashboard, looking at the same fact, writes 0.0 under §15.3 and
-        # carries on. Two halves of one system answering one question in
-        # opposite ways, and the half that refused was the half that lost data.
-        #
-        # §15.3 is why 0.0 and not -1: a match not played before the next round
-        # begins scores nothing, which is worse than a hard fixture and better
-        # than the -1 for a man left out. Either way he is not in the eleven.
-        #
-        # Only the fixture's own fields are null here. Nulling the estimate too
-        # would be a second bug: `fixture_grid` scales `season_rate` for future
-        # rounds and sorts on it, and the players table prints it.
-        if player.club not in opponents:
-            rows[player.id] = {
-                "name": player.name,
-                "position": player.position.value,
-                "club": player.club,
-                "value": player.value,
-                "opponent": None,
-                "at_home": None,
-                "kickoff": None,
-                "club_has_history": known,
-                "season_rate": round(season_rate, 2),
-                "returns": round(entry["returns"], 2),
-                "playing": round(entry["playing"], 3),
-                "appearances": entry["appearances"],
-                "defensive_multiplier": None,
-                "attacking_multiplier": None,
-                "projected": 0.0,
-                "points_before": player.points_total,
-                "actual": None,
-                "no_fixture": True,
-            }
-            print(
-                f"  {player.name} ({player.club}) nao tem jogo na jornada "
-                f"{round_number} — registado a 0.0 pelo §15.3"
-            )
-            continue
-
-        opponent, at_home, kickoff = opponents[player.club]
-        opp_ga, opp_gf, _ = club_rates(records, opponent, league_ga, league_gf)
-        defensive, attacking = fixture_multipliers(
-            own_ga, own_gf, opp_ga, opp_gf, league_ga, league_gf, at_home=at_home
-        )
-        # The fixture scales what he returns WHEN HE PLAYS and never the blend:
-        # §10.3(i) pays the same -1 whoever the opponent is, and scaling that
-        # would make an easy fixture a reason to own a man who is not in the
-        # side. This is the arithmetic build_dashboard does, to the letter.
-        adjusted = entry["playing"] * adjust_for_fixture(
-            entry["returns"], player.position, defensive, attacking
-        ) + (1 - entry["playing"]) * float(UNUSED_PENALTY)
-
-        # KNOWN NOT TO BE PLAYING, which the model cannot see for itself. Cards
-        # it counts; injuries the site does not publish — a player's payload
-        # carries fifteen fields and none is availability — and this project
-        # does not read the press. So the estimate becomes what §10.3(i) pays a
-        # man who does not play, minus one, rather than a guess about a game he
-        # is not in.
-        #
-        # Minus one and not something huge: this is an ESTIMATE, scored against
-        # what he really collects. Recording -1000 would make the error -999 and
+        # KNOWN NOT TO BE PLAYING reads -1, what §10.3(i) pays him: this is an
+        # ESTIMATE scored against what he collects, and recording -1000 would
         # poison every accuracy figure the ledger produces. Keeping him out of
         # the eleven is a different job, done where the eleven is chosen.
-        why = unavailable.get(player.id)
-        if why is not None:
-            adjusted = float(UNUSED_PENALTY)
-
-        rows[player.id] = {
+        no_fixture = found["no_fixture"]
+        row = {
             "name": player.name,
             "position": player.position.value,
             "club": player.club,
             "value": player.value,
-            "opponent": opponent,
-            "at_home": at_home,
-            "kickoff": kickoff,
-            "club_has_history": known,
-            "season_rate": round(season_rate, 2),
-            "returns": round(entry["returns"], 2),
-            "playing": round(entry["playing"], 3),
-            "appearances": entry["appearances"],
-            "defensive_multiplier": round(defensive, 3),
-            "attacking_multiplier": round(attacking, 3),
-            "projected": round(adjusted, 2),
+            "opponent": found["opponent"],
+            "at_home": found["at_home"],
+            "kickoff": found["kickoff"],
+            "club_has_history": bool(record is not None and record.has_history),
+            "season_rate": round(float(found["season"]), 2),
+            "returns": round(found["returns"], 2),
+            "playing": round(found["playing"], 3),
+            "appearances": found["appearances"],
+            "defensive_multiplier": None if no_fixture else round(found["defensive"], 3),
+            "attacking_multiplier": None if no_fixture else round(found["attacking"], 3),
+            "projected": round(found["expected"], 2),
             "points_before": player.points_total,
             "actual": None,
-            **({"unavailable": why} if why is not None else {}),
         }
+        if no_fixture:
+            row["no_fixture"] = True
+            print(
+                f"  {player.name} ({player.club}) nao tem jogo na jornada "
+                f"{round_number} — registado a 0.0 pelo §15.3"
+            )
+        if found["unavailable"] is not None:
+            row["unavailable"] = found["unavailable"]
+        if found["gone"]:
+            row["gone"] = True
+        rows[player.id] = row
 
     return rows
 
