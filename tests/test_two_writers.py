@@ -208,9 +208,10 @@ def writer(ledger, tmp_path, monkeypatch):
     monkeypatch.setattr(
         ledger,
         "coach_snapshot",
-        lambda history, counts, round_number, coach_id: {"id": coach_id, "actual": None},
+        lambda history, fixtures, round_number, coach_id: {"id": coach_id, "actual": None},
     )
-    monkeypatch.setattr(ledger, "advised_sheet", lambda rows: None)
+    monkeypatch.setattr(ledger, "advised_coach", lambda history, fixtures, round_number: None)
+    monkeypatch.setattr(ledger, "advised_sheet", lambda rows, coach=None: None)
     return SimpleNamespace(log=log, ledger_with=ledger_with, on_file=on_file, run=run)
 
 

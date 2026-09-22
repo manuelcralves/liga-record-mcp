@@ -571,4 +571,6 @@ def test_the_recorded_round_carries_it():
 
 def test_the_snapshot_writes_it():
     source = (ROOT / "scripts" / "record_projection.py").read_text(encoding="utf-8")
-    assert '"advised": advised_sheet(rows),' in source
+    assert '"advised": advised_sheet(' in source
+    # And with the model's coach of the round, filed beside its eleven.
+    assert "rows, advised_coach(history, fixtures, snapshot_of_squad.round_number)" in source

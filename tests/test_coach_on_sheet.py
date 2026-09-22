@@ -15,6 +15,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from liga_record_mcp.advice import ESTIMATOR
+from liga_record_mcp.coaches import rank_coaches, round_strengths
+from liga_record_mcp.models import ClubRecord, Fixture
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -53,13 +57,30 @@ def test_a_sheet_without_a_coach_names_none(ledger):
 
 def test_no_coach_on_the_sheet_records_no_coach(ledger):
     """§6.17 scores that round zero; inventing a coach would be a false record."""
-    assert ledger.coach_snapshot(None, {}, 7, None) is None
+    assert ledger.coach_snapshot(None, [], 7, None) is None
 
 
-def test_the_snapshot_is_of_the_coach_named(ledger, tmp_path, monkeypatch):
-    # All eighteen: the loader refuses a short list as a partial copy (§6.15).
-    entries = [("890", "Farioli", "FC Porto"), ("860", "Rui Borges", "Sporting")]
-    entries += [(str(1000 + n), f"Coach {n}", f"Club {n}") for n in range(16)]
+# --- priced on the round's match (22/09/2026) ----------------------------------
+
+
+ROUND_7 = [
+    Fixture(round_number=7, home="Sporting", away="Arouca"),
+    Fixture(round_number=7, home="FC Porto", away="Benfica"),
+]
+
+
+@pytest.fixture
+def filed_coaches(ledger, tmp_path, monkeypatch):
+    """A coach file of eighteen — the loader refuses a partial copy (§6.15) —
+    with round 7's four clubs and one, Estoril, that has no match."""
+    entries = [
+        ("890", "Farioli", "FC Porto"),
+        ("860", "Rui Borges", "Sporting"),
+        ("777", "Vasco Seabra", "Arouca"),
+        ("800", "Marco Silva", "Benfica"),
+        ("900", "Vasco Matos", "Estoril"),
+    ]
+    entries += [(str(1000 + n), f"Coach {n}", f"Club {n}") for n in range(13)]
     lines = ["coaches:"]
     for coach_id, name, club in entries:
         lines += [
@@ -69,17 +90,88 @@ def test_the_snapshot_is_of_the_coach_named(ledger, tmp_path, monkeypatch):
             "    points_total: 5",
             "    points_round: 1",
         ]
-    coaches = tmp_path / "coaches.yaml"
-    coaches.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    monkeypatch.setattr(ledger, "COACHES_PATH", coaches)
-    monkeypatch.setattr(ledger, "project_coach", lambda *a, **k: {"projected_rate": 1.5})
-    record = SimpleNamespace(
-        has_history=True, goals_against_per_match=1.0, goals_for_per_match=1.4
-    )
-    history = SimpleNamespace(club_records=lambda: {"Sporting": record, "FC Porto": record})
+    path = tmp_path / "coaches.yaml"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    monkeypatch.setattr(ledger, "COACHES_PATH", path)
+    return [{"id": i, "name": n, "club": c} for i, n, c in entries]
 
-    got = ledger.coach_snapshot(history, {"Sporting": 6, "FC Porto": 6}, 7, "860")
+
+def archive():
+    """Three strong clubs and a weak one, in goals a match over two seasons."""
+    def club(name, scored, conceded):
+        return ClubRecord(club=name, matches=68, goals_for=scored, goals_against=conceded)
+
+    records = {
+        "Sporting": club("Sporting", 170, 50),
+        "FC Porto": club("FC Porto", 140, 55),
+        "Benfica": club("Benfica", 150, 50),
+        "Arouca": club("Arouca", 75, 110),
+    }
+    return SimpleNamespace(club_records=lambda: records)
+
+
+def test_the_ledger_prices_the_coach_with_the_pages_own_function(ledger, filed_coaches):
+    """One price, two readers: the ledger files what the page shows."""
+    history = archive()
+    got = ledger.coach_snapshot(history, ROUND_7, 7, "860")
+    page = rank_coaches(
+        filed_coaches, ROUND_7, round_strengths(history.club_records(), ROUND_7), 7
+    )
+    same = next(r for r in page if r["id"] == "860")
     assert (got["id"], got["name"], got["club"]) == ("860", "Rui Borges", "Sporting")
+    assert got["projected_rate"] == round(same["expected"], 2)
+    assert (got["opponent"], got["at_home"], got["metodo"]) == ("Arouca", True, "jogo")
+    assert got["points_before"] == 5, "the settle's fallback needs the total he started from"
+
+
+def test_round_7_by_rule_sporting_at_home_to_arouca_over_the_derby(ledger, filed_coaches):
+    history = archive()
+    sporting = ledger.coach_snapshot(history, ROUND_7, 7, "860")["projected_rate"]
+    porto = ledger.coach_snapshot(history, ROUND_7, 7, "890")["projected_rate"]
+    assert sporting > porto
+    advised = ledger.advised_coach(history, ROUND_7, 7)
+    assert advised["club"] == "Sporting"
+
+
+def test_a_coach_whose_club_has_no_match_is_projected_at_nothing(ledger, filed_coaches):
+    got = ledger.coach_snapshot(archive(), ROUND_7, 7, "900")
+    assert got["projected_rate"] == 0.0 and got["opponent"] is None
+
+
+def test_the_models_coach_is_settled_from_the_email_by_his_club(ledger):
+    stored = {"advised": {"coach": {"name": "Marco Silva", "club": "Benfica",
+                                    "projected_rate": 3.9, "actual": None}}}
+    official = {"treinadores": {"Marco Silva|Benfica": 6, "Farioli|FC Porto": 1}}
+    played = {"Benfica", "FC Porto"}
+    assert ledger.settle_advised_coach(stored, official, played) is True
+    coach = stored["advised"]["coach"]
+    assert coach["actual"] == 6 and coach["error"] == pytest.approx(2.1)
+    # Settled once; a second pass writes nothing.
+    assert ledger.settle_advised_coach(stored, official, played) is False
+
+
+def test_no_email_yet_leaves_the_models_coach_open(ledger):
+    stored = {"advised": {"coach": {"name": "X", "club": "Benfica",
+                                    "projected_rate": 3.0, "actual": None}}}
+    assert ledger.settle_advised_coach(stored, None, {"Benfica"}) is False
+    assert stored["advised"]["coach"]["actual"] is None
+
+
+def test_a_postponed_clubs_coach_is_not_closed_at_the_emails_zero(ledger):
+    """The email lists a postponed club's coach at 0, which means nothing
+    assigned yet — as its players' zeros do. Found by the code review."""
+    stored = {"advised": {"coach": {"name": "Marco Silva", "club": "Benfica",
+                                    "projected_rate": 3.9, "actual": None}}}
+    official = {"treinadores": {"Marco Silva|Benfica": 0}, "adiados": ["Benfica"]}
+    assert ledger.settle_advised_coach(stored, official, {"FC Porto"}) is False
+    assert stored["advised"]["coach"]["actual"] is None
+
+
+def test_the_players_estimator_did_not_move_with_the_coach():
+    """The coach's method is filed on the coach (`metodo`). The estimator names
+    the players' projections, and the track record sums only its own rounds —
+    moving it for a coach would have thrown away that record for nothing."""
+    assert ESTIMATOR == "valuation+fixture+recency"
 
 
 # --- what makes the round on file stale ---------------------------------------------
@@ -124,6 +216,18 @@ def dash():
 def eleven(shape):
     positions = ["GK"] + ["DEF"] * shape[0] + ["MID"] * shape[1] + ["FWD"] * shape[2]
     return {str(n): {"position": pos} for n, pos in enumerate(positions)}
+
+
+def test_the_track_record_judges_the_coaches_apart_from_the_elevens(dash):
+    rounds = [
+        {"coach_model": 6, "coach_mine": 1},
+        {"coach_model": 7, "coach_mine": 7},
+        # Filed before the model's coach was: out of the sum, not zero.
+        {"coach_model": None, "coach_mine": 10},
+    ]
+    said = dash.coach_verdict(rounds)
+    assert "2 jornadas" in said and "13" in said and "8" in said and "+5" in said
+    assert dash.coach_verdict([{"coach_model": None, "coach_mine": 4}]) == ""
 
 
 def test_the_formation_is_counted_from_the_eleven(dash):

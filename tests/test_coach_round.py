@@ -11,28 +11,18 @@ FC Porto against Benfica, was worked out by hand on 18/09/2026.
 
 from __future__ import annotations
 
-import importlib.util
 import json
 from pathlib import Path
 
 import pytest
 import yaml
 
+from liga_record_mcp.coaches import rank_coaches
 from liga_record_mcp.final_table import coach_values
 from liga_record_mcp.models import Fixture
-from liga_record_mcp.stats import expected_coach_points
+from liga_record_mcp.stats import MEAN_MARK_POINTS, expected_coach_points
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-@pytest.fixture(scope="module")
-def dash():
-    spec = importlib.util.spec_from_file_location(
-        "build_dashboard", ROOT / "scripts" / "build_dashboard.py"
-    )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 #: Attack and defence in goals a match, roughly as the table stood before
@@ -74,7 +64,7 @@ def test_a_big_club_at_home_to_a_weak_one_beats_a_big_club_in_a_derby():
     assert values["FC Porto"] == pytest.approx(-values["Benfica"])
 
 
-def test_the_ranking_joins_on_the_exact_club_and_puts_no_match_last(dash):
+def test_the_ranking_joins_on_the_exact_club_and_puts_no_match_last():
     coaches = [
         {"id": "1", "name": "Rui Borges", "club": "Sporting"},
         {"id": "2", "name": "Farioli", "club": "FC Porto"},
@@ -90,10 +80,21 @@ def test_the_ranking_joins_on_the_exact_club_and_puts_no_match_last(dash):
     ]
     strength = {**BEFORE_ROUND_7, "Sp. Braga": (1.6, 1.1), "Casa Pia": (1.0, 1.5)}
 
-    rows = dash.rank_coaches(coaches, fixtures, strength, 7)
+    rows = rank_coaches(coaches, fixtures, strength, 7)
 
     assert [r["name"] for r in rows][0] == "Rui Borges"
-    assert rows[-1]["name"] == "Idle" and rows[-1]["expected"] is None
+    # No match, no week: nothing to score, last, and no opponent to name.
+    assert rows[-1]["name"] == "Idle"
+    assert rows[-1]["expected"] == 0.0 and rows[-1]["opponent"] is None
+    # The rest are what the match is worth plus the mark every coach is
+    # credited on average — the ledger compares against what he scores, and
+    # the mark is in that.
+    values = coach_values(
+        [("Sporting", "Arouca"), ("FC Porto", "Benfica"), ("Casa Pia", "Sp. Braga")],
+        strength,
+    )
+    sporting = next(r for r in rows if r["club"] == "Sporting")
+    assert sporting["expected"] == pytest.approx(values["Sporting"] + MEAN_MARK_POINTS)
     braga = next(r for r in rows if r["club"] == "Sp. Braga")
     # Braga's own match, away at Casa Pia — not Sporting's, which the old
     # word-by-word join could have handed it.

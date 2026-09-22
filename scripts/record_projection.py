@@ -29,6 +29,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp.advice import ESTIMATOR, players_to_value, valuation  # noqa: E402
+from liga_record_mcp.coaches import (  # noqa: E402
+    coach_points_by_club,
+    rank_coaches,
+    round_strengths,
+)
 from liga_record_mcp.optimise import best_eleven  # noqa: E402
 from liga_record_mcp.models import FIRST_SCORING_MATCHDAY, Position  # noqa: E402
 from liga_record_mcp.source import (  # noqa: E402
@@ -41,7 +46,6 @@ from liga_record_mcp.source import (  # noqa: E402
 )
 from liga_record_mcp.stats import (  # noqa: E402
     adjust_for_fixture,
-    project_coach,
     club_price_index,
     clubs_playing_in,
     fixture_multipliers,
@@ -68,14 +72,6 @@ BULLETIN_DIR = ROOT / "data" / "boletim"
 # with him while the sheet had Rui Borges. A coach scores every round (§6.15,
 # §6.17) and the eighteen spanned 14 points to -2 after two, so recording the
 # wrong one is not a rounding error.
-
-#: Where the coach's matches are counted from. NOT the official phase: the
-#: coach totals are the hand copy in data/coaches.yaml, taken on 19/08/2026 —
-#: before the site reset its totals on 15/09 — and dividing that copy by the
-#: official matches alone would put a trial-phase total over one match. Wrong
-#: either way until the file is refreshed; this way it is the old wrong, not a
-#: new and larger one.
-COACH_TOTALS_SINCE = 1
 
 
 def league_rates(records):
@@ -282,7 +278,7 @@ def snapshot(market, history, squad, round_number):
     return rows
 
 
-def advised_sheet(rows: dict) -> dict | None:
+def advised_sheet(rows: dict, coach: dict | None = None) -> dict | None:
     """The eleven the model would field, recorded rather than reconstructed.
 
     THE LEDGER KEPT THE MANAGER'S SHEET AND NOT ITS OWN ADVICE. The `filed`
@@ -297,7 +293,9 @@ def advised_sheet(rows: dict) -> dict | None:
     the same round by two players. The armband held. Nothing recorded that.
 
     Built from this round's own projections, which are frozen the moment they
-    are written — so this is the advice as it stood, permanently.
+    are written — so this is the advice as it stood, permanently. `coach` is the
+    model's coach of the round (`advised_coach`), filed with it for the same
+    reason.
     """
     shaped = [
         {"id": i, "position": Position(row["position"]), "value": row["value"]}
@@ -311,17 +309,54 @@ def advised_sheet(rows: dict) -> dict | None:
         "bench": list(sheet["bench"]),
         "captain": sheet["captain"],
         "formation": sheet.get("formation"),
+        "coach": coach,
     }
 
-def coach_snapshot(history, counts, round_number, coach_id):
+def ranked_coaches(history, fixtures, round_number):
+    """The coach file, and the eighteen priced on this round's match.
+
+    `coaches.rank_coaches` on the inputs the page ranks them on — the archive's
+    club records and the calendar — so a coach on the ledger and the same coach
+    on the page carry one number.
+    """
+    coaches = load_coaches(COACHES_PATH)
+    strength = round_strengths(history.club_records(), fixtures)
+    return coaches, rank_coaches(
+        [c.model_dump() for c in coaches], fixtures, strength, round_number
+    )
+
+
+def coach_entry(row, *, points_before=None):
+    """One coach as the ledger files him: who, against whom, and his expectation."""
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "club": row["club"],
+        "points_before": points_before,
+        # How the projection was made. Rounds filed before 22/09/2026 carry
+        # none, and were projected by `stats.project_coach`: form and club
+        # strength, and no opponent at all.
+        "metodo": "jogo",
+        "opponent": row["opponent"],
+        "at_home": row["at_home"],
+        "projected_rate": round(row["expected"], 2),
+        "actual": None,
+    }
+
+
+def coach_snapshot(history, fixtures, round_number, coach_id):
     """The coach on the sheet, with what is expected of him this round.
 
-    His actual score cannot be computed from the calendar. Fitting the eighteen
-    against wins, draws, clean sheets and margins reaches r-squared 0.85 with
-    errors up to 3.8 and no integer structure — the residual behaves like the
-    editorial rating that dominates a player's score. So this records the
-    projection and the total he starts from, and `--settle` reads the new total
-    out of the hand-maintained coach file.
+    PRICED ON THE ROUND'S MATCH, since 22/09/2026: §14.3 over every scoreline
+    of his club's fixture, from the Final Table's goal model, plus the average
+    editorial mark (`coaches.rank_coaches`). It replaced `stats.project_coach`,
+    which blended his form with his club's strength and never looked at who he
+    played — and measured worse at it, on three seasons of openfootball: a
+    correlation of 0.46-0.55 with his real round against 0.29-0.38.
+
+    `--settle` still reads what he actually scored out of the round's email,
+    or failing that the hand-maintained coach file, which is why the total he
+    starts from is kept.
 
     `coach_id` is the coach on the filed sheet. None when the sheet names
     none: §6.17 scores that round zero, and inventing one would record a
@@ -329,35 +364,50 @@ def coach_snapshot(history, counts, round_number, coach_id):
     """
     if coach_id is None:
         return None
-    coaches = load_coaches(COACHES_PATH)
+    coaches, ranked = ranked_coaches(history, fixtures, round_number)
     chosen = next((c for c in coaches if c.id == coach_id), None)
     if chosen is None:
         raise SystemExit(f"coach {coach_id} is not in {COACHES_PATH}")
+    row = next(r for r in ranked if r["id"] == coach_id)
+    return coach_entry(row, points_before=chosen.points_total)
 
-    records = history.club_records()
-    league_ga, league_gf = league_rates(records)
-    rates = [
-        c.points_total / counts[c.club] for c in coaches if counts.get(c.club, 0) > 0
-    ]
-    baseline = sum(rates) / len(rates) if rates else 0.0
 
-    detail = project_coach(
-        chosen.points_total,
-        counts.get(chosen.club, 0),
-        records.get(chosen.club),
-        baseline,
-        league_ga,
-        league_gf,
+def advised_coach(history, fixtures, round_number):
+    """The coach the model would put on the sheet: the best of the round.
+
+    Filed with the model's eleven, so the track record can ask of the coach
+    what it asks of the players — whether taking the advice would have paid.
+    """
+    _, ranked = ranked_coaches(history, fixtures, round_number)
+    if not ranked or ranked[0]["opponent"] is None:
+        return None
+    return coach_entry(ranked[0])
+
+
+def settle_advised_coach(stored, official, playing) -> bool:
+    """Close the model's coach from the round's email, by his club.
+
+    Returns whether anything was written. The email carries all eighteen
+    coaches; the model picked a club's coach, so the club is the key. Only once
+    his club has played, as for the coach on the sheet: a postponed club's
+    coach reads 0 in the email, and that 0 means nothing assigned yet, not a
+    round that scored nothing — found by the code review of 22/09/2026.
+    """
+    coach = (stored.get("advised") or {}).get("coach")
+    if not coach or coach.get("actual") is not None or not official:
+        return False
+    if coach["club"] not in playing:
+        return False
+    scored = coach_points_by_club(official, coach["club"])
+    if scored is None:
+        return False
+    coach["actual"] = scored
+    coach["error"] = round(scored - coach["projected_rate"], 2)
+    print(
+        f"  treinador do modelo {coach['name']}: {scored:+} "
+        f"(projetado {coach['projected_rate']}, erro {coach['error']:+.2f})"
     )
-    return {
-        "id": chosen.id,
-        "name": chosen.name,
-        "club": chosen.club,
-        "points_before": chosen.points_total,
-        "league_baseline_rate": round(baseline, 2),
-        **detail,
-        "actual": None,
-    }
+    return True
 
 
 def sheet_coach(snapshot_of_squad) -> str | None:
@@ -657,6 +707,14 @@ def main() -> None:
             else:
                 pending.append(f"{coach['name']} (treinador)")
 
+        # And the model's coach, filed with its eleven since 22/09/2026. Still
+        # open means the round is not whole yet, as for the coach on the sheet.
+        advised_coach_filed = (stored.get("advised") or {}).get("coach")
+        if settle_advised_coach(stored, official, playing):
+            coach_settled = True
+        elif advised_coach_filed and advised_coach_filed.get("actual") is None:
+            pending.append(f"{advised_coach_filed['name']} (treinador do modelo)")
+
         if settle_wrote_anything(
             settled=settled,
             coach_settled=coach_settled,
@@ -701,7 +759,7 @@ def main() -> None:
         ):
             stored["coach"] = coach_snapshot(
                 OpenFootballClient(timeout=60.0),
-                matches_played(market.fixtures(), since=COACH_TOTALS_SINCE),
+                market.fixtures(),
                 int(key),
                 chosen_coach,
             )
@@ -801,7 +859,11 @@ def main() -> None:
                 market.fixtures(), int(key)
             ):
                 stored["filed"] = fresh
-                stored["advised"] = advised_sheet(stored["players"])
+                # The projections stand, so the model's coach filed with them
+                # stands too.
+                stored["advised"] = advised_sheet(
+                    stored["players"], (stored.get("advised") or {}).get("coach")
+                )
                 LOG_PATH.write_text(json.dumps(log, ensure_ascii=False, indent=2), "utf-8")
                 print(
                     f"round {key}: a folha mudou desde o instantaneo e ainda nao ha "
@@ -829,6 +891,7 @@ def main() -> None:
         )
 
     history = OpenFootballClient(timeout=60.0)
+    fixtures = market.fixtures()
     rows = snapshot(market, history, squad, snapshot_of_squad.round_number)
     # THE SHEET HE FILED, alongside what was expected of it. Without this the
     # ledger can say whether the model predicted well, and never whether
@@ -859,11 +922,13 @@ def main() -> None:
         # facts on file rather than one fact and one derivation, so the
         # comparison on the track-record page reads the same in May as it did
         # in August.
-        "advised": advised_sheet(rows),
+        "advised": advised_sheet(
+            rows, advised_coach(history, fixtures, snapshot_of_squad.round_number)
+        ),
         "players": rows,
         "coach": coach_snapshot(
             history,
-            matches_played(market.fixtures(), since=COACH_TOTALS_SINCE),
+            fixtures,
             snapshot_of_squad.round_number,
             sheet_coach(snapshot_of_squad),
         ),

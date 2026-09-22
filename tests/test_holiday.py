@@ -141,11 +141,15 @@ def test_the_plan_adds_the_coach_and_reads_the_holidays_from_the_decisions(
         {
             "model": {"round_score": 40.0, "typical_score": 41.0},
             "holidays": [{"pays": 39}, {"pays": 46}],
-            "coaches": [{"expected": 1.32}, {"expected": 0.96}],
+            # The coach of the round, mark included, as `rank_coaches` gives it.
+            "coaches": [
+                {"expected": 3.91, "opponent": "V. Guimarães"},
+                {"expected": 3.55, "opponent": "Marítimo"},
+            ],
         },
         8,
     )
-    assert plan["expected_score"] == pytest.approx(40.0 + 1.32 + dash.MEAN_MARK_POINTS)
+    assert plan["expected_score"] == pytest.approx(40.0 + 3.91)
     assert plan["expected_payout"] == pytest.approx(42.5)
     assert plan["used"] == [7] and plan["left"] == HOLIDAY_ROUNDS - 1
     assert plan["verdict"] == "guarda"
