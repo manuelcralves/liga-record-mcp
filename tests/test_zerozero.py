@@ -116,6 +116,26 @@ def test_minutes_per_match_is_none_without_matches():
     assert played.minutes_per_match == pytest.approx(74.5)
 
 
+def test_a_man_who_has_not_played_this_season_has_no_season_lines():
+    """No breakdown table, only the recent matches and the career table with
+    the season at "-": Samuel Portugal's page on 22/09/2026, cut down. It was
+    refused as an unfamiliar layout, and so was every unused keeper."""
+    page = (
+        "<table><tr><td>D</td><td>13/09</td><td>D1</td><td>Benfica</td></tr></table>"
+        "<table><tr><th></th><th>ÉPOCA</th><th>EQUIPA</th><th>J</th><th>G</th>"
+        "<th>AST</th></tr><tr><td></td><td>2026/27</td><td>Gil Vicente</td>"
+        "<td>-</td><td>-</td><td>-</td></tr></table>"
+    )
+    assert parse_seasons(page) == []
+
+
+def test_the_breakdown_is_found_wherever_it_sits_on_the_page(player_html):
+    """Found by its columns, so a table added above it cannot be read instead."""
+    seasons = parse_seasons("<table><tr><td>V</td><td>12/09</td></tr></table>" + player_html)
+    league = next(s for s in seasons if "Liga Portuguesa" in s.competition)
+    assert (league.matches, league.minutes) == (2, 149)
+
+
 def test_an_unfamiliar_page_is_refused_rather_than_half_read():
     with pytest.raises(ZeroZeroError, match="no table"):
         parse_seasons("<html><body>nada</body></html>")

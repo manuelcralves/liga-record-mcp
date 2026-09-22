@@ -239,17 +239,33 @@ def parse_search(html: str) -> list[ZeroZeroPlayer]:
 def parse_seasons(html: str) -> list[ZeroZeroSeason]:
     """The current season's competition lines from a player page.
 
-    The first table on the page is the per-competition breakdown, with columns
-    J (matches), M (minutes), GM (goals) and AST (assists). The Total row is
-    dropped — it is the sum of the rest, and keeping it would double every
-    figure a caller adds up.
+    The per-competition breakdown is the table with columns J (matches), M
+    (minutes), GM (goals) and AST (assists). The Total row is dropped — it is
+    the sum of the rest, and keeping it would double every figure a caller
+    adds up.
+
+    A MAN WHO HAS NOT PLAYED THIS SEASON HAS NO BREAKDOWN AT ALL. His page
+    opens on the list of recent matches, and the career table — ÉPOCA, EQUIPA,
+    J — shows the season at 0 or "-". That is an empty season, not a new
+    layout. This read only ever met players who had played until phase 2 asked
+    about the whole market, and then refused thirty of the first thirty-four
+    new names. A page with neither table is still refused.
     """
     soup = BeautifulSoup(html, "html.parser")
-    table = soup.select_one("table")
-    if table is None:
+    tables = soup.select("table")
+    if not tables:
         raise ZeroZeroError("no table on the player page — the layout may have changed")
 
-    headers = [h.get_text(strip=True).upper() for h in table.select("th")]
+    def headers_of(candidate) -> list[str]:
+        return [h.get_text(strip=True).upper() for h in candidate.select("th")]
+
+    table = next((t for t in tables if {"J", "M"} <= set(headers_of(t))), None)
+    if table is None:
+        if any({"epoca", "j"} <= {fold(h) for h in headers_of(t)} for t in tables):
+            return []
+        raise ZeroZeroError(f"unfamiliar columns on the player page: {headers_of(tables[0])}")
+
+    headers = headers_of(table)
     # Columns are read by name, not by position: a keeper's table carries GS
     # (goals conceded) exactly where an outfielder's carries GM (goals scored),
     # and reading the fourth cell either way would have filed every keeper's
