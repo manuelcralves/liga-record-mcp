@@ -37,7 +37,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp import server as mcp  # noqa: E402
-from liga_record_mcp.source import load_official_rounds  # noqa: E402
 from liga_record_mcp.advice import (  # noqa: E402
     ESTIMATOR,
     MIN_OWN_HISTORY,
@@ -60,8 +59,8 @@ from liga_record_mcp.source import (  # noqa: E402
     load_final_entry,
     load_unavailable,
 )
-from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
+from liga_record_mcp.source.season import season_so_far  # noqa: E402
 from liga_record_mcp.source.bulletin import (  # noqa: E402
     bulletin_out,
     known_out,
@@ -834,17 +833,13 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     market = {p.id: p for p in squad.players}
 
     archive = archive_records(ROOT / "data")
-    # This season's two rounds go in as well. They are two against sixty-eight,
-    # and they are the only two that describe the squads as they are now — the
+    # This season goes in as well. It is a few rounds against sixty-eight, and
+    # they are the only ones that describe the squads as they are now — the
     # page left them out and recommended a different transfer from the script
-    # for exactly that reason.
+    # for exactly that reason. `season_so_far` is the reading the ledger and
+    # the server take: rounds 1-5 rebuilt from zerozero, the emails from 6.
     whole = {p.id: p.as_player() for p in mcp_players()}
-    now = current_records(
-        whole,
-        load_official_rounds(
-            ROOT / "data" / "pontuacoes", first_round=FIRST_SCORING_MATCHDAY
-        ),
-    )
+    now, _ = season_so_far(whole, ROOT / "data")
     # ONE VALUATION FOR THE ELEVEN AND THE TRANSFER. The eleven was valued with
     # only the twenty-three in the pools and the transfer with the whole market,
     # so the same man carried two numbers on one page — and the replay only ever

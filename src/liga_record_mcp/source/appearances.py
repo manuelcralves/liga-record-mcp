@@ -97,19 +97,21 @@ def recorded_rounds(store: dict[str, Any]) -> list[int]:
 def current_records(
     market: Mapping[str, Any], rounds: Mapping[int, Mapping[str, Any]]
 ) -> dict[str, dict[str, Any]]:
-    """This season's appearances and points-when-playing, per player.
+    """This season's appearances and points-when-playing, from the emails alone.
 
-    The shape `advice.valuation` wants, for the rounds already scored.
+    The shape `advice.valuation` wants, for the rounds already scored. It is
+    the emails' half of `source.season.season_so_far`, which is the reading the
+    ledger, the pages, the squad proposal and the server take: that adds the
+    rounds 1-5 rebuilt from zerozero, where the file exists.
 
     UNTIL 15 SEPTEMBER 2026 this was read off the site: the latest round from
     `points_round`, everything before it as `points_total - points_round`, and
     the round-2 statuses `record_round` had written down. Then the site put
     every total back to zero for the official phase, and this began to see
     Pavlidis on nine points in six matches. The season now comes from the
-    weekly score emails, round by round, through `scores.season_records` — one
-    reading for the ledger, the pages and the squad proposal, which each held a
-    version of the old one and all went wrong on the same morning. The trial
-    rounds, 1 to 5, went with the totals: they were filed for the squad only,
-    and nothing exact about them survives.
+    weekly score emails, round by round, through `scores.season_records`. The
+    trial rounds, 1 to 5, went with the totals: they were filed for the squad
+    only, and nothing Record paid for them survives — what the model has of
+    them is the rebuild.
     """
     return season_records(market, rounds)

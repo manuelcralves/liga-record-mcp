@@ -129,6 +129,33 @@ def test_a_man_who_has_not_played_this_season_has_no_season_lines():
     assert parse_seasons(page) == []
 
 
+def test_a_man_back_from_a_loan_has_no_season_lines_either():
+    """Sotiris Alexandropoulos, 22/09/2026: no row for this season in his
+    career at all, the last one Fortuna Düsseldorf with 21 matches."""
+    page = (
+        "<table class='career'><tr><th></th><th>ÉPOCA</th><th>EQUIPA</th><th>J</th>"
+        "<th>G</th><th>AST</th></tr><tr><td></td><td>2025/26</td>"
+        "<td>Fortuna Düsseldorf</td><td>21</td><td>0</td><td>0</td></tr></table>"
+    )
+    assert parse_seasons(page) == []
+
+
+def test_a_breakdown_that_cannot_be_read_is_refused(player_html):
+    """The career table is on every page, and a renamed column in the
+    breakdown would have read as an empty season. The breakdown is still there
+    — its Total row says so — so the page is refused as a layout change."""
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(player_html, "html.parser")
+    breakdown = next(
+        t for t in soup.select("table")
+        if {"J", "M"} <= {h.get_text(strip=True) for h in t.select("th")}
+    )
+    next(h for h in breakdown.select("th") if h.get_text(strip=True) == "M").string = "MIN"
+    with pytest.raises(ZeroZeroError, match="unfamiliar columns"):
+        parse_seasons(str(soup))
+
+
 def test_the_breakdown_is_found_wherever_it_sits_on_the_page(player_html):
     """Found by its columns, so a table added above it cannot be read instead."""
     seasons = parse_seasons("<table><tr><td>V</td><td>12/09</td></tr></table>" + player_html)

@@ -151,7 +151,7 @@ def build(*, orphan_club: str | None):
 def test_a_club_with_no_fixture_no_longer_kills_the_round(ledger):
     """The defect: one orphaned player and nothing at all gets recorded."""
     squad, market, history = build(orphan_club="Gama")
-    rows = ledger.snapshot(market, history, squad, ROUND)
+    rows, _ = ledger.snapshot(market, history, squad, ROUND)
     assert len(rows) == len(squad.players), (
         "the round was refused, or players went missing from it"
     )
@@ -161,7 +161,7 @@ def test_the_orphaned_players_are_marked_and_scored_at_zero(ledger):
     """§15.3: a match not played before the next round begins scores nothing —
     worse than a hard fixture, better than the -1 for a man left out."""
     squad, market, history = build(orphan_club="Gama")
-    rows = ledger.snapshot(market, history, squad, ROUND)
+    rows, _ = ledger.snapshot(market, history, squad, ROUND)
     orphans = [r for r in rows.values() if r["club"] == "Gama"]
     assert orphans, "the fixture-less club vanished from the squad"
     for row in orphans:
@@ -174,7 +174,7 @@ def test_the_orphaned_players_are_marked_and_scored_at_zero(ledger):
 def test_the_others_are_recorded_normally_beside_them(ledger):
     """One club's missing fixture must not flatten anybody else's estimate."""
     squad, market, history = build(orphan_club="Gama")
-    rows = ledger.snapshot(market, history, squad, ROUND)
+    rows, _ = ledger.snapshot(market, history, squad, ROUND)
     rest = [r for r in rows.values() if r["club"] != "Gama"]
     assert rest
     assert all(r["opponent"] is not None for r in rest)
@@ -192,7 +192,7 @@ def test_the_others_are_recorded_normally_beside_them(ledger):
 
 def test_a_fixtureless_player_keeps_his_own_estimate(ledger):
     squad, market, history = build(orphan_club="Gama")
-    rows = ledger.snapshot(market, history, squad, ROUND)
+    rows, _ = ledger.snapshot(market, history, squad, ROUND)
     for row in (r for r in rows.values() if r["club"] == "Gama"):
         assert isinstance(row["season_rate"], float)
         assert isinstance(row["returns"], float)
@@ -203,7 +203,7 @@ def test_a_fixtureless_player_keeps_his_own_estimate(ledger):
 def test_every_row_carries_what_the_page_formats(ledger):
     """The fields the dashboard reads with a format spec or sorts on."""
     squad, market, history = build(orphan_club="Gama")
-    rows = ledger.snapshot(market, history, squad, ROUND)
+    rows, _ = ledger.snapshot(market, history, squad, ROUND)
     for row in rows.values():
         assert row["season_rate"] is not None, f"{row['name']} would break the sort"
         assert f"{row['season_rate']:.1f}"
@@ -212,7 +212,7 @@ def test_every_row_carries_what_the_page_formats(ledger):
 
 def test_only_the_fixtures_own_fields_are_null(ledger):
     squad, market, history = build(orphan_club="Gama")
-    rows = ledger.snapshot(market, history, squad, ROUND)
+    rows, _ = ledger.snapshot(market, history, squad, ROUND)
     row = next(r for r in rows.values() if r["club"] == "Gama")
     nulls = {k for k, v in row.items() if v is None}
     assert nulls == {
@@ -230,6 +230,20 @@ def test_only_the_fixtures_own_fields_are_null(ledger):
 
 def test_a_full_calendar_marks_nobody(ledger):
     squad, market, history = build(orphan_club=None)
-    rows = ledger.snapshot(market, history, squad, ROUND)
+    rows, _ = ledger.snapshot(market, history, squad, ROUND)
     assert all("no_fixture" not in r for r in rows.values())
     assert all(r["opponent"] is not None for r in rows.values())
+
+
+# --- and what the round rested on ---------------------------------------------
+
+
+def test_the_round_says_what_it_rested_on(ledger):
+    """Filed beside the rows since phase 2: the archive's reach, and which
+    rounds of this season came from the emails and which were rebuilt."""
+    squad, market, history = build(orphan_club=None)
+    _, evidence = ledger.snapshot(market, history, squad, ROUND)
+    assert set(evidence) == {"archive_players", "email_rounds", "estimated_rounds"}
+    assert evidence["email_rounds"] == [PLAYED_ROUND]
+    # Nobody in this made-up market is in the rebuild.
+    assert evidence["estimated_rounds"] == []

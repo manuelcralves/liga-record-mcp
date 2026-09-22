@@ -46,6 +46,7 @@ MEASURING = [
     "simulate_last_season.py",
     "measure_coach_pick.py",
     "measure_holiday_timing.py",
+    "measure_early_rounds.py",
 ]
 
 

@@ -256,7 +256,7 @@ def test_the_real_files_load_from_the_official_phase_on():
 def test_the_squad_proposal_no_longer_keeps_its_own_copy():
     source = (ROOT / "scripts" / "propose_squad.py").read_text(encoding="utf-8")
     assert "def this_season" not in source
-    assert "current_records(" in source
+    assert "season_so_far(" in source
 
 
 def test_the_ledger_checks_before_it_records():

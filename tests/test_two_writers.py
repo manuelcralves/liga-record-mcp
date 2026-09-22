@@ -104,6 +104,9 @@ def stored_round() -> dict:
     }
 
 
+#: What the job's round rests on: no archive and no rebuilt rounds, the emails alone.
+JOB_EVIDENCE = {"archive_players": 0, "email_rounds": [6], "estimated_rounds": []}
+
 #: What the job computes for the same round: nobody out, and no archive behind it.
 JOB_ROWS = {
     "a": {
@@ -203,7 +206,12 @@ def writer(ledger, tmp_path, monkeypatch):
     monkeypatch.setattr(ledger, "LigaRecordClient", Market)
     monkeypatch.setattr(ledger, "OpenFootballClient", lambda timeout=None: None)
     monkeypatch.setattr(
-        ledger, "snapshot", lambda market, history, squad, round_number: copy.deepcopy(JOB_ROWS)
+        ledger,
+        "snapshot",
+        lambda market, history, squad, round_number: (
+            copy.deepcopy(JOB_ROWS),
+            dict(JOB_EVIDENCE),
+        ),
     )
     monkeypatch.setattr(
         ledger,
@@ -271,3 +279,5 @@ def test_the_job_still_records_a_round_nobody_has(writer):
     writer.ledger_with({})
     writer.run("--no-rerecord")
     assert writer.on_file()[str(ROUND)]["players"] == JOB_ROWS
+    # And the round says what it rested on, so it reads apart from the laptop's.
+    assert writer.on_file()[str(ROUND)]["evidence"] == JOB_EVIDENCE

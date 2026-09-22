@@ -58,10 +58,9 @@ from liga_record_mcp.optimise import (  # noqa: E402
 from liga_record_mcp.source import (  # noqa: E402
     LigaRecordClient,
     ManualSquadSource,
-    load_official_rounds,
 )
-from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
+from liga_record_mcp.source.season import season_so_far  # noqa: E402
 from liga_record_mcp.source.bulletin import bulletin_out, load_bulletin  # noqa: E402
 
 SQUAD_PATH = ROOT / "data" / "squad.yaml"
@@ -100,18 +99,13 @@ def main() -> None:
     }
     market = {i: p.as_player() for i, p in quoted.items()}
     # EVERY PLAYER VALUED BY THE ONE FUNCTION the pages and the ledger use, on
-    # this season as the one reading of the weekly emails gives it. This file
-    # kept its own copy of both until 15/09/2026. The reading went wrong on the
-    # morning the site reset its totals. The valuation kept weighing every round
-    # alike after the replay had measured that rule worse than one leaning on
-    # the last two, and kept a fallback that shrank a man toward a position
-    # average he was still part of.
-    season = current_records(
-        market,
-        load_official_rounds(
-            ROOT / "data" / "pontuacoes", first_round=FIRST_SCORING_MATCHDAY
-        ),
-    )
+    # this season as their one reading gives it: rounds 1-5 rebuilt from
+    # zerozero, the emails from 6. This file kept its own copy of both until
+    # 15/09/2026. The reading went wrong on the morning the site reset its
+    # totals. The valuation kept weighing every round alike after the replay
+    # had measured that rule worse than one leaning on the last two, and kept a
+    # fallback that shrank a man toward a position average he was still part of.
+    season, _ = season_so_far(market, ROOT / "data")
     view = valuation(
         market,
         archive_records(ROOT / "data"),

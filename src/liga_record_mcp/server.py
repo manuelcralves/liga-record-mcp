@@ -29,10 +29,9 @@ from .advice import (
 )
 from .coaches import rank_coaches, round_strengths
 from .optimise import left_the_league
-from .source.appearances import current_records
 from .source.bulletin import known_out
 from .source.last_season import archive_records
-from .source.scores import load_official_rounds
+from .source.season import season_so_far
 from .models import (
     BASE_BUDGET,
     BENCH_SIZE,
@@ -1394,7 +1393,8 @@ def project_points(round_number: int | None = None) -> dict[str, Any]:
 
     THE SAME PROJECTION AS THE PAGES AND THE LEDGER, since 22/09/2026:
     `advice.round_projection` over `advice.valuation`. The valuation reads two
-    seasons of archive and this season from the weekly emails, and splits each
+    seasons of archive and this season from `source.season.season_so_far` —
+    rounds 1-5 rebuilt from zerozero, the weekly emails from 6 — and splits each
     man into his chance of playing and what he returns when he does; the round
     then moves what he returns by the opponent, and three rules bind first:
     nothing for a man who has left the league, §15.3's zero for a club with no
@@ -1409,8 +1409,9 @@ def project_points(round_number: int | None = None) -> dict[str, Any]:
     kickoff and settles them from the email (`track_record`).
 
     `appearances` is how many matches each number rests on. Without the
-    archive — a fresh clone; the reconstructions are not ours to redistribute —
-    the valuation leans on this season alone, and `evidence` says so.
+    archive and the rebuild — a fresh clone; the reconstructions are not ours
+    to redistribute — the valuation leans on the emails alone, and `evidence`
+    says so.
     """
     snapshot = _load()
     target = round_number if round_number is not None else snapshot.round_number
@@ -1429,14 +1430,8 @@ def project_points(round_number: int | None = None) -> dict[str, Any]:
     squad = snapshot.squad
     whole = {p.id: p.as_player() for p in pool}
     archive = archive_records(DATA_DIR)
-    view = valuation(
-        players_to_value(squad.players, whole),
-        archive,
-        current_records(
-            whole,
-            load_official_rounds(DATA_DIR / "pontuacoes", first_round=FIRST_SCORING_MATCHDAY),
-        ),
-    )
+    season, sources = season_so_far(whole, DATA_DIR)
+    view = valuation(players_to_value(squad.players, whole), archive, season)
     projected = round_projection(
         squad.players,
         view,
@@ -1477,14 +1472,38 @@ def project_points(round_number: int | None = None) -> dict[str, Any]:
         **_provenance(snapshot),
         "round": target,
         "estimator": ESTIMATOR,
-        "evidence": (
-            f"archive of {len(archive)} players plus this season's emails"
-            if archive
-            else "NO ARCHIVE in this checkout — this season's emails only, so "
-            "every number rests on few matches; read `appearances`"
-        ),
+        "evidence": _evidence(len(archive), sources),
         "players": rows,
     }
+
+
+def _rounds_text(numbers: list[int]) -> str:
+    """[1, 2, 3, 4, 5] as "1-5", and a broken run as "1, 2, 4"."""
+    if len(numbers) > 1 and numbers == list(range(numbers[0], numbers[-1] + 1)):
+        return f"{numbers[0]}-{numbers[-1]}"
+    return ", ".join(str(n) for n in numbers) or "none"
+
+
+def _evidence(archived: int, sources: dict[str, list[int]]) -> str:
+    """What `project_points` rested on, in words: the archive, and this season.
+
+    A fresh clone has neither the archive nor the rebuilt rounds 1-5 — the
+    reconstructions are not ours to redistribute — and its numbers then rest on
+    a round or two, which the answer has to say rather than leave to be found.
+    """
+    season = f"this season's rounds {_rounds_text(sources['email_rounds'])} from the emails"
+    if sources["estimated_rounds"]:
+        season += (
+            f" and {_rounds_text(sources['estimated_rounds'])} rebuilt from zerozero"
+        )
+    else:
+        season += ", no rebuilt rounds in this checkout"
+    if archived:
+        return f"archive of {archived} players; {season}"
+    return (
+        f"NO ARCHIVE in this checkout; {season} — every number rests on few "
+        "matches; read `appearances`"
+    )
 
 
 @server.tool()

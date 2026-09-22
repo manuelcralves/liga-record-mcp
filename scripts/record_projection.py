@@ -52,8 +52,8 @@ from liga_record_mcp.source import (  # noqa: E402
 )
 from liga_record_mcp.stats import clubs_playing_in  # noqa: E402
 
-from liga_record_mcp.source.appearances import current_records  # noqa: E402
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
+from liga_record_mcp.source.season import season_so_far  # noqa: E402
 from liga_record_mcp.source.bulletin import known_out  # noqa: E402
 
 LOG_PATH = ROOT / "data" / "projections.json"
@@ -72,11 +72,16 @@ BULLETIN_DIR = ROOT / "data" / "boletim"
 
 
 def snapshot(market, history, squad, round_number):
-    """Everything known about the coming round, per player.
+    """Everything known about the coming round, per player, and what it rests on.
 
     The projection itself is `advice.round_projection`, the one the page and
     the server read too; what is here is the ledger's own: the guard that the
     site's totals and the emails agree, and the row it files.
+
+    Returns the rows and the round's evidence: how many players the archive
+    covered, which rounds of this season came from the emails and which were
+    rebuilt from zerozero. The job on GitHub has neither the archive nor the
+    rebuild, and a round it records first says so here.
     """
     records = history.club_records()
     fixtures = market.fixtures()
@@ -121,11 +126,14 @@ def snapshot(market, history, squad, round_number):
         )
     # POOLED OVER THE MARKET, as the page's transfer always was. Handed only the
     # twenty-three, `valuation` shrank each man toward his squad-mates.
-    view = valuation(
-        players_to_value(squad.players, whole),
-        archive_records(ROOT / "data"),
-        current_records(whole, official),
-    )
+    #
+    # The season is `season_so_far`'s, the reading the page and the server take:
+    # rounds 1-5 rebuilt from zerozero where the file exists, the emails from 6.
+    # It is handed the emails read above, so the guard and the valuation read
+    # the same files and the guard never sees a rebuilt round.
+    archive = archive_records(ROOT / "data")
+    season, sources = season_so_far(whole, ROOT / "data", emails=official)
+    view = valuation(players_to_value(squad.players, whole), archive, season)
 
     # Who is known to be out this round, from the one file the site cannot
     # fill. Worth more than the transfer channel: playing a season out from
@@ -193,7 +201,7 @@ def snapshot(market, history, squad, round_number):
             row["gone"] = True
         rows[player.id] = row
 
-    return rows
+    return rows, {"archive_players": len(archive), **sources}
 
 
 def advised_sheet(rows: dict, coach: dict | None = None) -> dict | None:
@@ -810,7 +818,7 @@ def main() -> None:
 
     history = OpenFootballClient(timeout=60.0)
     fixtures = market.fixtures()
-    rows = snapshot(market, history, squad, snapshot_of_squad.round_number)
+    rows, evidence = snapshot(market, history, squad, snapshot_of_squad.round_number)
     # THE SHEET HE FILED, alongside what was expected of it. Without this the
     # ledger can say whether the model predicted well, and never whether
     # following it would have paid — which is the question he actually asked.
@@ -826,6 +834,10 @@ def main() -> None:
         # weather. The name lives in `advice`, beside the estimate it names, so
         # it cannot be left behind when the estimate moves.
         "estimator": ESTIMATOR,
+        # AND WHAT IT RAN ON. The same estimator on a fresh checkout has no
+        # archive and no rebuilt rounds, and wrote rounds under this same name;
+        # this is how one of those reads apart from the laptop's.
+        "evidence": evidence,
         "squad_value": squad.value(),
         "filed": (
             {

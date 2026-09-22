@@ -177,7 +177,12 @@ one local file.
 - **The valuation** splits each player into his chance of playing, weighted
   toward his last rounds, and what he returns when he does. It reads two
   reconstructed seasons of archive — on disk only, not ours to redistribute —
-  and this season's weekly score emails, filed in `data/pontuacoes/`.
+  and this season from `source.season.season_so_far`: the weekly score emails
+  from matchday 6, filed in `data/pontuacoes/`, and rounds 1–5, which the
+  site's reset of 15/09/2026 erased, rebuilt from zerozero the way the archive
+  is. The rebuild was checked against the emails of the rounds where both
+  exist before it was let in (`scripts/measure_early_rounds.py`). Without it
+  on disk, the season is the emails alone.
 - **The round** moves what he returns by the opponent, from the clubs' goal
   rates (openfootball, open data, no key), and never the −1 for a week he sits
   out: §10.3(i) pays the same −1 whoever the opponent is.

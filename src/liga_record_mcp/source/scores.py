@@ -102,6 +102,15 @@ def _without_a_match(doc: Mapping[str, Any]) -> set[str]:
     return set(doc.get("adiados") or ()) | set(doc.get("anulados_15_3") or ())
 
 
+def email_score(doc: Mapping[str, Any], name: str, club: str) -> int | None:
+    """His score in one round's email, or None when the round does not count
+    for him: he is not in it, or his club had no match worth reading."""
+    found = _entry(doc, name, club)
+    if found is None or found[0] in _without_a_match(doc):
+        return None
+    return found[1]
+
+
 def season_records(
     market: Mapping[str, Any], rounds: Mapping[int, Mapping[str, Any]]
 ) -> dict[str, dict[str, Any]]:
@@ -118,11 +127,8 @@ def season_records(
         played = available = points = 0
         took_part: dict[int, bool] = {}
         for number, doc in sorted(rounds.items()):
-            found = _entry(doc, player.name, player.club)
-            if found is None:
-                continue
-            club, score = found
-            if club in _without_a_match(doc):
+            score = email_score(doc, player.name, player.club)
+            if score is None:
                 continue
             available += 1
             took_part[number] = score != UNUSED_PENALTY

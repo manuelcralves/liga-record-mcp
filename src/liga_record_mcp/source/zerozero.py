@@ -236,6 +236,28 @@ def parse_search(html: str) -> list[ZeroZeroPlayer]:
     return found
 
 
+def _is_an_empty_season(tables) -> bool:
+    """Whether a page without a readable breakdown is a man with no season yet.
+
+    The breakdown is the one table with a Total row, whatever its columns are
+    called, and a man who has played this season has one: a page that carries
+    it unread is a layout change. The career table — ÉPOCA and J — is on every
+    player page, so it proves only that the page is one; what it says about
+    the season cannot decide, because a man back from a loan has no row for
+    this season at all.
+    """
+    has_total = any(
+        (cells := row.select("td")) and fold(cells[0].get_text(" ", strip=True)) == "total"
+        for table in tables
+        for row in table.select("tr")
+    )
+    has_career = any(
+        {"epoca", "j"} <= {fold(h.get_text(strip=True)) for h in table.select("th")}
+        for table in tables
+    )
+    return has_career and not has_total
+
+
 def parse_seasons(html: str) -> list[ZeroZeroSeason]:
     """The current season's competition lines from a player page.
 
@@ -249,7 +271,11 @@ def parse_seasons(html: str) -> list[ZeroZeroSeason]:
     J — shows the season at 0 or "-". That is an empty season, not a new
     layout. This read only ever met players who had played until phase 2 asked
     about the whole market, and then refused thirty of the first thirty-four
-    new names. A page with neither table is still refused.
+    new names.
+
+    A breakdown that is there but cannot be read — found by its Total row — is
+    a layout this no longer knows, and is refused, as is a page with no career
+    table either. See `_is_an_empty_season`.
     """
     soup = BeautifulSoup(html, "html.parser")
     tables = soup.select("table")
@@ -261,7 +287,7 @@ def parse_seasons(html: str) -> list[ZeroZeroSeason]:
 
     table = next((t for t in tables if {"J", "M"} <= set(headers_of(t))), None)
     if table is None:
-        if any({"epoca", "j"} <= {fold(h) for h in headers_of(t)} for t in tables):
+        if _is_an_empty_season(tables):
             return []
         raise ZeroZeroError(f"unfamiliar columns on the player page: {headers_of(tables[0])}")
 

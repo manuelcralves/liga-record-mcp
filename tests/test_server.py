@@ -349,6 +349,8 @@ def test_project_points_is_the_pages_projection(monkeypatch, tmp_path):
     assert got["MID1"]["why"] is None
     assert result["estimator"] == "valuation+fixture+recency"
     assert "NO ARCHIVE" in result["evidence"]
+    assert "rounds 6-7 from the emails" in result["evidence"]
+    assert "no rebuilt rounds" in result["evidence"]
 
 
 def test_project_points_says_when_the_site_cannot_be_read(monkeypatch):
