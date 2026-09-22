@@ -92,7 +92,14 @@ from liga_record_mcp.models import (  # noqa: E402
 )
 from liga_record_mcp.rules import transfers_allowed  # noqa: E402
 from liga_record_mcp.source import OpenFootballClient  # noqa: E402
+from liga_record_mcp.holiday import (  # noqa: E402
+    LAST_HOLIDAY_ROUND,
+    WEEKLY_SPREAD,
+    holiday_advice,
+)
+from liga_record_mcp.source import holidays_used, load_decisions  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
+    MEAN_MARK_POINTS,
     UNUSED_PENALTY,
     adjust_for_fixture,
     describe_pick,
@@ -109,6 +116,8 @@ ENTRY_PATH = ROOT / "data" / "tabela-final.yaml"
 UNAVAILABLE_PATH = ROOT / "data" / "indisponiveis.yaml"
 #: The Premium bulletin and suspensions board, copied each week; gitignored.
 BULLETIN_DIR = ROOT / "data" / "boletim"
+#: What was decided each round — among it, the §6.17 holidays spent.
+DECISIONS_PATH = ROOT / "data" / "decisions.json"
 #: How far below a fit player someone known to be out is ranked. Large enough
 #: that no fit man is ever passed over, small enough to stay a number.
 OUT_OF_THE_RECKONING = 1000.0
@@ -279,6 +288,7 @@ def gather(round_number: int) -> dict:
     }
     # After the dict exists, because it reads what the dict carries.
     data["final"] = final_table(round_number)
+    data["holiday"] = holiday_plan(data, round_number)
     data["track"] = track_rounds(data)
     return data
 
@@ -298,27 +308,80 @@ FIELD_PT = {"template": "toda a gente tem", "differential": "diferencial"}
 
 
 def holiday_rows(round_number: int) -> list[dict]:
-    """What §6.17 would have paid in each round already scored.
+    """What §6.17 would have paid in each official round already scored.
 
     One live read per round, which is cheap and is the only way to know: the
     round winner's score is not derivable from anything held locally.
+
+    IN THE SITE'S NUMBERS, SHOWN IN OURS. The ranking service renumbered its
+    rounds for the official phase — its round 1 is matchday 6 — and this asked
+    for matchday numbers, so the page labelled matchdays 6 and 7 "Jornada 1"
+    and "Jornada 2". The trial rounds are gone from the service altogether.
     """
     rows = []
-    for played in range(1, round_number + 1):
-        found = mcp.holiday_round(played)
+    for site_round in range(1, round_number - FIRST_SCORING_MATCHDAY + 1):
+        found = mcp.holiday_round(site_round)
         if not found.get("round_winner"):
             # Not scored yet. A zero here would read as "the holiday was worth
             # nothing that week" instead of "that week has not happened".
             continue
         rows.append(
             {
-                "round": played,
+                "round": site_round + FIRST_SCORING_MATCHDAY - 1,
                 "winner": found["round_winner"],
                 "pays": found["holiday_pays"],
                 "ours": found.get("our_score"),
+                "teams": found.get("teams_ranked"),
             }
         )
     return rows
+
+
+def round_and_typical(squad, market, views, playing, out, *, draws):
+    """This round's expected score with who is out not playing, and a normal week's.
+
+    `views` is one `returns` map per round ahead, this round first. The normal
+    week averages them as the model sees them WITHOUT anyone's news — this
+    round's absences included in none of them, which is how the rule was
+    measured (`scripts/measure_holiday_timing.py`). Folded into the average,
+    this round's absences dragged the baseline down in exactly the week they
+    matter and raised the bar the depleted squad had to clear. Found by the
+    code review of 22/09/2026.
+    """
+    blind = [squad_value(squad, market, view, playing, draws=draws) for view in views]
+    known = {**playing, **{i: 0.0 for i in out if i in playing}}
+    now = squad_value(squad, market, views[0], known, draws=draws) if out else blind[0]
+    return now, sum(blind) / len(blind)
+
+
+def holiday_plan(data: dict, round_number: int) -> dict:
+    """Whether to spend one of §6.17's holidays this round, and why.
+
+    The team's expected round is the model's sheet played out on this round's
+    values, with whoever is known to be out not playing (`model_sheet`), plus
+    the coach of the round and the mark every coach is credited on average.
+    The payout is half the round winner, as the official rounds so far have
+    paid it. The holidays already spent are the ones the decisions log holds —
+    the same record `settle_decision` writes and `pending_decisions` reads.
+    """
+    model = data.get("model") or {}
+    paid = [row["pays"] for row in data.get("holidays") or []]
+    if "round_score" not in model or not paid:
+        return {}
+    coach = next(
+        (r["expected"] for r in data.get("coaches") or [] if r["expected"] is not None),
+        0.0,
+    )
+    extra = coach + MEAN_MARK_POINTS
+    advice = holiday_advice(
+        expected_score=model["round_score"] + extra,
+        expected_payout=sum(paid) / len(paid),
+        typical_score=model["typical_score"] + extra,
+        spread=WEEKLY_SPREAD,
+        used=holidays_used(load_decisions(DECISIONS_PATH)),
+        round_number=round_number,
+    )
+    return {**advice, "rounds_seen": len(paid)}
 
 
 def scorer_race() -> list[dict]:
@@ -513,10 +576,63 @@ def coach_section(data: dict) -> str:
     )
 
 
+def holiday_verdict(plan: dict) -> str:
+    """This round's call on §6.17, with the arithmetic that makes it."""
+    if not plan:
+        return ""
+    verdict = plan["verdict"]
+    if verdict == "fora":
+        return (
+            '      <p class="callout"><strong>Já não se pode.</strong> O §6.17 '
+            "fecha as três últimas jornadas às férias.</p>"
+        )
+    if verdict == "gastas":
+        return (
+            '      <p class="callout"><strong>As três já foram usadas</strong> '
+            f"(jornadas {', '.join(map(str, plan['used']))}).</p>"
+        )
+    spent = (
+        f" Já usadas: jornadas {', '.join(map(str, plan['used']))}."
+        if plan["used"]
+        else ""
+    )
+    sums = (
+        f"A equipa deve fazer <strong>{plan['expected_score']:.1f}</strong> nesta "
+        f"jornada: a folha do modelo, com quem está fora sem jogar, mais o "
+        f"treinador da jornada. As férias devem pagar "
+        f"<strong>{plan['expected_payout']:.1f}</strong>, a média de metade do "
+        f"vencedor em {plan['rounds_seen']} jornada"
+        f"{'s' if plan['rounds_seen'] != 1 else ''} oficia"
+        f"{'is' if plan['rounds_seen'] != 1 else 'l'}. O ganho seria "
+        f"<strong>{plan['gain']:+.1f}</strong>, e com {plan['left']} "
+        f"{'rondas' if plan['left'] != 1 else 'ronda'} de férias e "
+        f"{plan['rounds']} jornadas até à {LAST_HOLIDAY_ROUND} "
+        + (
+            f"tinha de passar <strong>{plan['bar']:+.1f}</strong> — o que vale "
+            "guardá-la para uma semana pior."
+            if plan["bar"] >= 0.05
+            else "bastava que fosse positivo: com esta equipa, semanas piores "
+            "do que o pagamento são raras, e guardá-la quase não vale nada."
+        )
+    )
+    if verdict == "usa":
+        return (
+            f'      <p class="callout do"><strong>Usa uma ronda de férias nesta '
+            f"jornada.</strong> {sums}{spent}</p>"
+        )
+    return (
+        f'      <p class="callout"><strong>Guarda as férias.</strong> {sums} Uma '
+        f"ronda por usar não custa nada; gasta numa semana normal, custa "
+        f"pontos.{spent}</p>"
+    )
+
+
 def holiday_section(data: dict) -> str:
     rows = data.get("holidays") or []
     if not rows:
         return '      <p class="lede">Ainda sem jornadas pontuadas.</p>'
+    teams = next((r["teams"] for r in reversed(rows) if r.get("teams")), None)
+    field = f"sobre {group(teams)} equipas" if teams else "sobre todas as equipas"
     body = chr(10).join(
         '            <tr>' + chr(10)
         + '              <td class="name">Jornada ' + str(r["round"]) + '</td>' + chr(10)
@@ -538,10 +654,11 @@ def holiday_section(data: dict) -> str:
         "fizeres. E o vencedor é <strong>nacional</strong>: o §16.1 define-o "
         "como uma das trinta equipas que mais pontuam no país. "
         "Isto não é um bónus, é um chão — o pagamento é metade de um máximo "
-        "sobre 127 mil equipas, alto e estável, enquanto a tua pontuação é um "
+        f"{field}, alto e estável, enquanto a tua pontuação é um "
         "sorteio só. Gasta-as nas rondas em que o <em>teu</em> plantel está "
         "desfalcado e a liga não está: seleções, castigos, semanas de três "
         "jogos. O pagamento não depende de nada teu.</p>"
+        + chr(10) + holiday_verdict(data.get("holiday") or {})
         + chr(10) + '      <table class="data">' + chr(10)
         + "        <thead><tr><th></th><th>vencedor</th><th>Férias pagam</th>"
         + "<th>fizeste</th><th>diferença</th></tr></thead>" + chr(10)
@@ -1012,6 +1129,15 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         draws=SWAP_DRAWS,
         horizon=ahead,
     )
+    # THE ROUND AS IT STANDS, for §6.17's holiday (`holiday_plan`).
+    round_score, typical_score = round_and_typical(
+        still_here,
+        whole,
+        ahead,
+        {i: v["playing"] for i, v in wide.items()},
+        unavailable,
+        draws=SWAP_DRAWS,
+    )
     move = None
     if improved["swaps"]:
         held = set(still_here)
@@ -1174,6 +1300,8 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         "in_not_filed": [described(i) for i in sorted(picked - filed)],
         "out_of_filed": [described(i) for i in sorted(filed - picked)],
         "transfer": move,
+        "round_score": round_score,
+        "typical_score": typical_score,
         "left_out": kept_out,
         "bulletin_day": read_day(bulletin),
         "yours": yours,
@@ -1325,6 +1453,16 @@ def model_section(data: dict, public: bool = False) -> str:
       {coach_fixture(best)}): <strong>{best['expected']:+.2f}</strong> pontos
       esperados pelo resultado do jogo.{runner} Não custa nada trocar (§6.15),
       e os dezoito estão em <a href="decisoes.html">As decisões</a>.</p>"""
+    # §6.17, said here only when it says "use one" — every other week the
+    # answer is to keep them, and that lives in As decisões.
+    plan = data.get("holiday") or {}
+    if plan.get("verdict") == "usa":
+        coach += f"""
+      <p class="callout do"><strong>As férias (§6.17): esta jornada vale uma.</strong>
+      A equipa deve fazer {plan['expected_score']:.1f} e as férias pagar cerca de
+      {plan['expected_payout']:.1f} — ganho {plan['gain']:+.1f}, acima do
+      {plan['bar']:+.1f} que vale guardá-la. A conta está em
+      <a href="decisoes.html">As decisões</a>.</p>"""
 
     return f"""      <p class="lede">Isto <strong>não</strong> é a tua folha — é a
       que o modelo entregaria, com o que sabe de {found['starters'][0]['appearances']}+

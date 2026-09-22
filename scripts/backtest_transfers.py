@@ -177,6 +177,85 @@ def projection_halves(estimator, history, minutes, cells, season_path):
     return halves
 
 
+def blended(playing, returns):
+    """One number from the two halves: plays and returns, or -1 for not playing."""
+    return {
+        i: playing[i] * rate + (1 - playing[i]) * ABSENT
+        for i, rate in returns.items()
+    }
+
+
+def priced_views(halves, table, horizon):
+    """This round's forecast, and what each man returns in every round ahead.
+
+    From data before each decision: `upto` fixes the strengths and only the
+    calendar moves. Returns (per_round, moved, ahead_of): the blended forecast
+    each round's eleven is picked on, {m: {f: returns}} for the rounds priced
+    from m, and the list of those rounds.
+    """
+    ahead_of = {
+        m: list(range(m, min(m + horizon, MATCHDAYS[-1] + 1))) for m in MATCHDAYS
+    }
+    moved = {
+        m: {
+            f: rescale_for_fixture(
+                halves[m][1], halves[m][2], table, upto=m, for_matchday=f
+            )
+            for f in ahead_of[m]
+        }
+        for m in MATCHDAYS
+    }
+    per_round = {m: blended(halves[m][0], moved[m][m]) for m in MATCHDAYS}
+    return per_round, moved, ahead_of
+
+
+def starting_squads(per_round, rows, market, mine, paths, seed):
+    """The squads a season is replayed from, paired across every comparison.
+
+    The manager's own and the model's opening pick are the two that matter,
+    and random legal twenty-threes supply the spread — one pair of seasons and
+    two squads could not tell a real edge from a lucky one.
+    """
+    opening = per_round[MATCHDAYS[0]]
+    model = best_squad_under_budget(
+        rows, {i: v * len(MATCHDAYS) for i, v in opening.items()}
+    )
+    starts = [("o teu 23", mine)]
+    if model is not None:
+        starts.append(("o do modelo", model["players"]))
+    rng = random.Random(seed)
+    while len(starts) < paths:
+        noise = {i: rng.random() for i in market}
+        drawn = best_squad_under_budget(rows, noise)
+        if drawn is not None:
+            starts.append((f"aleatorio {len(starts) - 1}", drawn["players"]))
+    return starts
+
+
+def prepare(live, season_path):
+    """One reconstructed season against today's market, the manager's 23 in it.
+
+    Returns (history, minutes, cells, table, market, rows, mine).
+    """
+    history, minutes, cells, table = load(live, season_path)
+    market = {i: live[i] for i in history}
+    rows = [
+        {"id": p.id, "position": p.position, "value": p.value} for p in market.values()
+    ]
+    mine_players = ManualSquadSource(SQUAD_PATH).load().squad.players
+    mine = [p.id for p in mine_players]
+    for player in mine_players:
+        if player.id in market:
+            continue
+        # Promoted from the second division, or abroad. §10.3(i) charged a
+        # manager -1 for every round he owned them.
+        market[player.id] = player
+        history[player.id] = {m: ABSENT for m in ALL_MATCHDAYS}
+        minutes[player.id] = {m: 0 for m in ALL_MATCHDAYS}
+        cells[player.id] = (player.club, player.position.value)
+    return history, minutes, cells, table, market, rows, mine
+
+
 #: What every path needs, handed to each worker process once rather than once
 #: a path.
 _SHARED: dict = {}
@@ -293,29 +372,7 @@ def looking_ahead(
     # The expensive half once per matchday; the fixture step is a dictionary
     # walk and can be repeated for every round in the horizon.
     halves = projection_halves(estimator, history, minutes, cells, season_path)
-
-    def blended(playing, returns):
-        return {
-            i: playing[i] * rate + (1 - playing[i]) * ABSENT
-            for i, rate in returns.items()
-        }
-
-    # What each man returns when he plays in every round ahead, from data
-    # before the decision: `upto` fixes the strengths and only the calendar
-    # moves.
-    ahead_of = {
-        m: list(range(m, min(m + horizon, MATCHDAYS[-1] + 1))) for m in MATCHDAYS
-    }
-    moved = {
-        m: {
-            f: rescale_for_fixture(
-                halves[m][1], halves[m][2], table, upto=m, for_matchday=f
-            )
-            for f in ahead_of[m]
-        }
-        for m in MATCHDAYS
-    }
-    per_round = {m: blended(halves[m][0], moved[m][m]) for m in MATCHDAYS}
+    per_round, moved, ahead_of = priced_views(halves, table, horizon)
 
     shared = dict(
         market=market, history=history, cells=cells, per_round=per_round,
@@ -337,23 +394,7 @@ def looking_ahead(
             for m in MATCHDAYS
         }
 
-    # The starting squads. The manager's own and the model's opening pick are the
-    # two that matter, and random legal twenty-threes supply the spread — one
-    # pair of seasons and two squads could not tell a real edge from a lucky
-    # one.
-    opening = per_round[MATCHDAYS[0]]
-    model = best_squad_under_budget(
-        rows, {i: v * len(MATCHDAYS) for i, v in opening.items()}
-    )
-    starts = [("o teu 23", mine)]
-    if model is not None:
-        starts.append(("o do modelo", model["players"]))
-    rng = random.Random(seed)
-    while len(starts) < paths:
-        noise = {i: rng.random() for i in market}
-        drawn = best_squad_under_budget(rows, noise)
-        if drawn is not None:
-            starts.append((f"aleatorio {len(starts) - 1}", drawn["players"]))
+    starts = starting_squads(per_round, rows, market, mine, paths, seed)
 
     print()
     print(
@@ -457,26 +498,10 @@ def main() -> None:
     args = parser.parse_args()
 
     client = LigaRecordClient(timeout=60.0)
-    market = {
+    live = {
         p.id: p.as_player() for position in Position for p in client.search(position)
     }
-    history, minutes, cells, table = load(market, args.season)
-    market = {i: market[i] for i in history}
-    rows = [
-        {"id": p.id, "position": p.position, "value": p.value} for p in market.values()
-    ]
-
-    mine_players = ManualSquadSource(SQUAD_PATH).load().squad.players
-    mine = [p.id for p in mine_players]
-    for player in mine_players:
-        if player.id in market:
-            continue
-        # Promoted from the second division, or abroad. §10.3(i) charged a
-        # manager -1 for every round he owned them.
-        market[player.id] = player
-        history[player.id] = {m: ABSENT for m in ALL_MATCHDAYS}
-        minutes[player.id] = {m: 0 for m in ALL_MATCHDAYS}
-        cells[player.id] = (player.club, player.position.value)
+    history, minutes, cells, table, market, rows, mine = prepare(live, args.season)
 
     print(f"{len(market)} players; matchdays {MATCHDAYS[0]}-{MATCHDAYS[-1]}")
 
