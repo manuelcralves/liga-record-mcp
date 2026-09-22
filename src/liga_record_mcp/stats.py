@@ -973,6 +973,43 @@ def coach_points(
     return total
 
 
+#: Goals past which the Poisson tail is dropped when a coach is priced over every
+#: scoreline. At the Primeira Liga's rates what lies beyond is under a millionth.
+COACH_GOAL_CUTOFF = 12
+
+
+def expected_coach_points(goals_for: float, goals_against: float) -> float:
+    """What §14.3 pays a coach on average, given the goals each side expects.
+
+    Every scoreline up to `COACH_GOAL_CUTOFF` is scored by `coach_points`
+    itself and weighted by its probability, the two sides drawn independently
+    from Poisson means — the Final Table's goal model. So the rules stay in one
+    place: this is their expectation, not a second copy of them.
+
+    What it leaves out is what a results model cannot see before kickoff:
+    §14.3(b)'s coming from behind, §14.3(d)'s goals off the bench, §14.3(e)'s
+    sendings-off, and §14.1's editorial mark. The mark plausibly moves with the
+    result, which would stretch these numbers without reordering them — and
+    ordering the eighteen is what they are for.
+
+    Two equal sides come out at exactly zero: a win and a loss, a clean sheet
+    and a blank, a big win and a big loss are equally likely and cancel.
+    """
+
+    def poisson(rate: float) -> list[float]:
+        chances = [math.exp(-rate)]
+        for goals in range(1, COACH_GOAL_CUTOFF + 1):
+            chances.append(chances[-1] * rate / goals)
+        return chances
+
+    ours, theirs = poisson(goals_for), poisson(goals_against)
+    return sum(
+        p * q * coach_points(scored=scored, conceded=conceded)
+        for scored, p in enumerate(ours)
+        for conceded, q in enumerate(theirs)
+    )
+
+
 def coach_season(
     fixtures: Iterable[Mapping[str, Any]],
     *,

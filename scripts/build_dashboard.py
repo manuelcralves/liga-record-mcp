@@ -79,6 +79,7 @@ from liga_record_mcp.final_table import (  # noqa: E402
     apply_chips,
     best_order,
     chip_plan,
+    coach_values,
     distribution,
     strengths,
     value_of,
@@ -92,10 +93,8 @@ from liga_record_mcp.models import (  # noqa: E402
 from liga_record_mcp.rules import transfers_allowed  # noqa: E402
 from liga_record_mcp.source import OpenFootballClient  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
-    MEAN_MARK_POINTS,
     UNUSED_PENALTY,
     adjust_for_fixture,
-    coach_season,
     describe_pick,
     fixture_multipliers,
     matches_played,
@@ -273,7 +272,7 @@ def gather(round_number: int) -> dict:
         "ratings": mcp.editorial_ratings(),
         "model": model_sheet(stored, round_number),
         "seasons": two_seasons(stored),
-        "coaches": coach_data(),
+        "coaches": round_coaches(round_number),
         "race": scorer_race(),
         "holidays": holiday_rows(round_number),
         "as_of": national.get("as_of", ""),
@@ -407,94 +406,108 @@ def scorer_section(data: dict) -> str:
     )
 
 
-def coach_data() -> dict:
-    """What each club's coach returns, this season and across the archives.
+def rank_coaches(
+    coaches: list[dict],
+    fixtures: list,
+    strength: dict[str, tuple[float, float]],
+    round_number: int,
+) -> list[dict]:
+    """The eighteen coaches, priced on this round's match, best first.
 
-    §14.4 adds a coach to the team every round and §6.4 charges nothing for
-    him, so this is the only pick in the game with no constraint on it at all —
-    and one most people set once in August and never look at again.
+    Coaches are free and chosen every round (§6.13–6.16), and what one scores
+    rides on his club's result — so the round to choose him on is the one
+    about to be played: a big club at home to a weak one, not a big club in a
+    derby. The page ranked them once, on last season's average, and round 7's
+    right call was worked out by hand.
 
-    The spread reported is over THIS season's eighteen clubs, with §14.1's
-    unpublished mark credited to everyone alike so that it cancels. It is not
-    the same as the 86 points measured across last season's table, which had
-    different clubs in it and left the mark out entirely. Two honest numbers
-    answering two questions.
+    Measured before it reached the page (`scripts/measure_coach_pick.py`,
+    §14.3 on openfootball's results, strengths fitted only on matches already
+    played): choosing on the match beat one coach for the whole season by +9
+    points in 2024/25 and +3 in 2025/26, and +11 in 2023/24. Small, and free.
+
+    Joined on the exact club name: the coaches file, the calendar and the
+    market all write clubs as the site does. The old table matched word by
+    word against openfootball's names, and "Sporting" fitted Braga too.
+
+    A club with no match this round comes last with no number — no week.
     """
-    coaches = mcp.list_coaches().get("coaches") or []
-    fixtures = OpenFootballClient().season_fixtures("2025-26")
-    history = coach_season(
-        (f.model_dump() | {"round": f.round_number} for f in fixtures),
-        rating_points=round(MEAN_MARK_POINTS),
+    week = [(f.home, f.away) for f in fixtures if f.round_number == round_number]
+    values = coach_values(week, strength)
+    against: dict[str, tuple[str, bool]] = {}
+    for home, away in week:
+        against[home] = (away, True)
+        against[away] = (home, False)
+    rows = []
+    for coach in coaches:
+        club = coach["club"]
+        opponent, at_home = against.get(club, (None, None))
+        rows.append(
+            {
+                "id": coach.get("id"),
+                "name": coach["name"],
+                "club": club,
+                "opponent": opponent,
+                "at_home": at_home,
+                "expected": values.get(club),
+            }
+        )
+    rows.sort(
+        key=lambda r: (r["expected"] is None, -(r["expected"] or 0.0), r["club"])
     )
-    rates = {
-        club: (sum(rounds.values()) / len(rounds) if rounds else 0.0)
-        for club, rounds in history.items()
-    }
+    return rows
 
-    def matched(name: str):
-        """openfootball writes clubs out in full where Liga Record abbreviates.
 
-        Compared word by word rather than as substrings, for the reason the
-        zerozero matcher learned the hard way: "Nacional" is inside
-        "Internacional", and a club that quietly matches the wrong one puts
-        another team's season against this coach's name.
-        """
-        ours = {w for w in name.lower().replace(".", " ").split() if len(w) > 2}
-        for club, rate in rates.items():
-            theirs = {w for w in club.lower().split() if len(w) > 2}
-            if ours and (ours <= theirs or theirs <= ours):
-                return rate
-        return None
+def round_coaches(round_number: int) -> list[dict]:
+    """`rank_coaches` on the live calendar and the Final Table's goal model."""
+    table = data_table()
+    strength = strengths(OpenFootballClient(timeout=60.0).club_records(), table)
+    coaches = mcp.list_coaches().get("coaches") or []
+    return rank_coaches(coaches, mcp._market.fixtures(), strength, round_number)
 
-    rows = [
-        {
-            "name": c["name"],
-            "club": c["club"],
-            "now": c.get("points_total", 0),
-            "round": c.get("points_round", 0),
-            "history": matched(c["club"]),
-        }
-        for c in coaches
-    ]
-    rows.sort(key=lambda r: -(r["history"] if r["history"] is not None else -9))
-    known = [r["history"] for r in rows if r["history"] is not None]
-    return {"rows": rows, "spread": (max(known) - min(known)) * 29 if known else None}
+
+def coach_fixture(row: dict) -> str:
+    """Where a coach's club plays this round, in the page's words."""
+    if row.get("opponent") is None:
+        return "sem jogo"
+    return ("em casa com " if row["at_home"] else "fora com ") + esc(row["opponent"])
 
 
 def coach_section(data: dict) -> str:
-    found = data.get("coaches") or {}
-    rows = found.get("rows") or []
+    rows = data.get("coaches") or []
     if not rows:
         return '      <p class="lede">Sem dados de treinadores.</p>'
     body = chr(10).join(
         '            <tr>' + chr(10)
         + '              <td class="name">' + esc(r["name"])
         + '<span class="sub">' + esc(r["club"]) + '</span></td>' + chr(10)
-        + '              <td class="fig">'
-        + ("—" if r["history"] is None else f"{r['history']:+.2f}") + '</td>' + chr(10)
-        + '              <td class="fig strong">' + str(r["now"]) + '</td>' + chr(10)
-        + '              <td class="fig">' + f"{r['round']:+d}" + '</td>' + chr(10)
+        + '              <td>' + coach_fixture(r) + '</td>' + chr(10)
+        + '              <td class="fig strong">'
+        + ("—" if r["expected"] is None else f"{r['expected']:+.2f}") + '</td>' + chr(10)
         + '            </tr>'
         for r in rows
     )
-    spread = found.get("spread")
-    gap = (
-        f"Na época passada, escolher sempre o melhor em vez do pior valia "
-        f"<strong>{spread:.0f} pontos</strong>. "
-        if spread
+    best = rows[0]
+    pick = (
+        f"Nesta jornada, o melhor é o <strong>{esc(best['name'])}</strong> "
+        f"({esc(best['club'])}, {coach_fixture(best)}): "
+        f"<strong>{best['expected']:+.2f}</strong> pontos esperados. "
+        if best["expected"] is not None
         else ""
     )
     return (
         '      <p class="lede">Escolhe-se um todas as jornadas, não custa '
         "orçamento (§6.4), e sem ele a equipa faz <strong>zero</strong> "
-        "(§6.17). Os pontos dele somam-se aos da equipa (§14.4). " + gap
-        + "A cláusula que decide é o §14.3(b): empatar depois de estar dois "
-        "abaixo vale +2, <em>ganhar</em> vale +4, porque duplica. E o §14.5 é "
-        "o aviso — um treinador castigado ou despedido <strong>não pontua de "
-        "todo</strong>: a equipa dele pode ganhar 5-0 e tu não levas nada.</p>"
+        "(§6.17). Os pontos dele somam-se aos da equipa (§14.4) e dependem do "
+        "resultado do clube, por isso escolhe-se pelo jogo da jornada: um "
+        "grande em casa com um fraco, e não um grande num clássico. " + pick
+        + "Medido nas épocas passadas, escolher assim fez +9 e +3 pontos a "
+        "um treinador fixo para a época toda (2024/25 e 2025/26). É pouco, "
+        "e é grátis. E o §14.5 é o aviso — um treinador castigado ou "
+        "despedido <strong>não pontua de todo</strong>: a equipa dele pode "
+        "ganhar 5-0 e tu não levas nada.</p>"
         + chr(10) + '      <table class="data">' + chr(10)
-        + "        <thead><tr><th>treinador</th><th>época passada</th>"
-        + "<th>total</th><th>jornada</th></tr></thead>" + chr(10)
+        + "        <thead><tr><th>treinador</th><th>jogo</th>"
+        + "<th>esperado</th></tr></thead>" + chr(10)
         + "        <tbody>" + chr(10) + body + chr(10)
         + "        </tbody>" + chr(10) + "      </table>"
     )
@@ -1295,6 +1308,24 @@ def model_section(data: dict, public: bool = False) -> str:
         )
     transfer += left_out_note(found.get("left_out") or [], found.get("bulletin_day"), public)
 
+    # The coach of the round, chosen on its match: free, weekly, and the one
+    # pick with no constraint on it at all.
+    ranked = [r for r in data.get("coaches") or [] if r["expected"] is not None]
+    coach = ""
+    if ranked:
+        best = ranked[0]
+        runner = (
+            f" O segundo é o {esc(ranked[1]['name'])} ({esc(ranked[1]['club'])}, "
+            f"{coach_fixture(ranked[1])}), com {ranked[1]['expected']:+.2f}."
+            if len(ranked) > 1
+            else ""
+        )
+        coach = f"""      <p class="lede"><strong>O treinador desta jornada.</strong>
+      O <strong>{esc(best['name'])}</strong> ({esc(best['club'])},
+      {coach_fixture(best)}): <strong>{best['expected']:+.2f}</strong> pontos
+      esperados pelo resultado do jogo.{runner} Não custa nada trocar (§6.15),
+      e os dezoito estão em <a href="decisoes.html">As decisões</a>.</p>"""
+
     return f"""      <p class="lede">Isto <strong>não</strong> é a tua folha — é a
       que o modelo entregaria, com o que sabe de {found['starters'][0]['appearances']}+
       jornadas por jogador. <strong>Esperado</strong> é quanto rende a jornada
@@ -1311,6 +1342,7 @@ def model_section(data: dict, public: bool = False) -> str:
       se realizar antes da ronda seguinte começar.</p>
 {changes}
 {transfer}
+{coach}
       <table class="data">
         <thead><tr><th>o onze</th><th>esperado</th><th>adversário</th><th>joga</th><th>o que é</th></tr></thead>
         <tbody>
@@ -1787,6 +1819,14 @@ def versus_section(data: dict) -> str:
 
     edge = found.get("edge")
 
+    # THE COACH, ON THE SAME RULER. Both columns used to carry the coach he
+    # filed, with no number: the model chose one for the season. It now chooses
+    # on this round's match (`rank_coaches`), and his is priced the same way.
+    ranked = data.get("coaches") or []
+    filed = yours.get("coach") or {}
+    his_coach = next((r for r in ranked if r["club"] == filed.get("club")), None)
+    model_coach = ranked[0] if ranked and ranked[0]["expected"] is not None else None
+
     def column(title: str, sheet: dict, coach: dict | None, mark: str) -> str:
         by_pos = {}
         for entry in sheet["starters"]:
@@ -1847,9 +1887,11 @@ def versus_section(data: dict) -> str:
                 + "            </tr>"
             )
 
-        named = "—"
+        named, worth = "—", "—"
         if coach and coach.get("name"):
             named = esc(coach["name"]) + ' <span class="muted">' + esc(coach.get("club", "")) + "</span>"
+        if coach and coach.get("expected") is not None:
+            worth = f"{coach['expected']:+.2f}"
 
         return f"""      <div class="side {mark}">
         <h3>{esc(title)}</h3>
@@ -1864,7 +1906,7 @@ def versus_section(data: dict) -> str:
         </tbody>
         <tbody>
           <tr><th colspan="2" class="pos-row">Treinador</th></tr>
-          <tr><td class="name">{named}</td><td class="fig">—</td></tr>
+          <tr><td class="name">{named}</td><td class="fig">{worth}</td></tr>
         </tbody>
           </table>
         </div>
@@ -1897,6 +1939,28 @@ def versus_section(data: dict) -> str:
         armband = f"""      <p class="lede"><strong>A braçadeira</strong> está no
       sítio: tu e o modelo escolhem os dois o {esc(his['name'])}.</p>"""
 
+    # And the coach, said the same way: free, weekly, one tap on the site.
+    bench_boss = ""
+    if model_coach and his_coach and his_coach["club"] != model_coach["club"]:
+        gain = model_coach["expected"] - (his_coach["expected"] or 0.0)
+        bench_boss = f"""      <p class="lede"><strong>O treinador.</strong> Escolheste o
+      {esc(his_coach['name'])} ({coach_fixture(his_coach)},
+      {'sem número' if his_coach['expected'] is None else format(his_coach['expected'], '+.2f')});
+      o modelo escolhe o <strong>{esc(model_coach['name'])}</strong>
+      ({coach_fixture(model_coach)}, {model_coach['expected']:+.2f}). Trocar
+      não custa nada (§6.15), e vale <strong>{gain:+.2f}</strong> pontos
+      esperados.</p>"""
+    elif model_coach and his_coach:
+        bench_boss = f"""      <p class="lede"><strong>O treinador</strong> está no sítio:
+      tu e o modelo escolhem os dois o {esc(model_coach['name'])}.</p>"""
+    coach_theirs = (
+        {"name": model_coach["name"], "club": model_coach["club"],
+         "expected": model_coach["expected"]}
+        if model_coach
+        else filed
+    )
+    coach_mine = {**filed, "expected": his_coach["expected"] if his_coach else None}
+
     return f"""      <p class="lede">A folha que entregaste e a folha que o modelo
       entregaria, avaliadas com <strong>os mesmos números</strong> — as estimativas
       já ajustadas ao adversário desta jornada. Duas colunas medidas com réguas
@@ -1904,12 +1968,13 @@ def versus_section(data: dict) -> str:
       <p class="lede">{verdict} O melhor onze é exato sobre os mesmos 23, portanto
       esta diferença nunca é negativa: é o que o teu plantel ainda tinha para dar.</p>
 {armband}
+{bench_boss}
       <div class="versus">
-{column("O teu", yours, yours.get("coach"), "mine")}
-{column("O do modelo", found, yours.get("coach"), "theirs")}
+{column("O teu", yours, coach_mine, "mine")}
+{column("O do modelo", found, coach_theirs, "theirs")}
       </div>
-      <p class="foot muted">O treinador é o mesmo nos dois lados: o modelo
-      escolhe-o à época, não à jornada, e essa escolha está em
+      <p class="foot muted">O modelo escolhe o treinador pelo jogo desta
+      jornada, e os dezoito estão ordenados em
       <a href="decisoes.html">As decisões</a>.</p>"""
 
 

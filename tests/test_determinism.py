@@ -44,6 +44,7 @@ MEASURING = [
     "tune.py",
     "backtest_transfers.py",
     "simulate_last_season.py",
+    "measure_coach_pick.py",
 ]
 
 

@@ -34,6 +34,8 @@ import random
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
+from .stats import expected_coach_points
+
 #: Points for being this many places out, and beyond that a flat penalty.
 BY_DISTANCE = {0: 25, 1: 5, 2: 2, 3: 0}
 TOO_FAR = -5
@@ -144,6 +146,26 @@ def expected_goals(
         home_attack * away_defence / LEAGUE_GOALS * HOME_FACTOR,
         away_attack * home_defence / LEAGUE_GOALS * AWAY_FACTOR,
     )
+
+
+def coach_values(
+    fixtures: Iterable[tuple[str, str]],
+    strength: Mapping[str, tuple[float, float]],
+) -> dict[str, float]:
+    """Each club's coach priced on one round's match: {club: expected points}.
+
+    The goal model's second customer. Coaches are free and chosen every round
+    (§6.13–6.16), and what one scores rides on his club's result, so the round
+    to pick him on is the one about to be played — a big club at home to a weak
+    one, not the big club in a derby. `fixtures` is that round's (home, away)
+    pairs. A club with no match is left out: its coach has no week to score in.
+    """
+    out: dict[str, float] = {}
+    for home, away in fixtures:
+        home_goals, away_goals = expected_goals(home, away, strength)
+        out[home] = expected_coach_points(home_goals, away_goals)
+        out[away] = expected_coach_points(away_goals, home_goals)
+    return out
 
 
 def _poisson(mean: float, draw: random.Random) -> int:
