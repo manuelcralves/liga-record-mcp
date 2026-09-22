@@ -593,8 +593,9 @@ def chip_plan(
     matchday: int,
     *,
     threshold: float = WORTH_MOVING,
+    spent: Iterable[int] = (),
 ) -> tuple[list[str], list[dict]]:
-    """Every chip available this matchday, played against the distribution.
+    """Every chip still available this matchday, played against the distribution.
 
     THE POLICY LIVES HERE so that the thing measured is the thing run. The
     backtest used to carry its own copy of this loop, which meant the score it
@@ -606,10 +607,18 @@ def chip_plan(
     Returns the order after playing them and one entry per chip, including the
     chips deliberately not spent — a week where nothing clears the threshold is
     a decision and the page should say so rather than fall silent.
+
+    `spent` names the reaches of this matchday's chips already played —
+    `WEEKLY_REACH`, `BONUS_REACH`, or both. They are in `order` already,
+    replayed from the file, and are not offered again. Without it the page
+    priced a second weekly chip in the week the first had been played, which
+    the game does not allow. By reach rather than by count, because on a bonus
+    week either chip can go first.
     """
+    used = set(spent)
     current = list(order)
     plays: list[dict] = []
-    for reach in reaches_at(matchday):
+    for reach in (r for r in reaches_at(matchday) if r not in used):
         before = current
         current, who, distance = best_chip(
             current, spread, reach=reach, threshold=threshold

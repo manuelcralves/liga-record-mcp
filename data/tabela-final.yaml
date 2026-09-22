@@ -10,7 +10,9 @@
 # `entrada` a ordem exata dos dezoito, do 1.º ao 18.º. Depois, cada chip jogado
 # junta-se a `chips` com a jornada, o clube e o lugar para onde foi — uma linha
 # por chip, na ordem em que foram jogados, porque o segundo chip de uma semana
-# é avaliado contra a ordem que o primeiro deixou.
+# é avaliado contra a ordem que o primeiro deixou. O chip bónus das jornadas 18,
+# 24 e 29 leva também `bonus: true`; sem isso, o chip conta como o semanal. A
+# página lê a jornada para saber que o chip dessa semana já foi gasto.
 #
 # Os nomes dos clubes têm de ser os que o resto do projeto usa (os do Record),
 # não os do zerozero, senão a ordem não casa com as probabilidades.
@@ -39,7 +41,12 @@ entrada:
   - Rio Ave
   - Casa Pia
 
-chips: []
+chips:
+  # Nenhum nas jornadas 6 e 7: o melhor valia menos do que o limiar de 7.
+  - jornada: 8
+    clube: FC Porto
+    para: 1
+    nota: subiu 2 (do 3.º), o chip semanal — +12,9 esperados na página de 22/09
 # Exemplo, depois de entregar:
 #
 # entrada:

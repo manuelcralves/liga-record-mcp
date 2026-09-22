@@ -31,6 +31,7 @@ from ..models import (
     SquadSnapshot,
     Violation,
 )
+from ..final_table import BONUS_ROUNDS, FIRST_CHIP_ROUND, LAST_CHIP_ROUND
 from ..rules import validate_selection, validate_squad
 from .base import SquadSourceError
 
@@ -226,6 +227,7 @@ def load_final_entry(path: str | Path) -> dict:
     chips = raw.get("chips") or []
     if not isinstance(chips, list):
         raise SquadSourceError(f"{file}: `chips` must be a list")
+    played: set[tuple[int, bool]] = set()
     for chip in chips:
         if not isinstance(chip, dict):
             raise SquadSourceError(f"{file}: every chip must be a mapping")
@@ -236,6 +238,30 @@ def load_final_entry(path: str | Path) -> dict:
             raise SquadSourceError(f"{file}: chip names {club!r}, not in `entrada`")
         if entry is not None and not 1 <= int(to) <= len(entry):
             raise SquadSourceError(f"{file}: chip sends {club!r} to place {to}")
+        # The matchday is what tells the page this week's chip is spent, so a
+        # typo in it would quietly offer a second one. Checked like the rest.
+        number, bonus = chip.get("jornada"), chip.get("bonus", False)
+        if (
+            isinstance(number, bool)
+            or not isinstance(number, int)
+            or not FIRST_CHIP_ROUND <= number <= LAST_CHIP_ROUND
+        ):
+            raise SquadSourceError(
+                f"{file}: the chip for {club!r} needs `jornada`, a matchday from "
+                f"{FIRST_CHIP_ROUND} to {LAST_CHIP_ROUND}"
+            )
+        if not isinstance(bonus, bool):
+            raise SquadSourceError(f"{file}: `bonus` on {club!r} must be true or false")
+        if bonus and number not in BONUS_ROUNDS:
+            raise SquadSourceError(
+                f"{file}: a bonus chip at matchday {number}, which has none"
+            )
+        if (number, bonus) in played:
+            raise SquadSourceError(
+                f"{file}: two {'bonus' if bonus else 'weekly'} chips at matchday "
+                f"{number} — there is one of each kind a round"
+            )
+        played.add((number, bonus))
 
     return {
         "entry": entry,

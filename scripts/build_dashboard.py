@@ -68,11 +68,13 @@ from liga_record_mcp.source.bulletin import (  # noqa: E402
     unmatched,
 )
 from liga_record_mcp.final_table import (  # noqa: E402
+    BONUS_REACH,
     ENTRY_LOCK_MATCHDAY,
     FIRST_CHIP_ROUND,
     LAST_CHIP_ROUND,
     RELEGATION_PLACES,
     TOP_FOUR,
+    WEEKLY_REACH,
     WORTH_MOVING,
     apply_chips,
     best_order,
@@ -2225,8 +2227,15 @@ def final_table(round_number: int) -> dict:
 
     # The chips this matchday allows, played against today's distribution.
     # Before the lock `reaches_at` returns nothing and this is empty, which is
-    # the correct answer rather than a missing one.
-    _, plays = chip_plan(order, spread, round_number)
+    # the correct answer rather than a missing one. A chip already played this
+    # matchday is in `order` and off the list: one weekly chip a round.
+    spent = [c for c in filed["chips"] if c.get("jornada") == round_number] if entry else []
+    _, plays = chip_plan(
+        order,
+        spread,
+        round_number,
+        spent=[BONUS_REACH if c.get("bonus") else WEEKLY_REACH for c in spent],
+    )
     size = len(clubs)
     now = {row["club"]: row["position"] for row in table}
 
@@ -2255,6 +2264,7 @@ def final_table(round_number: int) -> dict:
         "locked_round": filed["locked_round"],
         "played_chips": len(filed["chips"]),
         "chips": plays,
+        "spent": spent,
     }
 
 
@@ -2289,7 +2299,17 @@ def chip_advice(found: dict) -> str:
       <code>data/tabela-final.yaml</code>.</p>"""
         )
 
+    # Played this week already, so the order above has it and there is nothing
+    # left to decide for it — said, rather than offering a second weekly chip.
+    for chip in found.get("spent") or []:
+        which = "Chip bónus" if chip.get("bonus") else "Chip semanal"
+        lines.append(
+            f"""      <p class="callout"><strong>{which} desta jornada já jogado:</strong>
+      {esc(chip["clube"])} para o {int(chip["para"])}.º lugar.</p>"""
+        )
     plays = found.get("chips") or []
+    if not plays and found.get("spent"):
+        return chr(10).join(lines)
     if not plays:
         lines.append(
             """      <p class="callout"><strong>Não há chip esta jornada.</strong>

@@ -167,6 +167,31 @@ def test_no_chip_week_returns_no_plays_rather_than_a_missing_answer():
     assert after == ["b", "a"], "an order was changed in a week with no chip"
 
 
+def test_a_week_whose_chip_was_played_offers_no_second_one():
+    """One weekly chip a round. Once it is in the file, the page priced another
+    against the order it had left — a move the game would not take."""
+    certain = spread(a=[1.0, 0.0], b=[0.0, 1.0])
+    after, plays = chip_plan(
+        ["b", "a"], certain, FIRST_CHIP_ROUND, spent=[WEEKLY_REACH]
+    )
+    assert plays == []
+    assert after == ["b", "a"]
+
+
+def test_a_bonus_week_offers_whichever_chip_is_left():
+    """By reach, not by count: on a bonus week either chip may go first."""
+    certain = spread(**{f"c{i}": [1.0 if j == i else 0.0 for j in range(6)] for i in range(6)})
+    scrambled = ["c5", "c4", "c3", "c2", "c1", "c0"]
+    _, left = chip_plan(scrambled, certain, BONUS_ROUNDS[0], spent=[WEEKLY_REACH])
+    assert [p["bonus"] for p in left] == [True]
+    _, left = chip_plan(scrambled, certain, BONUS_ROUNDS[0], spent=[BONUS_REACH])
+    assert [p["bonus"] for p in left] == [False]
+    _, left = chip_plan(
+        scrambled, certain, BONUS_ROUNDS[0], spent=[WEEKLY_REACH, BONUS_REACH]
+    )
+    assert left == []
+
+
 # --- the file -----------------------------------------------------------------
 
 
@@ -187,6 +212,37 @@ def test_a_repeated_club_is_refused(tmp_path):
     path = tmp_path / "e.yaml"
     path.write_text("entrada:\n  - a\n  - a\nchips: []\n", encoding="utf-8")
     with pytest.raises(SquadSourceError, match="repeats"):
+        load_final_entry(path)
+
+
+@pytest.mark.parametrize(
+    "chip, why",
+    [
+        ("    clube: a\n    para: 2\n", "jornada"),
+        ("    jornada: '8'\n    clube: a\n    para: 2\n", "jornada"),
+        (f"    jornada: {LAST_CHIP_ROUND + 1}\n    clube: a\n    para: 2\n", "jornada"),
+        ("    jornada: 8\n    clube: a\n    para: 2\n    bonus: sim\n", "bonus"),
+        ("    jornada: 8\n    clube: a\n    para: 2\n    bonus: true\n", "bonus chip at"),
+    ],
+)
+def test_a_chip_whose_matchday_or_kind_is_wrong_is_refused(tmp_path, chip, why):
+    """The matchday is what tells the page a week's chip is spent. A typo in it
+    would silently offer a second weekly chip — the fault this check closes."""
+    path = tmp_path / "e.yaml"
+    path.write_text("entrada:\n  - a\n  - b\nchips:\n  -\n" + chip, encoding="utf-8")
+    with pytest.raises(SquadSourceError, match=why):
+        load_final_entry(path)
+
+
+def test_two_weekly_chips_in_one_round_are_refused(tmp_path):
+    path = tmp_path / "e.yaml"
+    path.write_text(
+        "entrada:\n  - a\n  - b\nchips:\n"
+        "  - jornada: 8\n    clube: a\n    para: 2\n"
+        "  - jornada: 8\n    clube: b\n    para: 2\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(SquadSourceError, match="two weekly chips"):
         load_final_entry(path)
 
 
@@ -312,6 +368,32 @@ def test_a_week_worth_nothing_says_so_rather_than_going_quiet(page):
     )
     assert "não jogues" in said.lower()
     assert said.strip(), "the section rendered empty on a no-chip week"
+
+
+def test_a_week_whose_chip_was_played_says_so_instead_of_offering_another(page):
+    said = page.chip_advice(
+        {
+            "filed": True,
+            "chips": [],
+            "spent": [{"jornada": 8, "clube": "FC Porto", "para": 1}],
+        }
+    )
+    assert "já jogado" in said and "FC Porto" in said and "1.º" in said
+    assert "semanal" in said
+    assert "Não há chip esta jornada" not in said, (
+        "a week whose chip was played reads as a week with no chip at all"
+    )
+
+
+def test_a_played_bonus_chip_is_named_as_the_bonus(page):
+    said = page.chip_advice(
+        {
+            "filed": True,
+            "chips": [],
+            "spent": [{"jornada": 18, "clube": "Rio Ave", "para": 12, "bonus": True}],
+        }
+    )
+    assert "Chip bónus desta jornada já jogado" in said
 
 
 def test_a_bonus_week_is_labelled_as_one(page):
