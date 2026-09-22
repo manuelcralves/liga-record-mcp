@@ -74,7 +74,8 @@ def owner(key: str, market: Mapping[str, Any]) -> str | None:
     same = [i for i, p in market.items() if p.name == name]
     exact = [i for i in same if market[i].club == club]
     if exact:
-        return exact[0]
+        # Two of the name at the one club: nobody is guessed, as `pick` refuses.
+        return exact[0] if len(exact) == 1 else None
     return same[0] if len(same) == 1 else None
 
 
@@ -211,7 +212,9 @@ def main() -> int:
     )
     print(
         f"  {s['blind']} das discordâncias são em campo por -1, que o email lê "
-        "como não utilizado"
+        f"como não utilizado; lidas como coincidência, coincide em "
+        f"{s['agree'] + s['blind']} de {s['rows']} "
+        f"({(s['agree'] + s['blind']) / s['rows']:.1%})"
     )
     departed = sum(1 for r in every if not r["on_market"])
     print(
@@ -262,7 +265,9 @@ def main() -> int:
     )
     print(
         f"  {squad['blind']} das discordâncias são em campo por -1, que o email lê "
-        "como não utilizado"
+        f"como não utilizado; lidas como coincidência, ficam "
+        f"{squad['rows'] - squad['agree'] - squad['blind']} discordâncias, e a "
+        f"barra {'passaria' if squad['rows'] - squad['agree'] - squad['blind'] <= SQUAD_DISAGREEMENTS else 'continuaria a falhar'}"
     )
     print(
         f"  {len(emailed)} linhas nos emails; {len(emailed) - len(on_market)} de "

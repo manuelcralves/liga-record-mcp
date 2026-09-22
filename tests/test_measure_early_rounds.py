@@ -69,6 +69,9 @@ def test_an_email_row_is_never_read_off_another_man_of_the_same_name(check):
     assert check.owner("A|Arouca", {"a": man("A", "Benfica")}) == "a"
     # Two of the name and neither at that club: nobody is guessed.
     assert check.owner("Samu|Arouca", market) is None
+    # Nor two of the name at the one club.
+    twins = {"x": man("Pedro", "Benfica"), "y": man("Pedro", "Benfica")}
+    assert check.owner("Pedro|Benfica", twins) is None
 
 
 def test_a_row_of_a_man_who_left_the_market_is_kept_and_marked(check):
