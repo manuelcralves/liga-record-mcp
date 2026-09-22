@@ -582,6 +582,49 @@ def fixture_weeks(round_numbers: list[int]) -> dict[int, dict[str, dict]]:
     return out
 
 
+def horizon_rounds(round_number: int) -> list[int]:
+    """The rounds a transfer made before `round_number` is priced over.
+
+    That round and up to `LOOKAHEAD - 1` after it, never past the last
+    matchday: in May the horizon shrinks to what is left, and the round being
+    decided is always in it, even once the season is over.
+    """
+    return [round_number] + list(
+        range(round_number + 1, min(round_number + LOOKAHEAD, LAST_MATCHDAY + 1))
+    )
+
+
+def transfer_horizon(
+    returns: dict[str, float], players: dict, weeks: list[dict[str, dict]]
+) -> list[dict[str, float]]:
+    """What each man returns when he plays, in each round ahead, on its opponent.
+
+    One map per entry of `weeks` — `fixture_weeks` rounds, in order — for
+    `improve_squad`'s horizon. Only `returns` moves: an opponent changes what
+    a man does when he plays, not whether he does, and §10.3(i)'s -1 is the
+    same whoever it is against.
+
+    A club with no fixture in a round keeps his season value there. The replay
+    that measured the horizon never saw that case, and the season value is
+    what the page used before it.
+    """
+    horizon = []
+    for by_club in weeks:
+        moved = {}
+        for player_id, rate in returns.items():
+            person = players[player_id]
+            week = by_club.get(person.club)
+            moved[player_id] = (
+                rate
+                if week is None
+                else adjust_for_fixture(
+                    rate, person.position, week["defensive"], week["attacking"]
+                )
+            )
+        horizon.append(moved)
+    return horizon
+
+
 def judged_on(
     fresh: dict[str, float],
     stored: dict,
@@ -774,9 +817,7 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # blended estimate: §10.3(i)'s -1 for a week he does not play is the same
     # -1 whoever the opponent is, and scaling it would make an easy fixture
     # look like a reason to own someone who is not in the side.
-    rounds_ahead = [round_number] + list(
-        range(round_number + 1, min(round_number + LOOKAHEAD, LAST_MATCHDAY + 1))
-    )
+    rounds_ahead = horizon_rounds(round_number)
     weeks_ahead = fixture_weeks(rounds_ahead)
     weeks = weeks_ahead[round_number]
     expected = {}
@@ -935,30 +976,16 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # PRICED ON THE NEXT `LOOKAHEAD` ROUNDS, each against its own opponent —
     # not on this week's alone, which sells a good player for a bad Saturday,
     # and not on the season value alone, which is what this did until
-    # 21/09/2026 and what the lookahead beat when measured. A club with no
-    # fixture in one of those rounds keeps his season value there: the replay
-    # never saw that case, and the season value is what the page always used.
+    # 21/09/2026 and what the lookahead beat when measured.
     #
     # A man who has left the league is not in `whole`, and every call below
     # would die looking him up. Found once, above, with the names carried out
     # to the page — never dropped quietly, which is how this went unseen.
     still_here = [p.id for p in squad.players if p.id not in gone]
     season_returns = {i: v["returns"] for i, v in wide.items()}
-    ahead = []
-    for number in rounds_ahead:
-        by_club = weeks_ahead[number]
-        moved = {}
-        for player_id, rate in season_returns.items():
-            person = valued[player_id]
-            week = by_club.get(person.club)
-            moved[player_id] = (
-                rate
-                if week is None
-                else adjust_for_fixture(
-                    rate, person.position, week["defensive"], week["attacking"]
-                )
-            )
-        ahead.append(moved)
+    ahead = transfer_horizon(
+        season_returns, valued, [weeks_ahead[number] for number in rounds_ahead]
+    )
     improved = improve_squad(
         still_here,
         whole,
