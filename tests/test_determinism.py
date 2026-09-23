@@ -47,6 +47,7 @@ MEASURING = [
     "measure_coach_pick.py",
     "measure_holiday_timing.py",
     "measure_early_rounds.py",
+    "measure_coach_mark.py",
 ]
 
 
