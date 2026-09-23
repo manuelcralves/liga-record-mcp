@@ -44,11 +44,18 @@ coaches:
     points_total: 11
     points_round: 4
 
-  - id: "906"
-    name: João Gião
+  # Nacional changed manager: João Gião (id 906) out, Alexandre Santos in. The
+  # weekly emails credit Alexandre Santos from matchday 6 on (+2, then -2), so
+  # this file was two rounds stale. The site's id for him is only readable on
+  # the logged-in team-sheet page — it is a placeholder until that page is next
+  # open, and nothing waits on it: the ranking and the settle both join on the
+  # club. His totals here would have to be the site's pre-reset ones, which
+  # predate him, so they are left at zero.
+  - id: "nacional"
+    name: Alexandre Santos
     club: Nacional
-    points_total: 11
-    points_round: 6
+    points_total: 0
+    points_round: 0
 
   - id: "634"
     name: Petit
