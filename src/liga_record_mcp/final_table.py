@@ -660,7 +660,9 @@ def chip_plan(
     return current, plays
 
 
-def apply_chips(entry: Sequence[str], chips: Iterable[Mapping]) -> list[str]:
+def apply_chips(
+    entry: Sequence[str], chips: Iterable[Mapping], *, upto: int | None = None
+) -> list[str]:
     """The order as it stands now: the submitted entry with the chips played.
 
     THE ENTRY IS STATE. It is written once, at the lock, and then twenty-five
@@ -669,11 +671,38 @@ def apply_chips(entry: Sequence[str], chips: Iterable[Mapping]) -> list[str]:
     it would quietly show an order that was never entered, and price next
     week's chip against a position the team is not in.
 
-    Each chip names a club and the place it was moved to, one-based to match
-    what the site shows.
+    Each chip names a club, the place it was moved to — one-based, as the site
+    shows it — and the matchday it was played on.
+
+    `upto` stops at that matchday, and a chip written ahead of time is exactly
+    the thing it stops: the file is kept by hand, and a chip planned for a round
+    still to come would show an order nobody has entered and price this week's
+    against it. Without `upto` every chip is replayed, which is what settling a
+    finished season wants.
+
+    REPLAYED IN MATCHDAY ORDER, not file order. Two chips sending clubs to first
+    place leave whichever went LAST on top, so a file written out of order would
+    otherwise put the wrong club there. Chips without a matchday keep the order
+    they came in, which is what the tests of the move itself use.
     """
+    def matchday(chip: Mapping) -> int:
+        """The round it was played on, or 0 for one written without a number.
+
+        `source.manual.load_final_entry` refuses a chip whose `jornada` is not
+        a matchday, and that is the guard. This one is here so a file read by
+        anything else cannot take a page down over a stray quote: the chip
+        still replays, it simply sorts with the undated.
+        """
+        try:
+            return int(chip.get("jornada") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    dated = sorted(
+        (c for c in chips if upto is None or matchday(c) <= upto), key=matchday
+    )
     order = list(entry)
-    for chip in chips:
+    for chip in dated:
         club = chip.get("clube") or chip.get("club")
         to = chip.get("para") or chip.get("to")
         if club is None or to is None or club not in order:

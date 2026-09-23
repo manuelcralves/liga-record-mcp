@@ -438,3 +438,58 @@ def test_the_alarm_consults_it():
     assert "lock_is_settled(FIRST_SCORING_MATCHDAY)" in source, (
         "the alarm is a date again, and a date does not know what has been done"
     )
+
+
+# --- the check that must not fail quietly ---------------------------------------
+
+
+def test_a_market_that_does_not_answer_says_the_check_did_not_run(mod, monkeypatch):
+    """An empty list is what this returns when every man is where he should be.
+    Returning it for a site error too makes a failure read as an all-clear —
+    and this is the check that caught Diogo Calila five days late."""
+    from liga_record_mcp.source import SiteError
+
+    class Down:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, position):
+            raise SiteError("timed out")
+
+    monkeypatch.setattr(mod, "LigaRecordClient", Down)
+    gone, unchecked = mod.departed(ROOT / "data" / "squad.yaml")
+    # Apart from the departures, because the caller shouts about those and a
+    # failed check is not one of them.
+    assert gone == []
+    assert unchecked and "NAO foi verificado" in unchecked
+
+
+def test_a_market_that_answers_names_only_the_men_who_left(mod, monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from liga_record_mcp.models import Position
+
+    held = [
+        SimpleNamespace(id="stays", name="Fica", club="Benfica"),
+        SimpleNamespace(id="gone", name="Saiu", club="Arouca"),
+    ]
+
+    class Market:
+        def __init__(self, **kwargs):
+            pass
+
+        def search(self, position):
+            return [held[0]] if position is Position.GK else []
+
+    class Source:
+        def __init__(self, path):
+            pass
+
+        def load(self):
+            return SimpleNamespace(squad=SimpleNamespace(players=held))
+
+    monkeypatch.setattr(mod, "LigaRecordClient", Market)
+    monkeypatch.setattr(mod, "ManualSquadSource", Source)
+    gone, unchecked = mod.departed(tmp_path / "squad.yaml")
+    assert unchecked is None
+    assert len(gone) == 1 and gone[0].startswith("Saiu (Arouca)")

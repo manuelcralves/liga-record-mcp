@@ -85,8 +85,8 @@ a misread range fails a test instead of passing silently.
 
 ## Three readings that might be wrong
 
-129 passing tests prove the code agrees with *this reading* of the regulation.
-They cannot prove the reading is right. Each of these is checkable by looking at
+The tests prove the code agrees with *this reading* of the regulation. They
+cannot prove the reading is right. Each of these is checkable by looking at
 the site once a round is scored.
 
 - **§11.3 covers the cheaper player.** When two same-position starters are
@@ -253,8 +253,33 @@ question about the league rather than about your team.
 
 ## Next, in order
 
-1. **Restructure the squad.** The only item with a deadline — points start at
-   Ronda 5 and the site still reports `team_has_played: false`. Not code.
-2. **Fill in the `selection:` block** in `data/squad.yaml`.
-3. **Finish the live squad read.** Needs a login; real work for convenience.
-4. **Verify the three uncertain rules.** Costs nothing once a round is scored.
+As of 23 September 2026, matchday 8.
+
+1. **The job on GitHub records a round the laptop has not.** It runs on a fresh
+   checkout, so it has neither the archive nor this season's rebuilt rounds, and
+   a round it files first carries a poorer model under the same estimator's
+   name. Each round now records the evidence it rested on, which makes it
+   visible; whether the job should stop recording is a decision, not a bug.
+2. **February's window: six transfers for the whole month (§6.9).** Chosen one
+   at a time, the ladder never reaches the squad a whole-window search would
+   buy — measured at about forty points a season in August. Nothing plans
+   several moves at once yet.
+3. **The coach's mark.** The model pays every coach the players' average mark,
+   2.59; over matchdays 6 and 7 the eighteen averaged 3.72. It shifts every
+   coach alike, so it changes no ranking and no swap, but it biases what the
+   ledger scores the pick against.
+
+**Measured and refused**, so nobody spends the time again:
+
+- **A wider archive** (23/09). Rebuilding both past seasons for the 254 players
+  phase 2 linked made the model slightly worse: a fringe player's own thin
+  history predicts him worse than his club-and-position pool.
+- **Naming the eleven with the bench priced in** (23/09). §11 substitutes an
+  absent starter, so his estimate charges him a -1 he would not pay. Priced
+  properly it won one reconstructed season and lost the other.
+
+**Done, and where the numbers are:** the model's own reading of this season
+(`source.season`), the coach of the round, the §6.17 holidays, the weekly
+transfer priced over five rounds, and §15.3's zero for a match already struck
+out. Each has a plan under `docs/REVISAO-*.md`, gitignored, with the
+measurement that decided it.

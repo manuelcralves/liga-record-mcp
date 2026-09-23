@@ -265,7 +265,7 @@ def lock_is_near(fixtures, within_days: int) -> tuple[bool, str]:
     )
 
 
-def departed(squad_path) -> list[str]:
+def departed(squad_path) -> tuple[list[str], str | None]:
     """Squad members the market no longer lists — men who have left the league.
 
     THE ONE THING NOTHING WAS WATCHING. `data/squad.yaml` is written by hand and
@@ -277,6 +277,16 @@ def departed(squad_path) -> list[str]:
 
     A dead slot costs the whole season, and outside the §6.7 window it costs a
     transfer to clear. So it is worth one market call a day to find out.
+
+    A MARKET THAT DOES NOT ANSWER SAYS SO, AND SAYS IT APART. This returned an
+    empty list on a site error, which is the same thing it returns when every
+    man is where he should be — a check that fails silently is worse than no
+    check, because it reads as an answer. It now returns the two separately:
+    the men who left, and a line when the question could not be asked. They are
+    printed under different headings, because "nobody left" and "nobody looked"
+    call for different things from the reader.
+
+    Returns (gone, unchecked).
     """
     try:
         market = {
@@ -284,15 +294,18 @@ def departed(squad_path) -> list[str]:
             for position in Position
             for p in LigaRecordClient(timeout=40.0).search(position)
         }
-    except SiteError:
-        return []
+    except SiteError as exc:
+        return [], (
+            "o mercado nao respondeu, por isso NAO foi verificado se algum dos "
+            f"23 saiu da liga — corre outra vez mais tarde ({exc})"
+        )
     squad = ManualSquadSource(squad_path).load().squad.players
     return [
         f"{p.name} ({p.club}) — o mercado ja nao o lista. Saiu da liga, nao "
         f"volta a pontuar, e o lugar dele esta morto ate o venderes."
         for p in squad
         if p.id not in market
-    ]
+    ], None
 
 
 def main() -> None:
@@ -385,12 +398,17 @@ def main() -> None:
         print()
         print(reminder)
 
-    fora = departed(SQUAD_PATH)
+    fora, por_verificar = departed(SQUAD_PATH)
     if fora:
         print()
         print("FORA DA LIGA — trata disto antes de qualquer outra coisa:")
         for line in fora:
             print(f"  {line}")
+    if por_verificar:
+        # Its own heading: "nobody left" and "nobody looked" ask different
+        # things of whoever reads this in a hurry.
+        print()
+        print(f"POR VERIFICAR: {por_verificar}")
 
     said = deadlines(fixtures)
     if said:

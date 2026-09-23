@@ -2393,7 +2393,9 @@ def final_table(round_number: int) -> dict:
     if entry and set(entry) != set(clubs):
         mismatch = sorted(set(entry) ^ set(clubs))
         entry = None
-    order = apply_chips(entry, filed["chips"]) if entry else proposed
+    # Up to this round and no further: the file is kept by hand, and a chip
+    # written for a round still to come would show an order nobody entered.
+    order = apply_chips(entry, filed["chips"], upto=round_number) if entry else proposed
 
     # The chips this matchday allows, played against today's distribution.
     # Before the lock `reaches_at` returns nothing and this is empty, which is

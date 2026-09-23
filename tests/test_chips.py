@@ -447,3 +447,29 @@ def test_the_season_has_twenty_four_chip_weeks():
     weeks = [m for m in range(1, 36) if reaches_at(m)]
     assert len(weeks) == 24
     assert weeks[0] == 6 and weeks[-1] == 29
+
+
+def test_a_chip_written_for_a_round_still_to_come_does_not_move_the_order():
+    """The file is kept by hand. A chip planned ahead would show an order
+    nobody entered, and price this week's chip against it."""
+    entry = ["a", "b", "c", "d"]
+    chips = [{"clube": "d", "para": 1, "jornada": 8}, {"clube": "c", "para": 1, "jornada": 12}]
+    assert apply_chips(entry, chips, upto=8) == ["d", "a", "b", "c"]
+    # And with no round asked for, a finished season replays whole.
+    assert apply_chips(entry, chips) == ["c", "d", "a", "b"]
+
+
+def test_chips_are_replayed_by_matchday_not_by_file_order():
+    """Both send a club to first place, so the LAST one played ends up there.
+    Written out of order, the file would otherwise put the wrong club on top."""
+    entry = ["a", "b", "c", "d"]
+    out_of_order = [
+        {"clube": "a", "para": 1, "jornada": 12},
+        {"clube": "b", "para": 1, "jornada": 8},
+    ]
+    assert apply_chips(entry, out_of_order, upto=12) == ["a", "b", "c", "d"]
+
+
+def test_the_page_replays_only_the_chips_already_played():
+    source = (ROOT / "scripts" / "build_dashboard.py").read_text(encoding="utf-8")
+    assert "apply_chips(entry, filed[\"chips\"], upto=round_number)" in source
