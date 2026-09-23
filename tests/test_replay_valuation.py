@@ -210,3 +210,82 @@ def test_correlation_is_the_harness_formula(replay):
     cov = sum((a - mean_a) * (g - mean_g) for a, g in pairs) / len(pairs)
     expected = cov / (statistics.pstdev(truth) * statistics.pstdev(guess))
     assert replay.correlation(pairs) == pytest.approx(expected)
+
+
+# --- a wider archive, and on whom it lands ------------------------------------
+
+
+def scored_rows(values):
+    """(player, round, truth, expected) rows, the shape the replay scores."""
+    return [(who, number, truth, guess, 0.0, False) for who, number, truth, guess in values]
+
+
+def test_only_keeps_the_players_asked_for(replay):
+    rows = scored_rows([("a", 7, 1.0, 1.0), ("b", 7, 2.0, 2.0)])
+    assert [r[0] for r in replay.only(rows, {"b"})] == ["b"]
+
+
+def truthful(who, *, from_round=7, to_round=34, off_by=0.0):
+    """A player whose estimate tracks the truth, `off_by` away from it."""
+    return [
+        (who, n, float(n % 7), float(n % 7) + off_by * ((n % 3) - 1), 0.0, False)
+        for n in range(from_round, to_round + 1)
+    ]
+
+
+def test_a_wider_archive_passes_when_it_helps_and_harms_nobody(replay, capsys):
+    gained = {"new1", "new2"}
+    wider = truthful("new1") + truthful("new2") + truthful("old1") + truthful("old2")
+    # The same men, worse, and worst where the archive was missing.
+    narrow = (
+        truthful("new1", off_by=3.0)
+        + truthful("new2", off_by=3.0)
+        + truthful("old1", off_by=0.2)
+        + truthful("old2", off_by=0.2)
+    )
+    assert replay.wider_archive(wider, narrow, gained, draws=50) is True
+    printed = capsys.readouterr().out
+    assert "ganharam arquivo (2)" in printed and "nao ganharam (2)" in printed
+
+
+def test_a_wider_archive_fails_when_it_hurts_those_who_had_one(replay):
+    gained = {"new1"}
+    wider = truthful("new1") + truthful("old1", off_by=4.0) + truthful("old2", off_by=4.0)
+    narrow = truthful("new1", off_by=1.0) + truthful("old1") + truthful("old2")
+    assert replay.wider_archive(wider, narrow, gained, draws=50) is False
+
+
+def test_a_wider_archive_fails_when_nothing_moves(replay):
+    gained = {"new1"}
+    same = truthful("new1") + truthful("old1")
+    assert replay.wider_archive(same, list(same), gained, draws=50) is False
+
+
+def test_the_harm_guard_reads_the_pessimistic_end_of_the_interval(replay):
+    """Ten men gain an archive and clear the gain bar on their own, while one
+    of the ten who gained nothing is hurt: the optimistic end of that group's
+    interval sits inside the bar and only the pessimistic end says so. Read
+    the wrong end — as this did until the review of 23/09/2026 — and a wider
+    archive passes while hurting the players it was meant to leave alone."""
+    gained = {f"new{i}" for i in range(1, 11)}
+    rest = {f"calm{i}" for i in range(1, 10)} | {"hurt"}
+    wider: list = []
+    narrow: list = []
+    for who in sorted(gained):
+        wider += truthful(who)
+        narrow += truthful(who, off_by=1.5)
+    for who in sorted(rest - {"hurt"}):
+        wider += truthful(who)
+        narrow += truthful(who)
+    wider += truthful("hurt", off_by=1.0)
+    narrow += truthful("hurt")
+
+    gain = replay.summary(wider, 7, 34)["r"] - replay.summary(narrow, 7, 34)["r"]
+    spread = replay.gain_interval(wider, narrow, 7, 34, draws=200)
+    assert gain >= replay.BAR and spread[0] > 0, "the gain bar must be met, or this is vacuous"
+    low, high = replay.gain_interval(
+        replay.only(wider, rest), replay.only(narrow, rest), 7, 34, draws=200
+    )
+    assert low < -replay.BAR <= high, "only the pessimistic end may show the harm"
+
+    assert replay.wider_archive(wider, narrow, gained, draws=200) is False

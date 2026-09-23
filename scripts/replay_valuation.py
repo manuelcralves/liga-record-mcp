@@ -47,6 +47,14 @@ returns identically everywhere and would only blur the comparison. And rounds
 measures what those rounds are worth, not how closely zerozero estimates them.
 
     python scripts/replay_valuation.py
+
+IT ALSO WEIGHS AN ARCHIVE AGAINST A WIDER ONE. `--wider DIR` replays the two
+seasons rebuilt for more players and measures their archive against the one in
+data/, on the same player-rounds, split between the men who gained an archive
+and the men who did not — the second group is touched only through the pools,
+and is where a wider archive could do harm.
+
+    python scripts/replay_valuation.py --wider ../arquivo-novo
 """
 
 from __future__ import annotations
@@ -57,7 +65,7 @@ import math
 import random
 import sys
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Container, Mapping
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -327,6 +335,53 @@ def harness_reference(
     return out
 
 
+def only(scored: list[Scored], ids: Container[str]) -> list[Scored]:
+    """The rows of these players, so a gain can be read where it was meant to land."""
+    return [row for row in scored if row[0] in ids]
+
+
+def wider_archive(
+    wider: list[Scored],
+    narrow: list[Scored],
+    gained: Container[str],
+    *,
+    draws: int,
+) -> bool:
+    """What a wider archive does to the model that advises, and to whom.
+
+    Two groups, because they are asked different questions. A player in
+    `gained` has evidence of his own where he had none. Everyone else — men who
+    already had an archive, and men who have none in either version — is
+    touched only through the pools his estimate is shrunk toward, which is
+    where a wider archive could do harm, and is the reason this is measured
+    rather than assumed.
+
+    Returns whether it clears the bar: the gain over the whole season above
+    `BAR` with its interval clear of zero, and the men who gained nothing not
+    losing more than `BAR` — read on the pessimistic end of their interval, as
+    a guard against harm must be.
+    """
+    everyone = {row[0] for row in wider}
+    rest = everyone - {i for i in everyone if i in gained}
+    groups = (
+        ("todos", wider, narrow),
+        (f"ganharam arquivo ({len(everyone) - len(rest)})", only(wider, gained), only(narrow, gained)),
+        (f"nao ganharam ({len(rest)})", only(wider, rest), only(narrow, rest)),
+    )
+    verdict = {}
+    for name, better, worse in groups:
+        cells = []
+        for window, low, high in (WINDOWS[0], WINDOWS[2]):
+            gain = summary(better, low, high)["r"] - summary(worse, low, high)["r"]
+            spread = gain_interval(better, worse, low, high, draws=draws)
+            verdict[(name.split(" (")[0], window)] = (gain, spread)
+            cells.append(f"{window} {gain:+.4f} (90%: {spread[0]:+.4f} to {spread[1]:+.4f})")
+        print(f"    {name:<28}" + "   ".join(cells))
+    gain, spread = verdict[("todos", "7-34")]
+    _, harm = verdict[("nao ganharam", "7-34")]
+    return gain >= BAR and spread[0] > 0 and harm[0] >= -BAR
+
+
 def line(rule: str, arm: str, scored: list[Scored], *, brier: bool = True) -> str:
     """One row of the table: r in every window, error and brier over 7-34."""
     rs = "".join(f"{summary(scored, low, high)['r']:>9.4f}" for _, low, high in WINDOWS)
@@ -338,20 +393,37 @@ def line(rule: str, arm: str, scored: list[Scored], *, brier: bool = True) -> st
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--draws", type=int, default=DRAWS, help="bootstrap resamples")
+    parser.add_argument(
+        "--wider",
+        type=Path,
+        help="a folder holding the same two seasons rebuilt for more players; the "
+        "replay then runs on those and measures their archive against data/'s",
+    )
     args = parser.parse_args()
 
     rounds = range(FIRST_PREDICTED, LAST_MATCHDAY + 1)
     decisive = (WINDOWS[0], WINDOWS[2])
     gains: dict[str, list[tuple[str, str, str, float]]] = defaultdict(list)
     brier_lower: dict[str, list[bool]] = defaultdict(list)
+    wider_passed: list[bool] = []
     for label, season_name, archive_name in SEASONS:
-        season_path = DATA / season_name
+        # WITH `--wider`, THE REPLAYED SEASON IS THE WIDER ONE IN BOTH ARMS, and
+        # only the archive changes. Read from data/ instead, the players who
+        # gained an archive would not be in the season being scored at all, and
+        # the measurement would miss the very men it is about.
+        source = args.wider or DATA
+        season_path = source / season_name
         if not season_path.is_file():
             raise SystemExit(f"no {season_path} — run scripts/build_last_season.py first")
         loaded = json.loads(season_path.read_text(encoding="utf-8"))["players"]
         season = rows_by_round(loaded)
         positions = {i: Position(loaded[i]["position"]) for i in season}
-        archive = archive_records(DATA, names=(archive_name,)) if archive_name else {}
+        archive = archive_records(source, names=(archive_name,)) if archive_name else {}
+        narrow = (
+            archive_records(DATA, names=(archive_name,))
+            if args.wider and archive_name
+            else None
+        )
         late = sum(1 for rows in season.values() if min(rows) >= FIRST_SCORING_MATCHDAY)
 
         print()
@@ -360,8 +432,23 @@ def main() -> None:
             f"{archive_name or 'none'} ({len(archive)} players), "
             f"{late} first seen after round {FIRST_SCORING_MATCHDAY - 1}"
         )
+        # GAINED AN ARCHIVE MEANS GAINED EVIDENCE. A player rebuilt with no
+        # top-flight season is in the file with nothing in it, and `valuation`
+        # reads that as no archive at all; counting him among the men this is
+        # for would dilute the very group it measures.
+        gained = {
+            i
+            for i, row in archive.items()
+            if row.get("available") and not (narrow or {}).get(i, {}).get("available")
+        }
+        if narrow is not None:
+            with_history = sum(1 for row in narrow.values() if row.get("available"))
+            print(
+                f"  against the archive in data/ ({with_history} players with "
+                f"history); {len(gained)} gained one"
+            )
         reference = harness_reference(
-            season_path, DATA / archive_name if archive_name else None, rounds
+            season_path, source / archive_name if archive_name else None, rounds
         )
         for every_round, reading in READINGS:
             scored = replay(
@@ -376,6 +463,21 @@ def main() -> None:
             for rule, _ in RULES:
                 for arm, _ in ARMS:
                     print(line(rule, arm, scored[(rule, arm)]))
+            if narrow is not None:
+                # The rule and arm the model advises with, and nothing else:
+                # `recent`, this season from its first round.
+                against = replay(
+                    season, positions, narrow, every_round=every_round, rounds=rounds
+                )
+                print("    o arquivo alargado contra o de hoje, regra recent, braco with:")
+                wider_passed.append(
+                    wider_archive(
+                        scored[("recent", "with")],
+                        against[("recent", "with")],
+                        gained,
+                        draws=args.draws,
+                    )
+                )
             if every_round:
                 print(line("harness", "", reference, brier=False))
 
@@ -407,6 +509,12 @@ def main() -> None:
                 )
 
     print()
+    if wider_passed:
+        print(
+            f"the wider archive: clears the bar in {sum(wider_passed)} of "
+            f"{len(wider_passed)} readings"
+            + (" — PASSES" if all(wider_passed) else " — FAILS")
+        )
     for _, reading in READINGS:
         found = gains[reading]
         rule = [g for _, question, _, g in found if question == "rule"]
