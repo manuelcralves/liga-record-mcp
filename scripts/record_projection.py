@@ -48,6 +48,7 @@ from liga_record_mcp.source import (  # noqa: E402
     LigaRecordClient,
     ManualSquadSource,
     OpenFootballClient,
+    SquadSourceError,
     load_coaches,
 )
 from liga_record_mcp.stats import (  # noqa: E402
@@ -57,7 +58,7 @@ from liga_record_mcp.stats import (  # noqa: E402
 )
 
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
-from liga_record_mcp.source.season import season_so_far  # noqa: E402
+from liga_record_mcp.source.season import load_rebuilt, season_so_far  # noqa: E402
 from liga_record_mcp.source.bulletin import known_out  # noqa: E402
 
 LOG_PATH = ROOT / "data" / "projections.json"
@@ -361,6 +362,59 @@ def sheet_coach(snapshot_of_squad) -> str | None:
     """The coach id on the filed sheet, or None if the sheet names none."""
     picked = snapshot_of_squad.selection
     return picked.coach_id if picked is not None and picked.coach_id else None
+
+
+def poorer_than_now(stored: dict, folder) -> str | None:
+    """Why the round on file rests on less than this checkout could give it.
+
+    THE OTHER HALF OF THE TWO-WRITER PROBLEM. The job on GitHub records a round
+    nobody has recorded, which is why it exists — a week with the laptop off
+    would otherwise be a hole in the ledger for good. But it runs on a fresh
+    checkout: no archive, no bulletin, and since phase 2 none of this season's
+    rebuilt rounds either. A round it files first keeps that model under the
+    good estimator's name, and until now only a change in the twenty-three, the
+    out list or the coach would bring the laptop back to it.
+
+    So the same principle that governs every other re-record applies here:
+    before kickoff the prediction on file should be the best that can be made,
+    and after kickoff nothing is touched. This says when it can be bettered.
+
+    A round without the `evidence` field — everything filed before 22/09/2026 —
+    comes back None. There is nothing to compare it against, and guessing would
+    be the very mistake this corrects.
+    """
+    evidence = stored.get("evidence")
+    if not isinstance(evidence, dict) or not evidence:
+        return None
+
+    # A FILE THIS CANNOT READ IS NOT A REASON TO RECORD ANYTHING. Both of these
+    # are rebuilt locally, in one non-atomic write of a few megabytes, so an
+    # interrupted rebuild leaves invalid JSON behind. Before this function
+    # existed they were only read on the way to recording; now they are read on
+    # every run, and a half-written file must not turn the ordinary "nothing
+    # changed" run into a crash.
+    try:
+        archived = len(archive_records(folder))
+        rebuilt = load_rebuilt(folder)
+    except SquadSourceError as exc:
+        print(f"  nao consegui ler o arquivo para comparar com o ficheiro: {exc}")
+        return None
+
+    reasons = []
+    had = int(evidence.get("archive_players") or 0)
+    if archived > had:
+        reasons.append(f"arquivo de {archived} jogadores contra {had}")
+    # Present is not enough: a file still being written, or one whose ids do not
+    # meet this market, gives the round nothing — and claiming it does would
+    # record the same round again on every run, for ever.
+    early = rebuilt is not None and any(
+        int(match["round"]) < FIRST_SCORING_MATCHDAY
+        for player in rebuilt.values()
+        for match in player.get("matches") or ()
+    )
+    if early and not evidence.get("estimated_rounds"):
+        reasons.append("as jornadas desta epoca reconstruidas do zerozero")
+    return ", ".join(reasons) or None
 
 
 def sheet_moved(stored: dict, held: set, out_now: set, coach_now: str | None) -> bool:
@@ -753,6 +807,22 @@ def main() -> None:
         # this file is for.
         fora_agora = set(known_out(UNAVAILABLE_PATH, BULLETIN_DIR, int(key), squad.players))
         mexeu = sheet_moved(stored, held, fora_agora, sheet_coach(snapshot_of_squad))
+        # AND WHEN THIS CHECKOUT CAN DO BETTER THAN WHAT IS ON FILE. The job on
+        # GitHub records a round nobody has, from a checkout with no archive and
+        # no rebuilt rounds; the laptop, coming back to it before kickoff, has
+        # both. Same principle as every other re-record: before the round, the
+        # prediction on file should be the best there is.
+        melhor = poorer_than_now(stored, ROOT / "data")
+        porque = ", e ".join(
+            reason
+            for reason in (
+                "o plantel mudou desde o instantaneo" if mexeu else None,
+                f"tenho mais evidencia do que a jornada no ficheiro ({melhor})"
+                if melhor
+                else None,
+            )
+            if reason
+        )
         # BUT NEVER BY A WRITER THAT CANNOT SEE WHAT THE ROUND WAS RECORDED WITH.
         #
         # The ledger has two writers: the laptop, and the job on GitHub, which
@@ -771,18 +841,18 @@ def main() -> None:
         # from data/squad.yaml and reads the same on both. What it gives up is
         # re-recording a team changed from another machine while the laptop
         # is off, and that re-record was always the poorer model.
-        if mexeu and args.no_rerecord:
+        if (mexeu or melhor) and args.no_rerecord:
             print(
-                f"round {key}: a equipa mudou desde o instantaneo, mas com "
-                "--no-rerecord uma jornada no ficheiro nao se regista de novo — "
-                "fica para o portatil, que ve o boletim e o arquivo."
+                f"round {key}: {porque}, mas com --no-rerecord uma jornada no "
+                "ficheiro nao se regista de novo — fica para o portatil, que ve "
+                "o boletim, o arquivo e as jornadas reconstruidas."
             )
-        if mexeu and not args.no_rerecord and not clubs_playing_in(
+        if (mexeu or melhor) and not args.no_rerecord and not clubs_playing_in(
             market.fixtures(), int(key)
         ):
             print(
-                f"round {key}: o plantel mudou desde o instantaneo e a jornada "
-                "ainda nao comecou — a registar de novo."
+                f"round {key}: {porque}, e a jornada ainda nao comecou — a "
+                "registar de novo."
             )
             del log["rounds"][key]
         else:

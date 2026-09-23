@@ -281,3 +281,160 @@ def test_the_job_still_records_a_round_nobody_has(writer):
     assert writer.on_file()[str(ROUND)]["players"] == JOB_ROWS
     # And the round says what it rested on, so it reads apart from the laptop's.
     assert writer.on_file()[str(ROUND)]["evidence"] == JOB_EVIDENCE
+
+
+# --- and when this checkout can do better than the round on file ----------------
+
+
+def unmoved() -> dict:
+    """A round on file that nothing else would bring anyone back to.
+
+    `stored_round` has a man the snapshot said was out and the hand file does
+    not, which is a moved sheet — the reason the other tests here re-record.
+    Dropping it leaves the evidence as the only thing that can decide.
+    """
+    round_on_file = stored_round()
+    round_on_file["players"]["a"].pop("unavailable")
+    return round_on_file
+
+
+def filed_with(archive_players: int, estimated=()) -> dict:
+    """The round as the job would have filed it: evidence, and little of it."""
+    round_on_file = unmoved()
+    round_on_file["evidence"] = {
+        "archive_players": archive_players,
+        "email_rounds": [6],
+        "estimated_rounds": list(estimated),
+    }
+    return round_on_file
+
+
+def archive_of(folder: Path, players: int) -> None:
+    """An archive `archive_records` can read, with that many players in it."""
+    data = folder / "data"
+    data.mkdir(exist_ok=True)
+    (data / "last-season.json").write_text(
+        json.dumps(
+            {
+                "players": {
+                    str(n): {"matches": [{"used": True, "points": 3}]}
+                    for n in range(players)
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+@pytest.fixture
+def richer(ledger, writer, tmp_path, monkeypatch):
+    """A checkout with an archive, looking at a round filed without one."""
+    archive_of(tmp_path, 3)
+    monkeypatch.setattr(ledger, "ROOT", tmp_path)
+    return writer
+
+
+def test_the_laptop_records_again_when_it_can_do_better(richer):
+    """The job files a round nobody has, from a checkout with no archive. The
+    laptop comes back to it before kickoff, and before kickoff the prediction
+    on file should be the best there is."""
+    richer.ledger_with({str(ROUND): filed_with(archive_players=0)})
+    richer.run()
+    assert richer.on_file()[str(ROUND)]["recorded_at"] != RECORDED_AT
+
+
+def test_it_says_which_reason_brought_it_back(richer, capsys):
+    richer.ledger_with({str(ROUND): filed_with(archive_players=0)})
+    richer.run()
+    said = capsys.readouterr().out
+    assert "mais evidencia" in said and "arquivo de 3 jogadores contra 0" in said
+
+
+def test_the_job_itself_never_records_it_again(richer, capsys):
+    """Only the laptop upgrades. The job keeps --no-rerecord, so the two never
+    take turns."""
+    richer.ledger_with({str(ROUND): filed_with(archive_players=0)})
+    with pytest.raises(SystemExit, match="already on file"):
+        richer.run("--no-rerecord")
+    assert richer.on_file()[str(ROUND)]["recorded_at"] == RECORDED_AT
+    assert "--no-rerecord" in capsys.readouterr().out
+
+
+def test_the_same_evidence_is_not_a_reason(richer):
+    """Or every run would record the round again, which is the turn-taking this
+    whole guard exists to prevent."""
+    richer.ledger_with({str(ROUND): filed_with(archive_players=3)})
+    with pytest.raises(SystemExit, match="already on file"):
+        richer.run()
+    assert richer.on_file()[str(ROUND)]["recorded_at"] == RECORDED_AT
+
+
+def test_a_round_filed_before_the_evidence_existed_is_left_alone(richer):
+    """Everything on file before 22/09/2026. There is nothing to compare it
+    with, and guessing would be the mistake this corrects."""
+    richer.ledger_with({str(ROUND): unmoved()})
+    with pytest.raises(SystemExit, match="already on file"):
+        richer.run()
+    assert richer.on_file()[str(ROUND)]["recorded_at"] == RECORDED_AT
+
+
+def test_a_round_that_has_begun_is_never_recorded_again(richer, ledger, monkeypatch):
+    """However much better the evidence is. After kickoff the prediction is
+    what it was, or it is not a prediction."""
+
+    class Started:
+        def __init__(self, timeout=None) -> None:
+            pass
+
+        def fixtures(self):
+            return [
+                Fixture(
+                    round_number=ROUND, home="Alfa", away="Beta",
+                    home_goals=1, away_goals=1,
+                )
+            ]
+
+        def search(self, position):
+            return []
+
+    monkeypatch.setattr(ledger, "LigaRecordClient", Started)
+    richer.ledger_with({str(ROUND): filed_with(archive_players=0)})
+    with pytest.raises(SystemExit, match="already on file"):
+        richer.run()
+    assert richer.on_file()[str(ROUND)]["recorded_at"] == RECORDED_AT
+
+
+def test_a_half_written_archive_is_not_a_reason_and_not_a_crash(richer, ledger, tmp_path, capsys):
+    """Both files are rebuilt locally in one non-atomic write of megabytes, so
+    an interrupted rebuild leaves invalid JSON. Reading them now happens on
+    every run, and a broken file must not turn 'nothing changed' into a crash."""
+    (tmp_path / "data" / "last-season.json").write_text("{ nao e json", encoding="utf-8")
+    richer.ledger_with({str(ROUND): filed_with(archive_players=0)})
+    with pytest.raises(SystemExit, match="already on file"):
+        richer.run()
+    assert richer.on_file()[str(ROUND)]["recorded_at"] == RECORDED_AT
+    assert "nao consegui ler o arquivo" in capsys.readouterr().out
+
+
+def test_a_rebuilt_season_with_nothing_early_in_it_is_not_a_reason(richer, tmp_path):
+    """Present is not enough. A file still being written, or one whose ids do
+    not meet this market, gives the round nothing — and claiming it does would
+    record the same round again on every run, for ever."""
+    (tmp_path / "data" / "season-2026-27.json").write_text(
+        json.dumps({"players": {"x": {"matches": [{"round": 7, "used": True}]}}}),
+        encoding="utf-8",
+    )
+    richer.ledger_with({str(ROUND): filed_with(archive_players=3)})
+    with pytest.raises(SystemExit, match="already on file"):
+        richer.run()
+    assert richer.on_file()[str(ROUND)]["recorded_at"] == RECORDED_AT
+
+
+def test_a_rebuilt_season_with_the_early_rounds_is_a_reason(richer, tmp_path):
+    (tmp_path / "data" / "season-2026-27.json").write_text(
+        json.dumps({"players": {"x": {"matches": [{"round": 3, "used": True}]}}}),
+        encoding="utf-8",
+    )
+    richer.ledger_with({str(ROUND): filed_with(archive_players=3)})
+    richer.run()
+    assert richer.on_file()[str(ROUND)]["recorded_at"] != RECORDED_AT
