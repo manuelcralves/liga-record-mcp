@@ -31,7 +31,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "src")]
 
-from liga_record_mcp.models import FIRST_SCORING_MATCHDAY  # noqa: E402
+from liga_record_mcp.models import (  # noqa: E402
+    FIRST_SCORING_MATCHDAY,
+    round_of_matchday,
+)
 from liga_record_mcp.source import LigaRecordClient  # noqa: E402
 from liga_record_mcp.source.live import SiteError  # noqa: E402
 
@@ -62,11 +65,12 @@ def site_round(matchday: int) -> int:
     A trial matchday has no number here at all. That table was erased, and
     asking for round zero would fetch exactly the empty row that started this.
     """
-    if matchday < FIRST_SCORING_MATCHDAY:
+    number = round_of_matchday(matchday)
+    if number is None:
         raise ValueError(
             f"matchday {matchday} is from the trial phase, which the site erased"
         )
-    return matchday - FIRST_SCORING_MATCHDAY + 1
+    return number
 
 
 def same_as_before(row: dict, previous: dict | None) -> bool:

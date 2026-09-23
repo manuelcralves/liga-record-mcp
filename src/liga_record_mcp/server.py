@@ -45,6 +45,7 @@ from .models import (
     HOLIDAY_ROUNDS,
     LAST_MATCHDAY,
     NATIONAL_FIRST_MATCHDAY,
+    round_of_matchday,
     NATIONAL_ROUNDS,
     POSITION_CHANGE_TRANSFERS,
     RECORD_ROUNDS,
@@ -1635,19 +1636,36 @@ def settle_decision(
     except SquadSourceError as exc:
         return {**_provenance(snapshot), "detail": f"could not read the ledger: {exc}"}
 
+    # IN THE SITE'S NUMBERS, ASKED IN OURS. The ranking service renumbered when
+    # the official phase began — its round 1 is matchday 6 — and this asked it
+    # for a matchday. Matchday 6 fetched nothing at all; matchday 1 would have
+    # fetched the service's round 1, which IS matchday 6, and filed one round's
+    # score under another round's name. In the one file that exists to say
+    # whether the advice worked, that is the worst possible kind of wrong.
+    #
+    # `round_of_matchday` is the same translation the history and the holiday
+    # page already do, and it answers None for the trial matchdays the service
+    # erased — those rounds are recorded without a score rather than with
+    # somebody else's.
+    site_round = round_of_matchday(round_number)
     ours, rank, field = None, None, None
     try:
+        if site_round is None:
+            raise SiteError(
+                f"matchday {round_number} is before the official phase — "
+                "the ranking service has no round for it"
+            )
         # Two calls, and the second one is the reason. Filtering by team name
         # narrows the RESULT, so its page count is the size of the filtered
         # list and not of the field — which turned a 53rd percentile into
         # 53380%. The field has to come from a query that filters nothing.
         # This project has now made that mistake twice.
         _, pages = _market.standings(
-            page_size=5, round_number=round_number, order="round"
+            page_size=5, round_number=site_round, order="round"
         )
         field = pages * 20
         rows, _ = _market.standings(
-            team=snapshot.squad.team_name, round_number=round_number, order="round"
+            team=snapshot.squad.team_name, round_number=site_round, order="round"
         )
         for row in rows:
             if row.team_id == snapshot.squad.team_id:

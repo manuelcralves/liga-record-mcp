@@ -348,12 +348,21 @@ def main() -> None:
         print("no round has been scored yet")
         return
 
-    missing = [r for r in range(1, latest + 1) if r not in recorded]
+    # FROM THE FIRST SCORED MATCHDAY, not from 1. The game scores from matchday
+    # 6 (§19 and the trial phase), so asking for 1 to 5 asked for rounds that
+    # were never scored — and `settle_decision` would have gone to the ranking
+    # service for them, where round 1 IS matchday 6.
+    missing = [
+        r for r in range(FIRST_SCORING_MATCHDAY, latest + 1) if r not in recorded
+    ]
     used = holidays_used(store)
 
 
     if not missing:
-        print(f"nothing pending — rounds 1-{latest} are all on file")
+        print(
+            f"nothing pending — matchdays {FIRST_SCORING_MATCHDAY}-{latest} "
+            "are all on file"
+        )
     else:
         print(f"rounds scored but not recorded: {', '.join(map(str, missing))}")
         print()

@@ -1,6 +1,39 @@
 {
  "format": 1,
- "rounds": {},
+ "rounds": {
+  "6": {
+   "captain": "Pavlidis",
+   "coach": "Farioli",
+   "field_size": 158940,
+   "followed": null,
+   "holiday": false,
+   "note": "Reconstruida a 23/09 do historico do data/squad.yaml (fa9feb7, 08/09). A pagina desse dia dizia NENHUMA troca: «o modelo nao encontra troca que melhore o onze o suficiente para valer a pena». A troca foi feita na mesma, por isso o conselho NAO foi seguido - o campo followed nao o consegue dizer porque uma sugestao de nao trocar nao cabe no formato.",
+   "our_points": 63,
+   "our_rank": 4030,
+   "recorded_at": "2026-09-23T15:37:20.163098+00:00",
+   "suggested": null,
+   "transfer": {
+    "in": "Weverson",
+    "out": "Diogo Calila"
+   }
+  },
+  "7": {
+   "captain": "Luis Suárez",
+   "coach": "Rui Borges",
+   "field_size": 158940,
+   "followed": null,
+   "holiday": false,
+   "note": "Reconstruida a 23/09 do historico do data/squad.yaml (5c4bf3b, 18/09). A sugestao dessa semana nao esta nas paginas publicadas desse dia, por isso fica por dizer em vez de inventada.",
+   "our_points": 44,
+   "our_rank": 7504,
+   "recorded_at": "2026-09-23T15:37:21.168155+00:00",
+   "suggested": null,
+   "transfer": {
+    "in": "Lagerbielke",
+    "out": "Nehuén Pérez"
+   }
+  }
+ },
  "season": {
   "top_scorer": "Luis Suárez",
   "updated_at": "2026-08-24T08:19:54.953563+00:00"
