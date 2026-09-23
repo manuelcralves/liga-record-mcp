@@ -17,6 +17,8 @@ from __future__ import annotations
 import itertools
 import random
 
+import pytest
+
 from liga_record_mcp.models import (
     BENCH_SIZE,
     XI_SIZE,
@@ -733,3 +735,161 @@ def test_departures_come_back_in_squad_order_and_without_duplicates():
 
     assert left_the_league(["x", "y", "z"], {}) == ["x", "y", "z"]
     assert left_the_league([], {"a": object()}) == []
+
+
+# --------------------------------------------------------------------------
+# The eleven with the bench priced in (§11)
+# --------------------------------------------------------------------------
+
+
+def keeper_squad(points, playing):
+    """A squad flat everywhere but in goal.
+
+    The three keepers carry the numbers under test, and one of them starts
+    whatever the shape, so the choice is readable without the formation
+    getting a vote.
+    """
+    squad = full_squad()
+    values = {entry["id"]: 1.0 for entry in squad}
+    chances = {entry["id"]: 1.0 for entry in squad}
+    values.update(points)
+    chances.update(playing)
+    return squad, values, chances
+
+
+KEEPERS = {"GK0": 4.0, "GK1": 3.9, "GK2": 3.0}
+
+
+def test_without_the_chance_of_playing_nothing_changes():
+    """The same numbers that move the choice below leave it alone here."""
+    squad, points, _ = keeper_squad(KEEPERS, {})
+    sheet = best_eleven(squad, points)
+    assert [i for i in sheet["starters"] if i.startswith("GK")] == ["GK0"]
+    assert sheet["insured"] == sheet["points"]
+
+
+def test_an_uncertain_man_is_worth_the_cover_behind_him():
+    """GK1 plays nine weeks in ten and is a tenth of a point worse on paper.
+    The week he misses is not a -1: GK0 comes on and plays it. Priced that
+    way GK1 is the better start, and the better man becomes the insurance."""
+    squad, points, playing = keeper_squad(KEEPERS, {"GK1": 0.9})
+    plain = best_eleven(squad, points)
+    priced = best_eleven(squad, points, playing=playing)
+    assert [i for i in plain["starters"] if i.startswith("GK")] == ["GK0"]
+    assert [i for i in priced["starters"] if i.startswith("GK")] == ["GK1"]
+    assert priced["bench"][0] == "GK0"
+    # 3.9 + a tenth of the way from -1 up to GK0's 4.0.
+    assert priced["insured"] - priced["points"] == pytest.approx(2 * 0.1 * 5.0)
+
+
+def test_the_cover_is_the_best_man_left_of_that_position():
+    """Only the best substitute of the position counts, not the others: GK2
+    moving does nothing while GK0 is the one left over."""
+    squad, points, playing = keeper_squad(KEEPERS, {"GK1": 0.9})
+    priced = best_eleven(squad, points, playing=playing)
+    worse, better = dict(points), dict(points)
+    worse["GK2"], better["GK2"] = -1.0, 3.5
+    assert best_eleven(squad, worse, playing=playing)["insured"] == pytest.approx(
+        priced["insured"]
+    )
+    assert best_eleven(squad, better, playing=playing)["insured"] == pytest.approx(
+        priced["insured"]
+    )
+
+
+def test_without_a_substitute_of_his_position_the_cover_is_the_minus_one():
+    """One keeper in the squad: nobody to come on, so the choice and the
+    number are the plain ones."""
+    squad = [entry for entry in full_squad() if entry["position"] is not Position.GK]
+    squad.append(row("GK0", Position.GK))
+    points = {entry["id"]: 1.0 for entry in squad}
+    points["GK0"] = 2.0
+    playing = {entry["id"]: 1.0 for entry in squad}
+    playing["GK0"] = 0.5
+    sheet = best_eleven(squad, points, playing=playing)
+    assert sheet["starters"].count("GK0") == 1
+    assert sheet["insured"] == pytest.approx(sheet["points"])
+
+
+def test_the_armband_is_priced_with_the_bench_too():
+    """§11.5 gives the armband to whoever comes on, so the captain's second
+    slot is insured like the first. The keeper is the best man on paper here;
+    once his cover is counted he is also the one the armband goes to."""
+    squad, points, playing = keeper_squad(
+        {"GK0": 4.0, "GK1": 3.9, "GK2": 3.8}, {"GK0": 0.8}
+    )
+    points["FWD0"] = 4.2
+    plain = best_eleven(squad, points)
+    priced = best_eleven(squad, points, playing=playing)
+    assert plain["captain"] == "FWD0"
+    # 4.0 + 0.2 x (3.9 - -1) = 4.98, over the forward's 4.2.
+    assert priced["captain"] == "GK0"
+
+
+def test_the_insured_number_is_the_arithmetic_it_claims():
+    from liga_record_mcp.optimise import insured
+
+    # Three weeks in four, covered by a substitute worth 2.0 instead of -1.
+    assert insured(3.0, 0.75, 2.0, -1.0) == pytest.approx(3.0 + 0.25 * 3.0)
+    # No cover: the estimate stands.
+    assert insured(3.0, 0.75, -1.0, -1.0) == pytest.approx(3.0)
+
+
+def test_a_substitute_ranked_out_of_the_reckoning_is_no_cover_at_all():
+    """A man the bulletin says is out is ranked a thousand below everyone so
+    that he is picked last. He is not a catastrophe behind the starter: he
+    will not come on, and that is the -1 the starter already carries."""
+    from liga_record_mcp.optimise import insured
+
+    assert insured(3.0, 0.5, -1000.0, -1.0) == pytest.approx(3.0)
+
+    squad, points, playing = keeper_squad({"GK0": 4.0, "GK1": 3.9, "GK2": 3.0}, {})
+    points["GK1"] = points["GK1"] - 1000.0  # out this round
+    points["GK2"] = points["GK2"] - 1000.0
+    playing["GK0"] = 0.8
+    sheet = best_eleven(squad, points, playing=playing)
+    assert [i for i in sheet["starters"] if i.startswith("GK")] == ["GK0"]
+    assert sheet["insured"] == pytest.approx(sheet["points"])
+
+
+def test_one_substitute_covers_the_position_once():
+    """The bench holds one man of each position and §11 sends him on once.
+    Two uncertain starters cannot both be promised him — read that way the
+    eleven fills up with men who will not play, which cost 255 points a season
+    when it was measured."""
+    from liga_record_mcp.optimise import _best_at
+
+    ranked = [row("A", Position.FWD), row("B", Position.FWD), row("C", Position.FWD)]
+    points = {"A": 3.0, "B": 3.0, "C": 2.0}
+    playing = {"A": 0.5, "B": 0.5, "C": 1.0}
+    total, chosen, _ = _best_at(
+        ranked, 2, lambda r: points[str(r["id"])], playing, -1.0
+    )
+    assert sorted(str(r["id"]) for r in chosen) == ["A", "B"]
+    # 3 + 3 + P(either misses) x (C's 2.0 up from -1), and never (0.5 + 0.5) x 3.
+    assert total == pytest.approx(6.0 + 0.75 * 3.0)
+
+
+def test_a_position_with_several_starters_shares_its_one_substitute():
+    """The same fix as above, through the front door and with four forwards,
+    where a sum and a product differ. With one starter they agree, and every
+    other test of the priced eleven has one keeper."""
+    squad = full_squad()
+    points = {entry["id"]: 1.0 for entry in squad}
+    playing = {entry["id"]: 1.0 for entry in squad}
+    # Three forwards who play two weeks in three, and a certain fourth.
+    points.update({"FWD0": 3.0, "FWD1": 3.0, "FWD2": 3.0, "FWD3": 2.0})
+    playing.update({"FWD0": 0.7, "FWD1": 0.7, "FWD2": 0.7, "FWD3": 1.0})
+    sheet = best_eleven(squad, points, playing=playing)
+    forwards = sorted(i for i in sheet["starters"] if i.startswith("FWD"))
+
+    # Three forwards start: 9.0, and the cover is worth (2.0 - -1) the weeks
+    # ANY of them misses — 1 - 0.7^3 — not once per man, which would be 0.9.
+    assert forwards == ["FWD0", "FWD1", "FWD2"]
+    shared = (1 - 0.7**3) * 3.0
+    apiece = 3 * 0.3 * 3.0
+    assert shared < apiece
+    keepers_and_rest = sheet["insured"] - sheet["points"]
+    # The armband is on a forward, so his slot carries his own insured number
+    # on top; the position's share of the gap is the shared one.
+    assert keepers_and_rest == pytest.approx(shared + 0.3 * 3.0)

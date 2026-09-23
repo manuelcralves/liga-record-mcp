@@ -25,6 +25,7 @@ usually much larger than people expect.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from itertools import combinations
 import random
 from math import gcd
 from statistics import pstdev
@@ -94,11 +95,103 @@ def left_the_league(
     return [i for i in squad_ids if i not in market]
 
 
+def insured(expected: float, chance: float, cover: float, default: float) -> float:
+    """What a starter is worth once the bench can replace him.
+
+    His own estimate already charges him §10.3(i)'s -1 for the weeks he does
+    not play, and for a STARTER that is false: §11 sends on the substitute of
+    his position and the manager collects that man's points instead. So the -1
+    is given back and the cover put in its place, weighted by how often he is
+    missing.
+
+    `cover` is what the substitute behind him is expected to score — his own
+    estimate, -1 and all, because a substitute who does not play either leaves
+    the starter's -1 standing. With no one of his position on the bench the
+    cover IS the -1 and this returns the estimate untouched.
+
+    NEVER WORSE THAN THE -1, and that is not a rounding convenience. Callers
+    rank a man the bulletin says is out a thousand points below everyone —
+    `build_dashboard.selection_values` does, and so does the backtest's
+    `knows_availability` — so that he is picked last without being deleted. Read
+    as cover, that number would say the bench is catastrophic and would frighten
+    the eleven away from every man behind whom the only substitute is injured.
+    He simply will not come on, which is worth exactly the -1 the starter keeps.
+
+    The chance is held to 0..1 here, where every caller can rely on it: a
+    number above 1 would otherwise DOCK a man for being too likely to play.
+    """
+    held = min(1.0, max(0.0, chance))
+    return expected + (1.0 - held) * (max(cover, default) - default)
+
+
+def _best_at(
+    ranked: Sequence[Mapping[str, Any]],
+    wanted: int,
+    score,
+    playing: Mapping[str, float],
+    default: float,
+) -> tuple[float, list[Mapping[str, Any]], dict[str, float]] | None:
+    """The starters of one position, with the one substitute behind them priced.
+
+    ONE SUBSTITUTE COVERS THE POSITION ONCE, and that is the whole difficulty.
+    The bench holds a single man of each position, so what the position is worth
+    is what its starters return plus what he adds the weeks he is needed:
+
+        sum of their estimates + P(at least one of them misses) x (cover + 1)
+
+    Read instead as a promise to every starter separately — each one paid the
+    cover for his own absent weeks — it counts the same man over and over.
+    Measured on the two reconstructed seasons that way, it started whoever was
+    least likely to play, tripled the substitutions and lost 255 points a
+    season. The probability that ANYBODY misses is what a single substitute can
+    answer for.
+
+    Exact for the position: every set of `wanted` men is tried, the substitute
+    being the best of those left over, which is the bench rule. At most seventy
+    sets per position, cached by shape in the caller.
+
+    Returns the position's total, its starters, and each man's own insured
+    number — that last only so the armband can be placed, where one slot is
+    filled and the sharing does not arise.
+    """
+    if len(ranked) < wanted:
+        return None
+    plain = {str(row["id"]): score(row) for row in ranked}
+    if len(ranked) == wanted:
+        # Nobody of his position is left to come on, so §11 cannot repair a
+        # thing here and each man is worth his own estimate, -1 and all.
+        return sum(plain.values()), list(ranked), plain
+
+    best: tuple[float, list[Mapping[str, Any]], dict[str, float]] | None = None
+    for picked in combinations(range(len(ranked)), wanted):
+        chosen = [ranked[n] for n in picked]
+        spare = ranked[next(n for n in range(len(ranked)) if n not in picked)]
+        cover = score(spare)
+        needed = 1.0
+        for row in chosen:
+            # Held to 0..1 as `insured` holds it, so the position's total and
+            # each man's own number never read the same chance differently.
+            needed *= min(1.0, max(0.0, playing.get(str(row["id"]), 1.0)))
+        total = sum(score(row) for row in chosen) + (1.0 - needed) * (
+            max(cover, default) - default
+        )
+        if best is None or total > best[0]:
+            values = {
+                str(row["id"]): insured(
+                    score(row), playing.get(str(row["id"]), 1.0), cover, default
+                )
+                for row in chosen
+            }
+            best = (total, chosen, values)
+    return best
+
+
 def best_eleven(
     squad: Sequence[Mapping[str, Any]],
     points: Mapping[str, float],
     *,
     default: float = float(UNUSED_PENALTY),
+    playing: Mapping[str, float] | None = None,
 ) -> dict[str, Any] | None:
     """The highest-scoring legal team sheet this squad could have put out.
 
@@ -106,6 +199,31 @@ def best_eleven(
     each position, and because §10.3(l) doubles the captain rather than
     replacing him, the same eleven that maximises the sum also contains the
     best captain. So seven shapes and four sorts settle it.
+
+    WITH `playing`, THE BENCH IS PART OF THE CHOICE. Each man's chance of
+    playing turns his estimate into what `insured` prices: an uncertain starter
+    with a good substitute of his position behind him is worth more than his
+    own number, and a certain one with no cover is worth less. The eleven is
+    then chosen on that, one position at a time, and §11.5 carries the armband
+    to whoever comes on, so the captain's doubled slot is priced the same way.
+    Without it, nothing changes.
+
+    Three things the priced version leaves out, and the measurement in
+    docs/REVISAO-2026-09-23-onze-com-seguro.md was read knowing them.
+
+    §11 allows three substitutions in all, and nothing here counts them: a
+    sheet risky in all four positions can need a fourth.
+
+    And each position is settled on its own total before the armband is
+    placed. In the plain version that is exact, because doubling a man adds a
+    fixed amount whatever else is chosen. Here his second slot is worth what
+    the cover behind him makes it worth, so a position could in principle give
+    up a hundredth of a point to free a better captain. Near ties only, and
+    never yet seen to change a sheet.
+
+    `points` reported on the sheet stays the plain sum, so every caller that
+    compares two sheets keeps comparing the same quantity; `insured` carries
+    the number the choice was made on.
 
     `default` is what a player with no entry scores. §10.3(i)'s -1 is the right
     answer: a man who does not appear in a round's results did not play, and a
@@ -138,6 +256,17 @@ def best_eleven(
         for position, rows in by_position.items()
     }
 
+    # Seven shapes ask for the same few (position, count) pairs, and each one
+    # is a search over sets. Worked out once each.
+    settled: dict[tuple[Position, int], Any] = {}
+
+    def at_position(position: Position, count: int):
+        if (position, count) not in settled:
+            settled[(position, count)] = _best_at(
+                ranked[position], count, score, playing or {}, default
+            )
+        return settled[(position, count)]
+
     best: dict[str, Any] | None = None
     for defenders, midfielders, forwards in legal_shapes():
         wanted = {
@@ -149,12 +278,23 @@ def best_eleven(
         if any(len(ranked[p]) < n for p, n in wanted.items()):
             continue
 
-        starters = [row for p, n in wanted.items() for row in ranked[p][:n]]
-        total = sum(score(row) for row in starters)
-        captain = max(starters, key=lambda r: (score(r), str(r["id"])))
-        total += score(captain)
+        if playing is None:
+            starters = [row for p, n in wanted.items() for row in ranked[p][:n]]
+            worth = {str(row["id"]): score(row) for row in starters}
+            chosen_on = sum(worth.values())
+        else:
+            picked = [at_position(position, n) for position, n in wanted.items()]
+            if any(found is None for found in picked):
+                continue
+            starters = [row for found in picked for row in found[1]]
+            worth = {i: v for found in picked for i, v in found[2].items()}
+            chosen_on = sum(found[0] for found in picked)
 
-        if best is None or total > best["points"]:
+        captain = max(starters, key=lambda r: (worth[str(r["id"])], str(r["id"])))
+        chosen_on += worth[str(captain["id"])]
+        total = sum(score(row) for row in starters) + score(captain)
+
+        if best is None or chosen_on > best["insured"]:
             chosen = {str(row["id"]) for row in starters}
             spare = {
                 position: [r for r in ranked[position] if str(r["id"]) not in chosen]
@@ -178,6 +318,7 @@ def best_eleven(
                 "captain": str(captain["id"]),
                 "formation": f"{defenders}-{midfielders}-{forwards}",
                 "points": total,
+                "insured": chosen_on,
             }
     return best
 

@@ -762,6 +762,7 @@ def play_round(
     *,
     forecast: Mapping[str, float] | None = None,
     knows_availability: bool = False,
+    chances: Mapping[str, float] | None = None,
 ) -> dict[str, Any]:
     """Score one round for one squad.
 
@@ -772,6 +773,11 @@ def play_round(
     does not know how a player will play; he usually does know whether the man
     is injured, because the press says so. Conflating them makes every
     simulated season harsher than any real one.
+
+    `chances` is each man's chance of playing. With it the eleven is named
+    knowing what the bench is worth behind each starter — §11 sends on the
+    substitute of his position — instead of charging a starter the -1 of a week
+    he misses. It changes who is picked, never how the round is scored.
     """
     actual = {i: history.get(i, {}).get(matchday, ABSENT) for i in squad_ids}
     if forecast is None:
@@ -786,7 +792,7 @@ def play_round(
                 for i, v in expected.items()
             }
 
-    sheet = best_eleven(_rows(squad_ids, market), expected)
+    sheet = best_eleven(_rows(squad_ids, market), expected, playing=chances)
     if sheet is None:
         raise ValueError("this squad cannot field a legal XI")
 
