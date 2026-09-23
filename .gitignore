@@ -59,6 +59,12 @@ data/postponed-watch.json
 # here would be served by GitHub Pages rather than ignored by it.
 docs/REVISAO-*.md
 
+# The same, for a stocktaking of what was built and what it measured. Local on
+# purpose: the rebuild routine stages the whole of docs/, and Pages serves the
+# whole of docs/, so a note left untracked here is one `git add docs` away from
+# being a public page.
+docs/BALANCO-*.md
+
 # The Premium injury bulletin and suspensions board, copied each week before the
 # lock. Paid content: ours to read and to act on, not to republish.
 data/boletim/
