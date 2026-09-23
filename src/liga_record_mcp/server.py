@@ -1602,6 +1602,7 @@ def settle_decision(
     transfer_in: str = "",
     suggested_out: str = "",
     suggested_in: str = "",
+    advised_no_transfer: bool = False,
     holiday: bool = False,
     captain: str = "",
     coach: str = "",
@@ -1626,6 +1627,13 @@ def settle_decision(
     when it was not taken — an ignored suggestion that would have worked is the
     most useful row in the ledger, and it is the one that disappears if only
     the decisions are kept.
+
+    NOT TRANSFERRING IS ADVICE TOO. When the page said to hold, pass
+    `advised_no_transfer` rather than leaving the suggestion empty: an empty
+    suggestion means nobody wrote the advice down, and the round then counts
+    for nothing either way. With it, holding counts as advice taken and
+    transferring anyway counts as advice given and not taken — which is what
+    happened on matchday 6.
 
     A round already on file is not overwritten unless asked. Rewriting a
     decision after the result turns a record into a story.
@@ -1687,6 +1695,7 @@ def settle_decision(
             transfer_in=transfer_in or None,
             suggested_out=suggested_out or None,
             suggested_in=suggested_in or None,
+            advised_no_transfer=advised_no_transfer,
             holiday=holiday,
             captain=captain or None,
             coach=coach or None,

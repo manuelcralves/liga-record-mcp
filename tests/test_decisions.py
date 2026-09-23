@@ -168,3 +168,57 @@ def test_an_empty_ledger_reports_nothing_rather_than_zeroes():
     assert summary["rounds"] == 0
     assert summary["per_round"] is None
     assert summary["best"] is None
+
+
+# --- holding is advice ---------------------------------------------------------
+
+
+def test_advice_to_hold_is_recorded_and_counted():
+    """The row this ledger exists for, and could not hold until 23/09/2026.
+
+    On matchday 6 the page said no transfer was worth making, one was made
+    anyway, and the round counted as no advice at all because `suggested` was
+    empty. Empty now means only one thing: nobody wrote the advice down.
+    """
+    store = fresh()
+    record_decision(
+        store, 6, transfer_out="Diogo Calila", transfer_in="Weverson",
+        advised_no_transfer=True, our_points=63,
+    )
+    entry = store["rounds"]["6"]
+    assert entry["suggested"] == {"out": None, "in": None}
+    assert entry["followed"] is False, "a transfer was made against advice to hold"
+    assert track_record(store)["advice_given"] == 1
+    assert track_record(store)["advice_taken"] == 0
+
+
+def test_holding_when_told_to_hold_is_advice_taken():
+    store = fresh()
+    record_decision(store, 7, advised_no_transfer=True, our_points=44)
+    assert store["rounds"]["7"]["followed"] is True
+    assert track_record(store)["advice_taken"] == 1
+
+
+def test_a_round_with_no_advice_written_down_counts_for_neither():
+    """Silence is not advice. It was the only state available before, which is
+    why the distinction has to be kept sharp now."""
+    store = fresh()
+    record_decision(store, 5, transfer_out="X", transfer_in="Y", our_points=50)
+    assert store["rounds"]["5"]["suggested"] is None
+    assert store["rounds"]["5"]["followed"] is None
+    assert track_record(store)["advice_given"] == 0
+
+
+def test_a_named_suggestion_still_decides_followed_the_way_it_did():
+    store = fresh()
+    record_decision(
+        store, 8, transfer_out="A", transfer_in="B",
+        suggested_out="A", suggested_in="B",
+    )
+    assert store["rounds"]["8"]["followed"] is True
+    record_decision(
+        store, 9, transfer_out="A", transfer_in="C",
+        suggested_out="A", suggested_in="B",
+    )
+    assert store["rounds"]["9"]["followed"] is False
+

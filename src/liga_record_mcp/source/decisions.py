@@ -82,6 +82,7 @@ def record_decision(
     transfer_in: str | None = None,
     suggested_out: str | None = None,
     suggested_in: str | None = None,
+    advised_no_transfer: bool = False,
     followed: bool | None = None,
     holiday: bool = False,
     captain: str | None = None,
@@ -97,9 +98,19 @@ def record_decision(
     refuses to snapshot a round twice.
 
     `followed` is worked out from the transfer and the suggestion when both are
-    known, and can still be given explicitly for the case they do not cover:
-    making no transfer when none was suggested is following the advice, and
-    making none when one was is not.
+    known, and can still be given explicitly for the case they do not cover.
+
+    NOT TRANSFERRING IS ADVICE, and it used to be unrecordable. On matchday 6
+    the page said in plain words that no transfer was worth making, one was
+    made anyway, and the ledger could not hold the most useful row it exists
+    for: `suggested` was empty, so the round did not count as advice given at
+    all. `advised_no_transfer` is that answer written down. The two states are
+    kept apart on purpose:
+
+        suggested = None                 nobody wrote the advice down
+        suggested = {out: None, in: None} the advice was to hold
+
+    and the second one counts in the track record like any other.
     """
     key = str(int(round_number))
     if key in store["rounds"] and not overwrite:
@@ -107,8 +118,18 @@ def record_decision(
             f"round {key} is already recorded — pass overwrite to replace it"
         )
 
-    if followed is None and (suggested_out or suggested_in):
-        followed = (transfer_out, transfer_in) == (suggested_out, suggested_in)
+    suggested = (
+        {"out": suggested_out, "in": suggested_in}
+        if suggested_out or suggested_in
+        else {"out": None, "in": None}
+        if advised_no_transfer
+        else None
+    )
+    if followed is None and suggested is not None:
+        followed = (transfer_out or None, transfer_in or None) == (
+            suggested["out"] or None,
+            suggested["in"] or None,
+        )
 
     store["rounds"][key] = {
         "recorded_at": datetime.now(timezone.utc).isoformat(),
@@ -120,11 +141,7 @@ def record_decision(
             if transfer_out or transfer_in
             else None
         ),
-        "suggested": (
-            {"out": suggested_out, "in": suggested_in}
-            if suggested_out or suggested_in
-            else None
-        ),
+        "suggested": suggested,
         "followed": followed,
         "holiday": bool(holiday),
         "captain": captain,
@@ -172,7 +189,7 @@ def track_record(store: dict[str, Any]) -> dict[str, Any]:
     """
     rounds = store.get("rounds") or {}
     scored = [e["our_points"] for e in rounds.values() if e.get("our_points") is not None]
-    advised = [e for e in rounds.values() if e.get("suggested")]
+    advised = [e for e in rounds.values() if e.get("suggested") is not None]
     taken = [e for e in advised if e.get("followed")]
     ranks = [
         (e["our_rank"], e["field_size"])
