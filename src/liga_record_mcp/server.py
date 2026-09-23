@@ -916,7 +916,9 @@ def list_coaches(round_number: int | None = None) -> dict[str, Any]:
     scores rides on his club's result, so the ranking is the round's:
     `coaches.rank_coaches`, the one the pages rank on and the ledger files —
     §14.3 over every scoreline of his club's match, from the Final Table's goal
-    model, plus the editorial mark every coach is credited on average. Measured
+    model, plus what a coach makes beyond the result — §14.1's mark and what a
+    scoreline cannot show — measured on the emails and the same for all
+    eighteen (`stats.COACH_BEYOND_POINTS`, 3.72 since 23/09/2026). Measured
     before it was used: choosing this way beat one coach for the season by +9
     and +3 points in 2024/25 and 2025/26.
 

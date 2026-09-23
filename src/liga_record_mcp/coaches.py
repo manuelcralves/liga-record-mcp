@@ -26,7 +26,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from .final_table import coach_values, strengths
-from .stats import MEAN_MARK_POINTS, league_table
+from .stats import COACH_BEYOND_POINTS, league_table
 
 
 def round_strengths(records: Mapping[str, Any], fixtures: Iterable[Any]) -> dict:
@@ -43,11 +43,15 @@ def rank_coaches(
     """The eighteen coaches, priced on this round's match, best first.
 
     `expected` is what the coach is expected to score: §14.3 over every
-    scoreline of his club's match, plus the editorial mark every coach is
-    credited on average. The mark is the same for all eighteen, so it moves no
-    choice — but it is in what he actually scores, and the ledger compares
-    against that. A club with no match this round scores nothing: 0, and no
-    opponent.
+    scoreline of his club's match, plus what a coach scores beyond the
+    scoreline — §14.1's mark, and the events a results model cannot see. It is
+    the same for all eighteen, so it moves no choice, but it is in what he
+    actually scores and the ledger compares against that. A club with no match
+    this round scores nothing: 0, and no opponent.
+
+    That number was the PLAYERS' average mark until 23/09/2026, 1.1 points
+    short of what a coach makes. By result it is better still, and measured
+    worse out of sample — see `stats.COACH_BEYOND_RESULT`.
 
     Joined on the exact club name: the coaches file, the calendar and the
     market all write clubs as the site does.
@@ -70,7 +74,7 @@ def rank_coaches(
                 "opponent": opponent,
                 "at_home": at_home,
                 "expected": (
-                    values[club] + MEAN_MARK_POINTS if club in values else 0.0
+                    values[club] + COACH_BEYOND_POINTS if club in values else 0.0
                 ),
             }
         )

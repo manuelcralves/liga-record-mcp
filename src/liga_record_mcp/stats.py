@@ -1097,7 +1097,25 @@ def result_chances(goals_for: float, goals_against: float) -> tuple[float, float
     return win, draw, loss
 
 
-#: What a coach scores BEYOND what §14.3 pays for the scoreline, by result.
+#: What a coach scores BEYOND what §14.3 pays for the scoreline, one number.
+#:
+#: The model paid 2.59 until 23/09/2026 — `MEAN_MARK_POINTS`, the PLAYERS'
+#: average editorial mark, borrowed because nothing better was on hand. It was
+#: never a coach's number: measured over the 36 coach-rounds of matchdays 6 and
+#: 7 of 2026/27, the only record of what a coach actually scored, the leftover
+#: is 3.72 (90%: 3.27 to 4.17), and the interval does not reach 2.59.
+#:
+#: It changes no choice, being the same for all eighteen. It changes the number
+#: the page prints and the one the ledger files, and with it the bias in the
+#: track record: -1.13 a coach-round before, -0.00 after, at no cost in error
+#: (`scripts/measure_coach_round.py`).
+#:
+#: Refit when more rounds are emailed. `measure_coach_mark.py` reads this, so
+#: it now answers whether the level still holds — a round that moves it will
+#: say so.
+COACH_BEYOND_POINTS = 3.72
+
+#: The same thing split BY RESULT, which is how it really behaves.
 #:
 #: MEASURED AND NOT ADOPTED, 23/09/2026. Nothing passes this to
 #: `expected_coach_round`: the model still pays the flat mark, and this is

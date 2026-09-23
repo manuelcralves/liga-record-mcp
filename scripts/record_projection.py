@@ -52,6 +52,7 @@ from liga_record_mcp.source import (  # noqa: E402
     load_coaches,
 )
 from liga_record_mcp.stats import (  # noqa: E402
+    COACH_BEYOND_POINTS,
     clubs_playing_in,
     voided_clubs,
     voided_fixtures,
@@ -285,6 +286,13 @@ def coach_entry(row, *, points_before=None):
         # none, and were projected by `stats.project_coach`: form and club
         # strength, and no opponent at all.
         "metodo": "jogo",
+        # And what was paid beyond the result, because the method stayed the
+        # same while the number moved: 2.59 until 23/09/2026, the players'
+        # average mark, then the coaches' own 3.72. Rounds filed before that
+        # carry none and were filed at 2.59. Without this a track record
+        # would compare two models under one name, which is exactly what the
+        # players' `estimator` field exists to prevent.
+        "alem_do_resultado": COACH_BEYOND_POINTS,
         "opponent": row["opponent"],
         "at_home": row["at_home"],
         "projected_rate": round(row["expected"], 2),
@@ -296,8 +304,11 @@ def coach_snapshot(history, fixtures, round_number, coach_id):
     """The coach on the sheet, with what is expected of him this round.
 
     PRICED ON THE ROUND'S MATCH, since 22/09/2026: §14.3 over every scoreline
-    of his club's fixture, from the Final Table's goal model, plus the average
-    editorial mark (`coaches.rank_coaches`). It replaced `stats.project_coach`,
+    of his club's fixture, from the Final Table's goal model, plus what a coach
+    makes beyond the scoreline (`coaches.rank_coaches`). That last number was
+    the players' average mark until 23/09/2026 and is now the coaches' own,
+    measured on the emails — rounds filed before then are 1.1 points low, and
+    `metodo` does not tell them apart because the method did not change. It replaced `stats.project_coach`,
     which blended his form with his club's strength and never looked at who he
     played — and measured worse at it, on three seasons of openfootball: a
     correlation of 0.46-0.55 with his real round against 0.29-0.38.

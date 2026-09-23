@@ -120,23 +120,28 @@ def test_a_measurement_with_nothing_in_it_never_reads_as_a_pass(measure):
 
 
 def test_the_shape_governs_the_level(measure):
-    """The decision that was actually taken: the level bar passes on its own,
-    and the constant still does not move, because the leftover walks with the
-    result."""
-    walking = (
-        [row(5.0, "vitoria"), row(5.2, "vitoria"), row(4.8, "vitoria")]
-        + [row(2.5, "derrota"), row(2.4, "derrota"), row(2.6, "derrota")]
-    )
+    """The decision that was actually taken on 23/09/2026: the level bar passes
+    on its own, and the constant still does not move, because the leftover
+    walks with the result.
+
+    The rows sit far above whatever the model pays, so this keeps deciding the
+    same way when the constant is refitted on a later round.
+    """
+    walking = [row(7.0, "vitoria"), row(7.2, "vitoria"), row(6.8, "vitoria")] + [
+        row(6.0, "derrota"),
+        row(6.1, "derrota"),
+        row(5.9, "derrota"),
+    ]
     answer = measure.verdict(walking)
-    assert answer["level"] is True, "3.75 is far enough from 2.59 to pass on level"
+    assert answer["level"] is True, "6.5 is far enough from the constant to pass"
     assert answer["flat"] is False
     assert answer["change"] is False
 
     # Level the two sides and the same rows do move it.
-    steady = [row(5.0, "vitoria"), row(5.2, "vitoria"), row(4.8, "vitoria")] + [
-        row(5.1, "derrota"),
-        row(4.9, "derrota"),
-        row(5.0, "derrota"),
+    steady = [row(7.0, "vitoria"), row(7.2, "vitoria"), row(6.8, "vitoria")] + [
+        row(7.1, "derrota"),
+        row(6.9, "derrota"),
+        row(7.0, "derrota"),
     ]
     assert measure.verdict(steady)["change"] is True
 

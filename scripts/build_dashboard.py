@@ -99,7 +99,7 @@ from liga_record_mcp.holiday import (  # noqa: E402
 )
 from liga_record_mcp.source import holidays_used, load_decisions  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
-    MEAN_MARK_POINTS,
+    COACH_BEYOND_POINTS,
     UNUSED_PENALTY,
     adjust_for_fixture,
     describe_pick,
@@ -361,7 +361,7 @@ def holiday_plan(data: dict, round_number: int) -> dict:
 
     The team's expected round is the model's sheet played out on this round's
     values, with whoever is known to be out not playing (`model_sheet`), plus
-    the coach of the round and the mark every coach is credited on average.
+    the coach of the round and what a coach makes beyond the result.
     The payout is half the round winner, as the official rounds so far have
     paid it. The holidays already spent are the ones the decisions log holds —
     the same record `settle_decision` writes and `pending_decisions` reads.
@@ -373,7 +373,7 @@ def holiday_plan(data: dict, round_number: int) -> dict:
     # The coach of the round, mark included (`coaches.rank_coaches`); without a
     # ranking, an average coach — the mark and nothing from the result.
     ranked = [r for r in data.get("coaches") or [] if r["opponent"] is not None]
-    extra = ranked[0]["expected"] if ranked else MEAN_MARK_POINTS
+    extra = ranked[0]["expected"] if ranked else COACH_BEYOND_POINTS
     advice = holiday_advice(
         expected_score=model["round_score"] + extra,
         expected_payout=sum(paid) / len(paid),
@@ -507,8 +507,8 @@ def coach_section(data: dict) -> str:
         f"Nesta jornada, o melhor é o <strong>{esc(best['name'])}</strong> "
         f"({esc(best['club'])}, {coach_fixture(best)}): "
         f"<strong>{best['expected']:.2f}</strong> pontos esperados — o resultado "
-        f"do jogo mais a nota média da redação, {MEAN_MARK_POINTS:.2f}, que é "
-        "igual para todos. "
+        f"do jogo mais {COACH_BEYOND_POINTS:.2f}, que é o que um treinador faz "
+        "além do resultado e é igual para todos. "
         if best["opponent"] is not None
         else ""
     )

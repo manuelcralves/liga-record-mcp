@@ -21,6 +21,7 @@ from liga_record_mcp.holiday import (
     holiday_bar,
 )
 from liga_record_mcp.models import HOLIDAY_ROUNDS, LAST_MATCHDAY, Player, Position
+from liga_record_mcp.stats import COACH_BEYOND_POINTS
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -198,3 +199,25 @@ def test_the_field_is_counted_not_remembered(dash):
         {"holidays": [{"round": 6, "winner": 78, "pays": 39, "ours": 63, "teams": 158940}]}
     )
     assert "158 940" in said and "127 mil" not in said
+
+
+def test_without_a_ranking_the_holiday_plan_pays_an_average_coach(
+    dash, monkeypatch, tmp_path
+):
+    """The fallback nobody exercised. A round with no coach ranking — every
+    club idle, or the ranking not built — still has a coach worth something,
+    and it is what a coach makes beyond the result."""
+    decisions = tmp_path / "decisions.json"
+    decisions.write_text(
+        json.dumps({"format": 1, "rounds": {}, "season": {}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(dash, "DECISIONS_PATH", decisions)
+    plan = dash.holiday_plan(
+        {
+            "model": {"round_score": 40.0, "typical_score": 41.0},
+            "holidays": [{"pays": 39}, {"pays": 46}],
+            "coaches": [{"expected": 0.0, "opponent": None}],
+        },
+        8,
+    )
+    assert plan["expected_score"] == pytest.approx(40.0 + COACH_BEYOND_POINTS)

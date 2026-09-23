@@ -62,7 +62,7 @@ from liga_record_mcp.models import (  # noqa: E402
 )
 from liga_record_mcp.optimise import best_squad_under_budget, improve_squad  # noqa: E402
 from liga_record_mcp.source import LigaRecordClient, OpenFootballClient  # noqa: E402
-from liga_record_mcp.stats import MEAN_MARK_POINTS, coach_season  # noqa: E402
+from liga_record_mcp.stats import COACH_BEYOND_POINTS, coach_season  # noqa: E402
 
 SEASON_PATH = ROOT / "data" / "last-season.json"
 ARCHIVE_PATH = ROOT / "data" / "season-2024-25.json"
@@ -334,7 +334,7 @@ def main() -> None:
     fixtures = OpenFootballClient().season_fixtures(ARCHIVE_TAG)
     coaches = coach_season(
         (f.model_dump() | {"round": f.round_number} for f in fixtures),
-        rating_points=round(MEAN_MARK_POINTS),
+        rating_points=round(COACH_BEYOND_POINTS),
     )
     coach_cells = {club: (club, "coach") for club in coaches}
 

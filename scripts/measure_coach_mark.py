@@ -1,9 +1,13 @@
 """What §14.3 does not explain about a coach's round — the mark, and the rest.
 
-The model credits every coach the players' average editorial mark, 2.59, on top
-of what §14.3 pays for the result. That constant is a loan: it is the mark
-handed to PLAYERS where no mark is known, and nothing says a coach's is the
-same number. Over matchdays 6 and 7 the eighteen averaged 3.72 a round.
+The model credits every coach one number on top of what §14.3 pays for the
+result. Until 23/09/2026 it was 2.59 — the mark handed to PLAYERS where no mark
+is known, a loan, and nothing said a coach's was the same number. It is now
+`COACH_BEYOND_POINTS`, fitted here on matchdays 6 and 7.
+
+SO THIS IS NOW A CHECK ON WHAT RUNS. It reads the constant the model pays and
+asks whether the emails still agree with it; a round that moves the level out
+of the interval will say so.
 
 So this takes the real result of each coach's match, scores §14.3 on it with
 `stats.coach_points`, and subtracts. What is left is exactly what the constant
@@ -41,7 +45,7 @@ sys.path[:0] = [str(ROOT / "src")]
 
 from liga_record_mcp.models import FIRST_SCORING_MATCHDAY  # noqa: E402
 from liga_record_mcp.source import LigaRecordClient, load_official_rounds  # noqa: E402
-from liga_record_mcp.stats import MEAN_MARK_POINTS, coach_points  # noqa: E402
+from liga_record_mcp.stats import COACH_BEYOND_POINTS, coach_points  # noqa: E402
 
 DATA = ROOT / "data"
 
@@ -155,7 +159,7 @@ def verdict(rows: list[dict]) -> dict:
         _, _, loss_high = interval(losses)
         flat = win_low <= loss_high
 
-    level = len(left) > 1 and (low > MEAN_MARK_POINTS or high < MEAN_MARK_POINTS)
+    level = len(left) > 1 and (low > COACH_BEYOND_POINTS or high < COACH_BEYOND_POINTS)
     return {
         "rows": len(rows),
         "average": average,
@@ -198,7 +202,7 @@ def main() -> int:
     print(
         f"  o que sobra ao §14.3: {result['average']:+.2f} "
         f"(90%: {result['low']:+.2f} a {result['high']:+.2f}), "
-        f"contra os {MEAN_MARK_POINTS:.2f} que o modelo paga"
+        f"contra os {COACH_BEYOND_POINTS:.2f} que o modelo paga"
     )
     print(f"  o que o §14.3 explica: {mean(r['rules'] for r in rows):+.2f} por jornada")
     print(f"  o que os treinadores fizeram: {mean(r['points'] for r in rows):+.2f}")
@@ -229,7 +233,7 @@ def main() -> int:
 
     print(
         f"\nnivel: {'PASSA' if result['level'] else 'NAO PASSA'} — o intervalo "
-        f"{'exclui' if result['level'] else 'inclui'} os {MEAN_MARK_POINTS:.2f} do modelo"
+        f"{'exclui' if result['level'] else 'inclui'} os {COACH_BEYOND_POINTS:.2f} do modelo"
     )
     print(
         "forma: "

@@ -73,7 +73,7 @@ from liga_record_mcp.source import (  # noqa: E402
     SiteError,
 )
 from liga_record_mcp.stats import (  # noqa: E402
-    MEAN_MARK_POINTS,
+    COACH_BEYOND_POINTS,
     PRIOR_STRENGTH,
     UNUSED_PENALTY,
     coach_points,
@@ -129,7 +129,7 @@ def coach_history(archive_tag: str) -> dict[str, dict[int, float]]:
                     scored=scored,
                     conceded=conceded,
                     trailed_by=trailed,
-                    rating_points=round(MEAN_MARK_POINTS),
+                    rating_points=round(COACH_BEYOND_POINTS),
                 )
             )
     return dict(history)

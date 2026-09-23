@@ -17,6 +17,7 @@ import pytest
 
 from liga_record_mcp.advice import ESTIMATOR
 from liga_record_mcp.coaches import rank_coaches, round_strengths
+from liga_record_mcp.stats import COACH_BEYOND_POINTS
 from liga_record_mcp.models import ClubRecord, Fixture
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -121,6 +122,11 @@ def test_the_ledger_prices_the_coach_with_the_pages_own_function(ledger, filed_c
     assert (got["id"], got["name"], got["club"]) == ("860", "Rui Borges", "Sporting")
     assert got["projected_rate"] == round(same["expected"], 2)
     assert (got["opponent"], got["at_home"], got["metodo"]) == ("Arouca", True, "jogo")
+    # The method did not change on 23/09/2026 but the number did, from the
+    # players' 2.59 to the coaches' own, so the round says which it was filed
+    # at. Rounds filed before then carry none, and were filed at 2.59.
+    assert got["alem_do_resultado"] == COACH_BEYOND_POINTS
+    assert got["projected_rate"] > COACH_BEYOND_POINTS - 3, "the mark is inside the price"
     assert got["points_before"] == 5, "the settle's fallback needs the total he started from"
 
 

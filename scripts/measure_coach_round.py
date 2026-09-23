@@ -41,6 +41,7 @@ from liga_record_mcp.models import FIRST_SCORING_MATCHDAY  # noqa: E402
 from liga_record_mcp.source import LigaRecordClient, load_official_rounds  # noqa: E402
 from liga_record_mcp.source.history import OpenFootballClient  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
+    COACH_BEYOND_POINTS,
     COACH_BEYOND_RESULT,
     MEAN_MARK_POINTS,
     coach_points,
@@ -49,7 +50,8 @@ from liga_record_mcp.stats import (  # noqa: E402
 
 DATA = ROOT / "data"
 
-#: Today's model, said in the new shape: one number, whatever the result.
+#: The model as it stood until 23/09/2026: the PLAYERS' average mark, paid to
+#: every coach whatever the result. Kept as the arm the other two answer to.
 FLAT = {"win": MEAN_MARK_POINTS, "draw": MEAN_MARK_POINTS, "loss": MEAN_MARK_POINTS}
 
 RESULTS = ("win", "draw", "loss")
@@ -57,8 +59,8 @@ RESULTS = ("win", "draw", "loss")
 #: The three models compared, and the middle one is the control: without it,
 #: a shape that only fixed the level would look like a shape that works.
 ARMS = (
-    ("flat", "2.59 de hoje"),
-    ("level", "so o nivel"),
+    ("flat", "2.59, ate 23/09"),
+    ("level", "so o nivel, hoje"),
     ("beyond", "por resultado"),
 )
 
@@ -122,7 +124,7 @@ def fit(rows: list[dict]) -> dict[str, float]:
     fitted = {}
     for result in RESULTS:
         theirs = [row["left"] for row in rows if row["result"] == result]
-        fitted[result] = mean(theirs) if theirs else MEAN_MARK_POINTS
+        fitted[result] = mean(theirs) if theirs else COACH_BEYOND_POINTS
     return fitted
 
 
@@ -135,7 +137,7 @@ def level(rows: list[dict]) -> dict[str, float]:
     the level put right and NOTHING else, so whatever the shape beats it by is
     the shape's own.
     """
-    average = mean(row["left"] for row in rows) if rows else MEAN_MARK_POINTS
+    average = mean(row["left"] for row in rows) if rows else COACH_BEYOND_POINTS
     return {result: average for result in RESULTS}
 
 
@@ -195,7 +197,7 @@ def main() -> int:
     print(
         "  o que sobra ao §14.3, tudo junto: "
         + ", ".join(f"{name} {whole[name]:+.2f}" for name in RESULTS)
-        + f" (o modelo paga {MEAN_MARK_POINTS:.2f} a todos)"
+        + f" (o modelo paga {COACH_BEYOND_POINTS:.2f} a todos, desde 23/09)"
     )
 
     pooled: dict[str, list[float]] = {"flat": [], "level": [], "beyond": []}

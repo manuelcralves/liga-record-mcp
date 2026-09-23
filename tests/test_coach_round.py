@@ -20,7 +20,7 @@ import yaml
 from liga_record_mcp.coaches import rank_coaches
 from liga_record_mcp.final_table import coach_values
 from liga_record_mcp.models import Fixture
-from liga_record_mcp.stats import MEAN_MARK_POINTS, expected_coach_points
+from liga_record_mcp.stats import COACH_BEYOND_POINTS, expected_coach_points
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -86,15 +86,17 @@ def test_the_ranking_joins_on_the_exact_club_and_puts_no_match_last():
     # No match, no week: nothing to score, last, and no opponent to name.
     assert rows[-1]["name"] == "Idle"
     assert rows[-1]["expected"] == 0.0 and rows[-1]["opponent"] is None
-    # The rest are what the match is worth plus the mark every coach is
-    # credited on average — the ledger compares against what he scores, and
-    # the mark is in that.
+    # The rest are what the match is worth plus what a coach makes beyond the
+    # scoreline — the ledger compares against what he scores, and that is in
+    # it. It was the PLAYERS' average mark until 23/09/2026, 1.1 points low.
     values = coach_values(
         [("Sporting", "Arouca"), ("FC Porto", "Benfica"), ("Casa Pia", "Sp. Braga")],
         strength,
     )
     sporting = next(r for r in rows if r["club"] == "Sporting")
-    assert sporting["expected"] == pytest.approx(values["Sporting"] + MEAN_MARK_POINTS)
+    assert sporting["expected"] == pytest.approx(
+        values["Sporting"] + COACH_BEYOND_POINTS
+    )
     braga = next(r for r in rows if r["club"] == "Sp. Braga")
     # Braga's own match, away at Casa Pia — not Sporting's, which the old
     # word-by-word join could have handed it.

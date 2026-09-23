@@ -51,7 +51,7 @@ from liga_record_mcp.models import (  # noqa: E402
 )
 from liga_record_mcp.source.history import OpenFootballClient  # noqa: E402
 from liga_record_mcp.stats import (  # noqa: E402
-    MEAN_MARK_POINTS,
+    COACH_BEYOND_POINTS,
     coach_points,
     project_coach,
 )
@@ -65,7 +65,11 @@ SEASONS = (
 )
 
 ROUNDS = range(FIRST_SCORING_MATCHDAY, LAST_MATCHDAY + 1)
-MARK = round(MEAN_MARK_POINTS)
+#: What a coach makes beyond the result, rounded, since §14.3 deals in whole
+#: points. It is the same for all four rules, so it moves every total and none
+#: of the differences — which is the only reason this harness can be blind to
+#: a mark nobody records.
+MARK = round(COACH_BEYOND_POINTS)
 RULES = ("pelo jogo", "a epoca", "pela forma", "teto")
 
 DRAWS = 5000

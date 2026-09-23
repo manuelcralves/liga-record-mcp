@@ -21,6 +21,7 @@ from liga_record_mcp.coaches import coach_points_by_club, rank_coaches, same_clu
 from liga_record_mcp.final_table import coach_values
 from liga_record_mcp.models import Fixture
 from liga_record_mcp.stats import (
+    COACH_BEYOND_POINTS,
     COACH_BEYOND_RESULT,
     MEAN_MARK_POINTS,
     expected_coach_points,
@@ -31,6 +32,16 @@ from liga_record_mcp.stats import (
 ROOT = Path(__file__).resolve().parents[1]
 
 STRENGTH = {"Benfica": (1.85, 0.72), "Arouca": (0.88, 1.36)}
+
+
+@pytest.fixture(scope="module")
+def measure_mark():
+    spec = importlib.util.spec_from_file_location(
+        "measure_coach_mark", ROOT / "scripts" / "measure_coach_mark.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 @pytest.fixture(scope="module")
@@ -60,9 +71,12 @@ def test_nothing_beyond_the_scoreline_is_the_rules_themselves():
     assert expected_coach_round(1.7, 0.9, beyond=None) == expected_coach_points(1.7, 0.9)
 
 
-def test_one_number_three_times_is_the_model_that_is_running():
-    """The flat mark, said in the new shape. The comparison that refused the
-    shape was only fair because this holds to the cent."""
+def test_one_number_three_times_is_one_number_added():
+    """A flat mapping down the new path is the old model exactly: the rules
+    plus a constant, whatever the constant is. The comparison that refused the
+    shape was only fair because this holds to the cent, and it is checked with
+    the PLAYERS’ number because that is the arm the refusal was measured
+    against."""
     flat = {result: MEAN_MARK_POINTS for result in ("win", "draw", "loss")}
     for goals_for, goals_against in ((1.9, 0.8), (1.0, 1.0), (0.7, 2.1)):
         assert expected_coach_round(
@@ -85,9 +99,13 @@ def test_by_result_the_favourite_is_credited_more_than_the_underdog():
     assert COACH_BEYOND_RESULT["loss"] < underdog < favourite < COACH_BEYOND_RESULT["win"]
 
 
-def test_the_page_and_the_ledger_still_pay_the_flat_mark():
+def test_the_page_and_the_ledger_still_pay_one_number():
     """The dormancy test. If a caller ever passes `beyond`, this fails, and it
-    should: the shape reorders the eighteen and did not earn that."""
+    should: the shape reorders the eighteen and did not earn that.
+
+    The number itself is the coaches’ own since 23/09/2026 — the LEVEL moved,
+    which changes no choice, and the SHAPE did not.
+    """
     fixtures = [Fixture(round_number=8, home="Benfica", away="Arouca")]
     rules = coach_values([("Benfica", "Arouca")], STRENGTH)
     ranked = rank_coaches(
@@ -100,7 +118,10 @@ def test_the_page_and_the_ledger_still_pay_the_flat_mark():
         8,
     )
     for row in ranked:
-        assert row["expected"] == pytest.approx(rules[row["club"]] + MEAN_MARK_POINTS)
+        assert row["expected"] == pytest.approx(
+            rules[row["club"]] + COACH_BEYOND_POINTS
+        )
+    assert COACH_BEYOND_POINTS != MEAN_MARK_POINTS, "a coach is not an average player"
 
 
 def test_coach_values_passes_the_leftover_down():
@@ -142,7 +163,7 @@ def test_the_fit_is_the_mean_of_each_result_and_the_control_is_one_mean(measure)
     # A result nobody had falls back to what the model pays today, which is the
     # one honest stand-in: it is what would have been paid without any of this.
     only_wins = measure.fit([{"left": 6.0, "result": "win"}])
-    assert only_wins["draw"] == MEAN_MARK_POINTS
+    assert only_wins["draw"] == COACH_BEYOND_POINTS
 
 
 def test_a_round_is_fitted_only_on_matches_that_had_kicked_off(measure):
@@ -174,3 +195,24 @@ def test_a_round_is_fitted_only_on_matches_that_had_kicked_off(measure):
     assert measure.outcome(2, 0) == "win"
     assert measure.outcome(1, 1) == "draw"
     assert measure.outcome(0, 3) == "loss"
+
+
+def test_the_level_check_reads_what_the_model_pays_now(measure_mark):
+    """`measure_coach_mark.py` answers against the constant in the code, not a
+    number frozen when it was written — otherwise it would keep reporting that
+    the level is wrong after it was put right.
+
+    These rows sit on today’s constant and clear of the players’ one, so the
+    test tells the two apart: it fails if the check goes back to 2.59.
+    """
+    on_the_money = [
+        {"left": COACH_BEYOND_POINTS + step, "result": "vitoria"}
+        for step in (-0.1, 0.0, 0.1, -0.05, 0.05, 0.0)
+    ]
+    rows = [dict(row, round=6, name="X", club="Y", points=0, rules=0) for row in on_the_money]
+    answer = measure_mark.verdict(rows)
+    assert answer["level"] is False, "the model already pays this; nothing to change"
+    assert answer["change"] is False
+    # And the same rows against the players’ number would have passed, which
+    # is what makes this test able to tell the constants apart.
+    assert answer["low"] > MEAN_MARK_POINTS
