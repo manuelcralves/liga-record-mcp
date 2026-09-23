@@ -9,7 +9,7 @@ https://liga.record.pt/info/ajuda.aspx, summarised in docs/PLANNING.md.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -235,6 +235,55 @@ class MarketPlayer(BaseModel):
         )
 
 
+#: The site writes its months in Portuguese and never writes the year.
+MONTHS = {
+    "JAN": 1, "FEV": 2, "MAR": 3, "ABR": 4, "MAI": 5, "JUN": 6,
+    "JUL": 7, "AGO": 8, "SET": 9, "OUT": 10, "NOV": 11, "DEZ": 12,
+}
+
+#: How far from today a kickoff may sit before the guessed year is doing the
+#: work rather than the label. A season is ten months; half a year either way
+#: covers every real fixture and refuses the rest.
+KICKOFF_HORIZON = timedelta(days=180)
+
+
+def kickoff_at(label: str | None, *, now: datetime | None = None) -> datetime | None:
+    """A kickoff label as a moment, or None if it cannot be read confidently.
+
+    The site writes "09 SET 20:15" and never the year, so the year is the one
+    that puts the date nearest today. A label that lands more than
+    `KICKOFF_HORIZON` away either way is refused: there the guess decides, and
+    a wrong moment is worse than no moment — §6.13's deadline and §15.3's zero
+    both hang off this reading.
+
+    Far-future rounds carry a date and no time at all, which is a real state of
+    the calendar and comes back as None.
+    """
+    if not label:
+        return None
+    parts = label.split()
+    if len(parts) < 3 or parts[1].upper() not in MONTHS:
+        return None
+    try:
+        day, hour_minute = int(parts[0]), parts[2]
+        hour, minute = (int(x) for x in hour_minute.split(":"))
+    except ValueError:
+        return None
+
+    moment_now = now or datetime.now()
+    best = None
+    for year in (moment_now.year - 1, moment_now.year, moment_now.year + 1):
+        try:
+            moment = datetime(year, MONTHS[parts[1].upper()], day, hour, minute)
+        except ValueError:
+            continue
+        if best is None or abs(moment - moment_now) < abs(best - moment_now):
+            best = moment
+    if best is None or abs(best - moment_now) > KICKOFF_HORIZON:
+        return None
+    return best
+
+
 class Fixture(BaseModel):
     """One match in the league calendar.
 
@@ -257,6 +306,11 @@ class Fixture(BaseModel):
     @property
     def played(self) -> bool:
         return self.home_goals is not None and self.away_goals is not None
+
+    @property
+    def starts_at(self) -> datetime | None:
+        """When it kicks off, as far as the label can say. See `kickoff_at`."""
+        return kickoff_at(self.kickoff)
 
     def opponent_of(self, club: str) -> str | None:
         if club == self.home:

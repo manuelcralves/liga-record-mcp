@@ -105,6 +105,70 @@ def clubs_playing_in(fixtures: Iterable[Fixture], round_number: int) -> set[str]
     return playing
 
 
+def voided_fixtures(fixtures: Iterable[Fixture], round_number: int) -> list[Fixture]:
+    """The matches of that round §15.3 has already struck out.
+
+    §15.3 scores a match at nothing for both clubs when it is not played before
+    the following round begins. That is not a hard week and not an absence: the
+    players score 0, and the model has to know it BEFORE the round, or it
+    projects men who cannot score. Moreirense-Benfica of round 3 was played on
+    9 September, after round 4 had started: Pavlidis was on the page at 9.19
+    and collected nothing.
+
+    A match counts as voided when it kicks off after the first kickoff of the
+    next round, and also when the round is otherwise arranged and it alone has
+    no date — nobody plays a match nobody has scheduled.
+
+    NOTHING IS VOIDED WHERE THE CALENDAR IS SILENT, and the silence has two
+    shapes. The far end of a season carries dates without times, so a round
+    with no readable kickoff, or a following round with none, cannot answer the
+    question at all. And kickoffs are confirmed a few at a time: a round where
+    only one or two matches have their slot is not a scheduled round, and
+    reading the rest as voided would zero sixteen clubs who are about to play.
+    So a dateless match is struck out only where at most one other is dateless
+    too.
+
+    Fixtures rather than clubs, because a club can hold two matches in one
+    round once a postponed one is rebucketed into the round of its new date,
+    and voiding one of them must not erase the other — nor its opponent's week.
+
+    The moments come from `Fixture.starts_at`, whose year is a guess at labels
+    that carry none; it is sound for the round being projected and would not be
+    for a round months gone.
+    """
+    this_round = [f for f in fixtures if f.round_number == round_number]
+    starts = [moment for f in this_round if (moment := f.starts_at) is not None]
+    nexts = [
+        moment
+        for f in fixtures
+        if f.round_number == round_number + 1 and (moment := f.starts_at) is not None
+    ]
+    if not starts or not nexts:
+        return []
+
+    opens = min(nexts)
+    arranged = len(starts) >= len(this_round) - 1
+    struck = []
+    for fixture in this_round:
+        moment = fixture.starts_at
+        if moment is None:
+            if arranged:
+                struck.append(fixture)
+        elif moment > opens:
+            struck.append(fixture)
+    return struck
+
+
+def voided_clubs(fixtures: Iterable[Fixture]) -> set[str]:
+    """Both sides of every match handed in, for naming them."""
+    return {club for f in fixtures for club in (f.home, f.away)}
+
+
+def voided_in(fixtures: Iterable[Fixture], round_number: int) -> set[str]:
+    """The clubs `voided_fixtures` strikes out in that round."""
+    return voided_clubs(voided_fixtures(fixtures, round_number))
+
+
 def classify_appearance(points_round: int, club_played: bool) -> str:
     """Whether a player took the field, from their round score alone."""
     if not club_played:

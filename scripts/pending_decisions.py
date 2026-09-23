@@ -30,6 +30,7 @@ from liga_record_mcp.models import (  # noqa: E402
     FIRST_SCORING_MATCHDAY,
     HOLIDAY_ROUNDS,
     Position,
+    kickoff_at,
 )
 from liga_record_mcp.source import (  # noqa: E402
     ManualSquadSource,
@@ -48,47 +49,13 @@ SQUAD_PATH = ROOT / "data" / "squad.yaml"
 DECISIONS_PATH = ROOT / "data" / "decisions.json"
 
 
-#: The site labels a kickoff "28 AGO 20:15" and carries no year, which is why
-#: models.py keeps it as text rather than inventing one. To say how far away a
-#: deadline is, a year has to be chosen — so it picks the one that puts the
-#: date nearest to today, and refuses to say anything when that is ambiguous.
-MONTHS = {
-    "JAN": 1, "FEV": 2, "MAR": 3, "ABR": 4, "MAI": 5, "JUN": 6,
-    "JUL": 7, "AGO": 8, "SET": 9, "OUT": 10, "NOV": 11, "DEZ": 12,
-}
-
 #: §6.13 — the sheet closes fifteen minutes before the round's first match.
 SHEET_CLOSES_BEFORE = timedelta(minutes=15)
 
-
-def when(label: str | None) -> datetime | None:
-    """A kickoff label as a moment, or None if it cannot be read confidently."""
-    if not label:
-        return None
-    parts = label.split()
-    if len(parts) < 3 or parts[1].upper() not in MONTHS:
-        return None
-    try:
-        day, hour_minute = int(parts[0]), parts[2]
-        hour, minute = (int(x) for x in hour_minute.split(":"))
-    except ValueError:
-        return None
-
-    now = datetime.now()
-    best = None
-    for year in (now.year - 1, now.year, now.year + 1):
-        try:
-            moment = datetime(year, MONTHS[parts[1].upper()], day, hour, minute)
-        except ValueError:
-            continue
-        if best is None or abs(moment - now) < abs(best - now):
-            best = moment
-    # More than half a year away in either direction means the year guess is
-    # doing the work rather than the label, and a wrong deadline is worse than
-    # no deadline.
-    if best is None or abs(best - now) > timedelta(days=180):
-        return None
-    return best
+#: Reading a kickoff label lives in the library, where §15.3's detector reads
+#: the same ones. Two copies of "which year is this" would drift, and both a
+#: deadline and a voided match hang off the answer.
+when = kickoff_at
 
 
 def in_words(moment: datetime) -> str:

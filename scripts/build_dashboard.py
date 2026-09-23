@@ -107,6 +107,8 @@ from liga_record_mcp.stats import (  # noqa: E402
     matches_played,
     per_match,
     upcoming_opponents,
+    voided_clubs,
+    voided_fixtures,
 )
 
 LOG_PATH = ROOT / "data" / "projections.json"
@@ -884,12 +886,17 @@ def model_sheet(stored: dict, round_number: int) -> dict:
     # place, or the armband. Found by the code review of 15/09/2026.
     gone = left_the_league([p.id for p in squad.players], whole)
 
+    # AND WHOSE MATCH THE CALENDAR ALREADY PUTS AFTER THE NEXT ROUND, which
+    # §15.3 scores at nothing for both clubs. Known before the round, not after.
+    off = voided_fixtures(mcp._market.fixtures(), round_number)
+    struck = voided_clubs(off)
+
     # THE ROUND, AS THE LEDGER AND THE SERVER SEE IT: `advice.round_projection`,
     # one function for all three since 22/09/2026 — the page and the ledger
     # each had a copy, and the copies disagreed at the edges. No match reads 0
     # (§15.3), out reads -1 (§10.3(i)), gone reads 0.
     projected = round_projection(
-        squad.players, wide, weeks, unavailable=unavailable, gone=gone
+        squad.players, wide, weeks, unavailable=unavailable, gone=gone, voided=struck
     )
     expected = {i: row["expected"] for i, row in projected.items()}
     fixture_of = {
@@ -1199,6 +1206,14 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         "round_score": round_score,
         "typical_score": typical_score,
         "left_out": kept_out,
+        # Named rather than silently worth nothing: the site's calendar has
+        # published a kickoff that never existed, so a §15.3 zero is something
+        # to check against the press, not to discover in a total. The MATCHES,
+        # because a round can lose two of them and "the match of four clubs"
+        # is not a sentence.
+        "voided": [
+            {"home": f.home, "away": f.away, "kickoff": f.kickoff} for f in off
+        ],
         "bulletin_day": read_day(bulletin),
         "yours": yours,
         "ideal": ideal,
@@ -1298,6 +1313,24 @@ def model_section(data: dict, public: bool = False) -> str:
         changes = (
             '      <p class="lede">O onze que entregaste é o mesmo que o modelo '
             "escolheria.</p>"
+        )
+
+    # A §15.3 zero is the one the reader has to be able to check: the site's
+    # calendar has published a kickoff that never existed.
+    if found.get("voided"):
+        games = ", ".join(
+            esc(f"{game['home']}–{game['away']}") + f" ({esc(game['kickoff'] or 'sem data')})"
+            for game in found["voided"]
+        )
+        many = len(found["voided"]) > 1
+        changes += (
+            chr(10) + '      <p class="callout warn"><strong>'
+            + ("Jogos anulados" if many else "Jogo anulado")
+            + f" pelo §15.3.</strong> O calendário põe {'estes jogos' if many else 'este jogo'} "
+            f"depois de a jornada seguinte começar: {games}. Os jogadores "
+            "desses clubes valem zero nesta jornada — não −1. Confere na "
+            "imprensa antes do fecho: o site já publicou uma hora de "
+            "adiamento que não existia.</p>"
         )
 
     move = found.get("transfer")

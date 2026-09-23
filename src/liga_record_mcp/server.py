@@ -101,6 +101,7 @@ from .stats import (
     per_match,
     rate_rows,
     season_summary,
+    voided_in,
 )
 from .source import (
     MARKET_MAX_VALUE,
@@ -1440,6 +1441,7 @@ def project_points(round_number: int | None = None) -> dict[str, Any]:
             DATA_DIR / "indisponiveis.yaml", DATA_DIR / "boletim", target, squad.players
         ),
         gone=left_the_league([p.id for p in squad.players], whole),
+        voided=voided_in(fixtures, target),
     )
 
     rows = []
@@ -1461,6 +1463,8 @@ def project_points(round_number: int | None = None) -> dict[str, Any]:
                 "why": (
                     "left the league"
                     if found["gone"]
+                    else "his club's match is already voided (§15.3) — check the press"
+                    if found["voided"]
                     else "no match this round (§15.3)"
                     if found["no_fixture"]
                     else found["unavailable"]

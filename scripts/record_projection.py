@@ -50,7 +50,11 @@ from liga_record_mcp.source import (  # noqa: E402
     OpenFootballClient,
     load_coaches,
 )
-from liga_record_mcp.stats import clubs_playing_in  # noqa: E402
+from liga_record_mcp.stats import (  # noqa: E402
+    clubs_playing_in,
+    voided_clubs,
+    voided_fixtures,
+)
 
 from liga_record_mcp.source.last_season import archive_records  # noqa: E402
 from liga_record_mcp.source.season import season_so_far  # noqa: E402
@@ -142,6 +146,19 @@ def snapshot(market, history, squad, round_number):
     if unavailable:
         print(f"  {len(unavailable)} fora da jornada {round_number}, pelo boletim e pelo ficheiro")
 
+    # AND WHOSE MATCH IS ALREADY LOST TO §15.3, which the calendar says before
+    # the round rather than after it. Round 3's Moreirense-Benfica was played
+    # once round 4 had begun, and the ledger filed Pavlidis at 9.19 for a match
+    # that could not pay him.
+    off = voided_fixtures(fixtures, round_number)
+    struck = voided_clubs(off)
+    if off:
+        named = "; ".join(f"{f.home}-{f.away} ({f.kickoff or 'sem data'})" for f in off)
+        print(
+            f"  {len(off)} jogo(s) anulado(s) pelo §15.3 na jornada "
+            f"{round_number}: {named}"
+        )
+
     missing = [p.name for p in squad.players if p.id not in view]
     if missing:
         raise SystemExit(f"{', '.join(missing)} has no valuation — cannot record a round")
@@ -149,6 +166,7 @@ def snapshot(market, history, squad, round_number):
         squad.players,
         view,
         weeks,
+        voided=struck,
         unavailable=unavailable,
         gone=left_the_league([p.id for p in squad.players], whole),
     )
@@ -189,10 +207,13 @@ def snapshot(market, history, squad, round_number):
             "points_before": player.points_total,
             "actual": None,
         }
+        if found["voided"]:
+            row["voided"] = True
         if no_fixture:
             row["no_fixture"] = True
+            why = "tem o jogo anulado" if found["voided"] else "nao tem jogo"
             print(
-                f"  {player.name} ({player.club}) nao tem jogo na jornada "
+                f"  {player.name} ({player.club}) {why} na jornada "
                 f"{round_number} — registado a 0.0 pelo §15.3"
             )
         if found["unavailable"] is not None:

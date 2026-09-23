@@ -48,6 +48,7 @@ from .stats import (
     adjust_for_fixture,
     describe_pick,
     fixture_multipliers,
+    voided_fixtures,
 )
 
 #: How many appearances a club-and-position group needs before it is worth more
@@ -326,6 +327,12 @@ def round_weeks(
     the clubs that have one. A club missing from the result has no match that
     round: not a hard week, no week.
 
+    A club whose match is already lost to §15.3 — played after the next round
+    begins, or still unscheduled while the rest of the round has dates — has no
+    week here either. It is the same answer as no match at all, for the same
+    reason: nobody scores. `stats.voided_in` decides, and the callers name the
+    clubs, because a zero that explains itself is worth more than a tidy one.
+
     The page and the ledger each computed this in a copy of their own until
     22/09/2026. One copy now, for them and for the server.
     """
@@ -341,9 +348,13 @@ def round_weeks(
             return league_ga, league_gf
         return record.goals_against_per_match, record.goals_for_per_match
 
+    # The MATCHES struck out, not the clubs: a club can hold two in one round
+    # once a postponed one lands in the round of its new date, and losing one
+    # of them is not losing the other — nor the other side's week.
+    struck = set(voided_fixtures(fixtures, round_number))
     weeks: dict[str, dict[str, Any]] = {}
     for fixture in fixtures:
-        if fixture.round_number != round_number:
+        if fixture.round_number != round_number or fixture in struck:
             continue
         for club, opponent, at_home in (
             (fixture.home, fixture.away, True),
@@ -371,6 +382,7 @@ def round_projection(
     *,
     unavailable: Mapping[str, str] | None = None,
     gone: Iterable[str] = (),
+    voided: Iterable[str] = (),
 ) -> dict[str, dict[str, Any]]:
     """What each player is expected to score in one round, and why.
 
@@ -384,7 +396,9 @@ def round_projection(
 
         left the league      0 — nothing he does now scores for this team
         no match this round  0 — §15.3 scores a match not played before the
-                             next round begins at nothing, injured or not
+                             next round begins at nothing, injured or not, and
+                             a match already known to fall that way has no week
+                             at all (`voided` names those clubs, for the row)
         known to be out      -1 — what §10.3(i) pays a man who does not play
         otherwise            his chance of playing times what he returns,
                              moved by the opponent, and -1 for the rest
@@ -399,6 +413,10 @@ def round_projection(
     """
     out_list = unavailable or {}
     departed = set(gone)
+    # The clubs `stats.voided_in` found, so a row can say WHY it reads zero: a
+    # match struck out by §15.3 looks exactly like no match at all from here,
+    # and the difference is the one a reader needs to check the calendar.
+    struck = set(voided)
     rows: dict[str, dict[str, Any]] = {}
     for player in players:
         entry = view[player.id]
@@ -423,6 +441,7 @@ def round_projection(
             "defensive": None if week is None else week["defensive"],
             "attacking": None if week is None else week["attacking"],
             "no_fixture": week is None,
+            "voided": player.club in struck,
             # Why he is on the out list, whichever rule set his number, and
             # nobody else. The ledger re-records a round when the out list
             # changes, comparing the list to this field, so it must hold the
