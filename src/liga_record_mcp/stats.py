@@ -1052,26 +1052,99 @@ def expected_coach_points(goals_for: float, goals_against: float) -> float:
 
     What it leaves out is what a results model cannot see before kickoff:
     §14.3(b)'s coming from behind, §14.3(d)'s goals off the bench, §14.3(e)'s
-    sendings-off, and §14.1's editorial mark. The mark plausibly moves with the
-    result, which would stretch these numbers without reordering them — and
-    ordering the eighteen is what they are for.
+    sendings-off, and §14.1's editorial mark. All of it rides on the result, and
+    `expected_coach_round` can price it — but measured out of sample it did not
+    predict a coach's round any better than getting the flat mark's level
+    right, so what the model pays is still this plus one number.
 
     Two equal sides come out at exactly zero: a win and a loss, a clean sheet
     and a blank, a big win and a big loss are equally likely and cancel.
     """
 
-    def poisson(rate: float) -> list[float]:
-        chances = [math.exp(-rate)]
-        for goals in range(1, COACH_GOAL_CUTOFF + 1):
-            chances.append(chances[-1] * rate / goals)
-        return chances
-
-    ours, theirs = poisson(goals_for), poisson(goals_against)
+    ours, theirs = goal_chances(goals_for), goal_chances(goals_against)
     return sum(
         p * q * coach_points(scored=scored, conceded=conceded)
         for scored, p in enumerate(ours)
         for conceded, q in enumerate(theirs)
     )
+
+
+def goal_chances(rate: float) -> list[float]:
+    """The chance of each scoreline up to `COACH_GOAL_CUTOFF`, Poisson."""
+    chances = [math.exp(-rate)]
+    for goals in range(1, COACH_GOAL_CUTOFF + 1):
+        chances.append(chances[-1] * rate / goals)
+    return chances
+
+
+def result_chances(goals_for: float, goals_against: float) -> tuple[float, float, float]:
+    """A win, a draw and a loss, off the same grid §14.3 is priced over.
+
+    The model was always holding these — they fall out of the two Poisson
+    means the Final Table fits — and never used them for anything but the
+    rules. What a coach scores beyond the scoreline turns on exactly this.
+    """
+    ours, theirs = goal_chances(goals_for), goal_chances(goals_against)
+    win = draw = loss = 0.0
+    for scored, p in enumerate(ours):
+        for conceded, q in enumerate(theirs):
+            if scored > conceded:
+                win += p * q
+            elif scored == conceded:
+                draw += p * q
+            else:
+                loss += p * q
+    return win, draw, loss
+
+
+#: What a coach scores BEYOND what §14.3 pays for the scoreline, by result.
+#:
+#: MEASURED AND NOT ADOPTED, 23/09/2026. Nothing passes this to
+#: `expected_coach_round`: the model still pays the flat mark, and this is
+#: what it would pay instead if the measurement had gone the other way.
+#:
+#: Fitted on the weekly emails of matchdays 6 and 7 of 2026/27 — 36
+#: coach-rounds, twelve of each result, the only record anywhere of what a
+#: coach actually scored (`scripts/measure_coach_mark.py`). In sample the
+#: shape is emphatic: the win and loss intervals do not touch.
+#:
+#: Out of sample it is not (`scripts/measure_coach_round.py`, fitted on one
+#: round and measured on the other). Mean error 1.63 against the flat 1.90 on
+#: matchday 6, and 2.67 against 2.57 on matchday 7 — it wins one fold and
+#: loses the other, which was the case the bar was written to refuse. Against
+#: the control that fixes only the LEVEL, the shape is worth 0.01 pooled:
+#: what looked like shape was the flat mark sitting 1.1 points low.
+#:
+#: IT IS NOT THE MARK, though §14.1's mark is most of it. §14.3(b)'s coming
+#: from behind pays double when the comeback ends in a win, §14.3(d)'s goals
+#: off the bench arrive when a side is chasing, and none of it is in a
+#: scoreline model. They appear together and are fitted together — which is
+#: part of why a clean shape was too much to expect from 36 rows.
+COACH_BEYOND_RESULT = {"win": 5.00, "draw": 3.67, "loss": 2.50}
+
+
+def expected_coach_round(
+    goals_for: float,
+    goals_against: float,
+    *,
+    beyond: Mapping[str, float] | None = None,
+) -> float:
+    """What a coach is expected to score: §14.3, plus what it does not explain.
+
+    `beyond` is the leftover by result, weighted by the chance of each result,
+    so a favourite is credited more of it than an underdog — which is why it
+    could reorder the eighteen where a flat mark cannot.
+
+    None pays nothing beyond the scoreline, which is `expected_coach_points`
+    itself, and is what every caller passes today: the model adds its flat mark
+    afterwards. One number repeated three times IS that model, which is how the
+    two were compared down the same path, and the shape did not win.
+    """
+    rules = expected_coach_points(goals_for, goals_against)
+    if not beyond:
+        return rules
+    win, draw, loss = result_chances(goals_for, goals_against)
+    return rules + win * beyond["win"] + draw * beyond["draw"] + loss * beyond["loss"]
 
 
 def coach_season(

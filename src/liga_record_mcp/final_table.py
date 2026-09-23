@@ -34,7 +34,7 @@ import random
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
-from .stats import expected_coach_points
+from .stats import expected_coach_round
 
 #: Points for being this many places out, and beyond that a flat penalty.
 BY_DISTANCE = {0: 25, 1: 5, 2: 2, 3: 0}
@@ -151,6 +151,8 @@ def expected_goals(
 def coach_values(
     fixtures: Iterable[tuple[str, str]],
     strength: Mapping[str, tuple[float, float]],
+    *,
+    beyond: Mapping[str, float] | None = None,
 ) -> dict[str, float]:
     """Each club's coach priced on one round's match: {club: expected points}.
 
@@ -159,12 +161,17 @@ def coach_values(
     to pick him on is the one about to be played — a big club at home to a weak
     one, not the big club in a derby. `fixtures` is that round's (home, away)
     pairs. A club with no match is left out: its coach has no week to score in.
+
+    `beyond` is what a coach scores that the scoreline does not explain, by
+    result (`stats.COACH_BEYOND_RESULT`). None leaves it out and prices the
+    rules alone, which is what every caller does: the mark is added flat on
+    top, because by result it measured no better out of sample.
     """
     out: dict[str, float] = {}
     for home, away in fixtures:
         home_goals, away_goals = expected_goals(home, away, strength)
-        out[home] = expected_coach_points(home_goals, away_goals)
-        out[away] = expected_coach_points(away_goals, home_goals)
+        out[home] = expected_coach_round(home_goals, away_goals, beyond=beyond)
+        out[away] = expected_coach_round(away_goals, home_goals, beyond=beyond)
     return out
 
 

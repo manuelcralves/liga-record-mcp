@@ -21,6 +21,7 @@ openfootball's results, strengths only from matches already played):
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
@@ -77,14 +78,46 @@ def rank_coaches(
     return rows
 
 
+def _words(text: str) -> set[str]:
+    """A club label as bare words: no accents, no case, no dots."""
+    stripped = "".join(
+        c
+        for c in unicodedata.normalize("NFD", (text or "").lower())
+        if unicodedata.category(c) != "Mn"
+    )
+    return {word for word in stripped.replace(".", " ").split() if word}
+
+
+def same_club(one: str, other: str) -> bool:
+    """Whether two labels name one club, allowing one to be shorter.
+
+    The site writes the same club two ways in two places: the weekly email
+    credits "Bruno Pinheiro|Académico" where the calendar, the market and the
+    coaches file all say "Académico Viseu". Matching on the exact string
+    dropped that club — silently, which is the worst way to drop one.
+
+    Short of a subset there is no match, so "Nacional" and "Internacional"
+    stay apart, and none of the nineteen labels the project holds — the coaches
+    file, the calendar and the emails — is a subset of another.
+
+    The one edge the subset rule leaves open is a reserve side: "Sporting" is a
+    subset of "Sporting B". No such label exists anywhere here, because the
+    game is the Primeira Liga and nothing else, but a source that brought them
+    in would need more than words to tell the two apart.
+    """
+    first, second = _words(one), _words(other)
+    return bool(first) and bool(second) and (first <= second or second <= first)
+
+
 def coach_points_by_club(official: Mapping[str, Any], club: str) -> int | None:
     """What a club's coach scored, read off a round's email file by the club.
 
     The email's `treinadores` are keyed "name|club". The model picks a coach
     for his club, so the club is the key that does not break when a club
-    changes coach between the file and the email.
+    changes coach between the file and the email — and `same_club` is what
+    keeps it from breaking when the two spell the club differently.
     """
     for key in sorted(official.get("treinadores") or {}):
-        if key.split("|", 1)[-1] == club:
+        if same_club(key.split("|", 1)[-1], club):
             return official["treinadores"][key]
     return None
