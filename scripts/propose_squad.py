@@ -53,7 +53,7 @@ from liga_record_mcp.optimise import (  # noqa: E402
     left_the_league,
     best_squad_under_budget,
     improve_squad,
-    squad_value,
+    expected_round_points,
 )
 from liga_record_mcp.source import (  # noqa: E402
     LigaRecordClient,
@@ -158,7 +158,7 @@ def main() -> None:
     mine = [p.id for p in snapshot.squad.players]
     gone = left_the_league(mine, market)
     covered = [i for i in mine if i not in gone]
-    yours = squad_value(covered, market, returns, playing, draws=args.draws)
+    yours = expected_round_points(covered, market, returns, playing, draws=args.draws)
 
     print(f"{len(market)} players on the market, {ROUNDS_LEFT} rounds to play")
     if gone:

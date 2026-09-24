@@ -299,7 +299,9 @@ def get_squad() -> dict[str, Any]:
         **_provenance(snapshot),
         "team": {"id": squad.team_id, "name": squad.team_name},
         "budget": squad.budget,
-        "squad_value": squad.value(),
+        # Euros, not points. `squad_value` the TOOL ranks the squad by points
+        # per match; this is what the twenty-three cost.
+        "squad_cost": squad.value(),
         "balance": squad.balance(),
         "is_legal": validate_squad(squad).is_valid,
         "players": [_player_out(p, matches) for p in squad.players],
@@ -571,7 +573,7 @@ def check_transfer(
     return {
         **_provenance(snapshot),
         "is_valid": check.is_valid,
-        "squad_value_after": check.value_after,
+        "cost_after": check.value_after,
         "balance_after": check.balance_after,
         "violations": _violations_out(check.violations),
     }
@@ -1091,7 +1093,7 @@ def check_market_transfer(out_id: str, in_id: str) -> dict[str, Any]:
         "out": {"id": outgoing.id, "name": outgoing.name, "value": outgoing.value},
         "in": _market_out(incoming, set(squad.by_id())),
         "is_valid": check.is_valid,
-        "squad_value_after": check.value_after,
+        "cost_after": check.value_after,
         "balance_after": check.balance_after,
         "violations": _violations_out(check.violations),
     }

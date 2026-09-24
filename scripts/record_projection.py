@@ -940,6 +940,12 @@ def main() -> None:
         # archive and no rebuilt rounds, and wrote rounds under this same name;
         # this is how one of those reads apart from the laptop's.
         "evidence": evidence,
+        # EUROS, and it keeps the old name on purpose. Every round already on
+        # file carries `squad_value`, and renaming it here would leave the
+        # ledger speaking two languages about the same number — the same reason
+        # a filed round is never rewritten. The server's tool outputs, which
+        # nothing stores, were renamed to `squad_cost` and `cost_after` on
+        # 24/09/2026.
         "squad_value": squad.value(),
         "filed": (
             {

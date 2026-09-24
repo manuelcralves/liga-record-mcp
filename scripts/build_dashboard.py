@@ -51,7 +51,7 @@ from liga_record_mcp.optimise import (  # noqa: E402
     best_squad_under_budget,
     improve_squad,
     left_the_league,
-    squad_value,
+    expected_round_points,
 )
 from liga_record_mcp.source import (  # noqa: E402
     ManualSquadSource,
@@ -350,9 +350,9 @@ def round_and_typical(squad, market, views, playing, out, *, draws):
     matter and raised the bar the depleted squad had to clear. Found by the
     code review of 22/09/2026.
     """
-    blind = [squad_value(squad, market, view, playing, draws=draws) for view in views]
+    blind = [expected_round_points(squad, market, view, playing, draws=draws) for view in views]
     known = {**playing, **{i: 0.0 for i in out if i in playing}}
-    now = squad_value(squad, market, views[0], known, draws=draws) if out else blind[0]
+    now = expected_round_points(squad, market, views[0], known, draws=draws) if out else blind[0]
     return now, sum(blind) / len(blind)
 
 
@@ -1151,7 +1151,7 @@ def model_sheet(stored: dict, round_number: int) -> dict:
         # section later. They are different quantities: one plays the round out
         # with absences and §11 substitutions, the other is eleven names added
         # up. Both squads are now valued by the same call.
-        mine_round = squad_value(
+        mine_round = expected_round_points(
             still_here,
             whole,
             {i: v["returns"] for i, v in wide.items()},
@@ -1575,36 +1575,59 @@ def market_leaders(stored: dict) -> dict:
 def fixture_grid(stored: dict, from_round: int) -> list[dict]:
     """Each squad player's next few opponents, scored by how hard they look.
 
-    The multiplier is the same one the round projection uses, so a cell and the
-    team sheet cannot disagree. Rounds are walked in order rather than by date:
-    a club with a postponed fixture has its rounds out of chronological
-    sequence, and sorting by kickoff would show the wrong opponent for the
-    wrong week.
+    THE MULTIPLIERS COME FROM `fixture_weeks`, which is `advice.round_weeks` —
+    the one the team sheet, the ledger and the server all price on. This drew
+    them in a copy of its own until 24/09/2026, and the copy had fallen behind:
+    since 0043e62 `round_weeks` leaves out a match §15.3 has already struck
+    out, and the copy did not, so a round with a postponement could paint a
+    normal week for a game that scores nothing, beside a projection of zero for
+    the same player on the same page.
+
+    Which rounds are shown is still `upcoming_opponents`: rounds are walked in
+    order rather than by date, because a club with a postponed fixture has its
+    rounds out of chronological sequence and sorting by kickoff would show the
+    wrong opponent for the wrong week. A fixture it names that has no week is
+    exactly the struck-out case, and is drawn as one.
     """
     fixtures = mcp._market.fixtures()
-    records = OpenFootballClient(timeout=60.0).club_records()
-    known = [r for r in records.values() if r.has_history]
-    league_ga = sum(r.goals_against_per_match for r in known) / len(known)
-    league_gf = sum(r.goals_for_per_match for r in known) / len(known)
-
-    def rates(club):
-        record = records.get(club)
-        if record is None or not record.has_history:
-            return league_ga, league_gf
-        return record.goals_against_per_match, record.goals_for_per_match
+    schedule = {
+        club: upcoming_opponents(fixtures, club, from_round, GRID_ROUNDS)
+        for club in sorted({row["club"] for row in stored["players"].values()})
+    }
+    # One call, for every round any of them plays in. The grid used to fetch
+    # the archive itself on top of this; it no longer does. The run still reads
+    # it twice, because the transfer horizon asks `fixture_weeks` separately —
+    # that is a different saving and not this one.
+    weeks = fixture_weeks(sorted({rnd for week in schedule.values() for rnd, *_ in week}))
 
     rows = []
     for player_id, row in stored["players"].items():
         position = Position(row["position"])
         cells = []
-        for rnd, opponent, at_home in upcoming_opponents(
-            fixtures, row["club"], from_round, GRID_ROUNDS
-        ):
-            own_ga, own_gf = rates(row["club"])
-            opp_ga, opp_gf = rates(opponent)
-            defensive, attacking = fixture_multipliers(
-                own_ga, own_gf, opp_ga, opp_gf, league_ga, league_gf, at_home=at_home
-            )
+        for rnd, opponent, at_home in schedule[row["club"]]:
+            week = weeks.get(rnd, {}).get(row["club"])
+            # THE OPPONENT IS PART OF THE KEY, and it has to be. A club can
+            # hold two matches in one round — a postponed one lands in the
+            # round of its new date — and `round_weeks` keys its answer by club
+            # alone, so it hands back the one that survived. Looking it up by
+            # club only gave the struck match the survivor's multipliers and
+            # printed a number for the one game that pays nobody.
+            if week is None or week.get("opponent") != opponent:
+                # The calendar has the match and `round_weeks` does not: §15.3
+                # struck it out, and nobody scores in it (§15.3 gives both
+                # clubs zero). Not a hard week — no week.
+                cells.append(
+                    {
+                        "round": rnd,
+                        "opponent": opponent,
+                        "at_home": at_home,
+                        "projected": 0.0,
+                        "edge": 0.0,
+                        "voided": True,
+                    }
+                )
+                continue
+            defensive, attacking = week["defensive"], week["attacking"]
             # THE FIXTURE SCALES WHAT HE RETURNS, NEVER THE BLEND, and this
             # line used to do the second. `season_rate` changed meaning under
             # it: the old estimator stored a rate — which is what
@@ -2675,10 +2698,18 @@ def grid_section(data: dict) -> str:
             edge = cell["edge"]
             tone = "easy" if edge > 0.25 else "hard" if edge < -0.25 else ""
             where = "vs" if cell["at_home"] else "@"
+            # A match §15.3 has struck out is not a hard week, it is no week,
+            # and a colour on it would be an opinion about a game that pays
+            # nobody.
+            figure = (
+                '<span class="cell-fig muted">anulado</span>'
+                if cell.get("voided")
+                else f'<span class="cell-fig">{cell["projected"]:.1f}</span>'
+            )
             cells.append(
-                f'<td class="cell {tone}"><span class="cell-opp">{where} '
-                f'{esc(cell["opponent"][:11])}</span>'
-                f'<span class="cell-fig">{cell["projected"]:.1f}</span></td>'
+                f'<td class="cell {"" if cell.get("voided") else tone}">'
+                f'<span class="cell-opp">{where} '
+                f'{esc(cell["opponent"][:11])}</span>{figure}</td>'
             )
         body.append(
             f"""            <tr>

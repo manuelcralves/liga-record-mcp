@@ -83,7 +83,7 @@ def left_the_league(
     where he will score nothing for the rest of the season.
 
     It was found by accident. `build_dashboard` died on a KeyError deep inside
-    `squad_value`, and `propose_squad` did something worse — it filtered the
+    `expected_round_points`, and `propose_squad` did something worse — it filtered the
     unknown id out silently, so it priced twenty-two against a rival
     twenty-three and reported the gap as if both were whole. A squad quietly
     shrinking is the failure that hides; the crash is the one that gets fixed.
@@ -323,7 +323,7 @@ def best_eleven(
     return best
 
 
-def squad_value(
+def expected_round_points(
     squad_ids: Sequence[str],
     market: Mapping[str, Any],
     returns: Mapping[str, float],
@@ -334,6 +334,12 @@ def squad_value(
     spread: bool = False,
 ) -> float | tuple[float, float]:
     """What a squad's team sheet is expected to return in a round.
+
+    IT WAS CALLED `squad_value` until 24/09/2026, and the project had three
+    things under that name: this projection, the MCP tool that ranks the squad
+    by points per MATCH with each man's price, and a field carrying the squad's
+    cost in EUROS. Points a round, points a match and money. The tool is the
+    one with a contract, so it kept the name and these two gave theirs up.
 
     With `spread` it also returns how much the round-to-round result varies,
     which is what a caller needs to tell a real improvement from a sampling
@@ -585,7 +591,7 @@ def improve_squad(
         key = frozenset(ids)
         if key not in priced:
             priced[key] = sum(
-                squad_value(ids, market, view, playing, draws=draws, seed=seed)
+                expected_round_points(ids, market, view, playing, draws=draws, seed=seed)
                 for view in rounds
             ) / len(rounds)
         return priced[key]
@@ -603,7 +609,7 @@ def improve_squad(
         return max_swaps is None or len(started.difference(trial)) <= max_swaps
 
     starting = [
-        squad_value(squad, market, view, playing, draws=draws, seed=seed, spread=True)
+        expected_round_points(squad, market, view, playing, draws=draws, seed=seed, spread=True)
         for view in rounds
     ]
     value = sum(price for price, _ in starting) / len(starting)

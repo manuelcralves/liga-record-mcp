@@ -39,7 +39,7 @@ LAST_HOLIDAY_ROUND = LAST_MATCHDAY - HOLIDAY_BLOCKED_LAST_ROUNDS
 #:
 #: Measured on 22/09/2026 by `scripts/measure_holiday_timing.py`, 64 paths of
 #: each reconstructed season, rounds 6 to 31, the sheet played out by
-#: `squad_value` on each round's fixture-adjusted values:
+#: `expected_round_points` on each round's fixture-adjusted values:
 #:
 #:                                  2025/26   2024/25
 #:     knowing nothing of absences    3.55      3.27

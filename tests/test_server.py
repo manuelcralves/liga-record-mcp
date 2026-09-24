@@ -145,7 +145,7 @@ def test_get_squad_reports_money_and_provenance():
     assert result["round"] == 3
     assert result["as_of"]  # every read says how fresh it is
     assert result["is_legal"] is True
-    assert result["squad_value"] == 39_100_000
+    assert result["squad_cost"] == 39_100_000
     assert result["balance"] == 900_000
     assert len(result["players"]) == 23
 
@@ -389,7 +389,7 @@ def test_simulate_autosubs_passes_on_the_armband():
 def test_check_transfer_accepts_like_for_like():
     result = mcp_server.check_transfer("GK1", "Novo Guarda", "GK", "Estoril", 600_000)
     assert result["is_valid"] is True
-    assert result["squad_value_after"] == 39_100_000
+    assert result["cost_after"] == 39_100_000
 
 
 def test_check_transfer_rejects_a_position_change():
@@ -552,8 +552,8 @@ def test_check_market_transfer_prices_from_the_live_quote(stub_market, market_sq
     assert result["in"]["name"] == "Lucas França"
     assert result["in"]["value"] == 500_000  # the live quote, not a guess
     # Fixture squad is 39 100 000; the outgoing keeper is 600 000.
-    assert result["squad_value_after"] == 39_100_000 - 600_000 + 500_000
-    assert result["balance_after"] == 40_000_000 - result["squad_value_after"]
+    assert result["cost_after"] == 39_100_000 - 600_000 + 500_000
+    assert result["balance_after"] == 40_000_000 - result["cost_after"]
 
 
 def test_check_market_transfer_refuses_a_player_outside_the_position(

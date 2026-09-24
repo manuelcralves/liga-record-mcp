@@ -32,7 +32,7 @@ from liga_record_mcp.optimise import (
     best_squad_under_budget,
     improve_squad,
     legal_shapes,
-    squad_value,
+    expected_round_points,
 )
 from liga_record_mcp.rules import legal_formations, validate_selection
 from liga_record_mcp.stats import UNUSED_PENALTY
@@ -312,9 +312,9 @@ def test_a_third_goalkeeper_is_worth_almost_nothing():
     returns = {i: 4.0 for i in squad}
     playing = {i: 0.95 for i in squad}
 
-    with_a_good_reserve = squad_value(squad, market, returns, playing, draws=200)
+    with_a_good_reserve = expected_round_points(squad, market, returns, playing, draws=200)
     returns_poor_reserve = {**returns, "GK1": 0.5, "GK2": 0.5}
-    with_a_poor_reserve = squad_value(
+    with_a_poor_reserve = expected_round_points(
         squad, market, returns_poor_reserve, playing, draws=200
     )
     # Downgrading two keepers who never play should barely move the sheet.
@@ -329,14 +329,14 @@ def test_depth_is_worth_something_where_it_is_actually_needed():
     squad = squad_from(market)
     returns = {i: 4.0 for i in squad}
 
-    reliable = squad_value(squad, market, returns, {i: 0.98 for i in squad}, draws=200)
-    fragile = squad_value(squad, market, returns, {i: 0.55 for i in squad}, draws=200)
+    reliable = expected_round_points(squad, market, returns, {i: 0.98 for i in squad}, draws=200)
+    fragile = expected_round_points(squad, market, returns, {i: 0.55 for i in squad}, draws=200)
     assert fragile < reliable
 
     # With the same fragile starters, better cover is worth having.
     thin = {**{i: 0.55 for i in squad}}
     covered = {**thin, **{i: 0.98 for i in squad if i.startswith(("DEF6", "DEF7"))}}
-    assert squad_value(squad, market, returns, covered, draws=200) > squad_value(
+    assert expected_round_points(squad, market, returns, covered, draws=200) > expected_round_points(
         squad, market, returns, thin, draws=200
     )
 
@@ -348,7 +348,7 @@ def test_the_same_squad_scores_the_same_twice():
     squad = squad_from(market)
     returns = {i: 4.0 for i in squad}
     playing = {i: 0.7 for i in squad}
-    assert squad_value(squad, market, returns, playing, seed=1) == squad_value(
+    assert expected_round_points(squad, market, returns, playing, seed=1) == expected_round_points(
         squad, market, returns, playing, seed=1
     )
 
@@ -401,7 +401,7 @@ def test_the_optimiser_escapes_a_squad_that_has_spent_everything():
         returns[f"FWD{n}"] = 20.0 - n
     playing = {i: 0.95 for i in market}
 
-    before = squad_value(squad, market, returns, playing, draws=400)
+    before = expected_round_points(squad, market, returns, playing, draws=400)
     better = improve_squad(
         squad, market, returns, playing, budget=budget, draws=400, passes=3
     )
@@ -468,7 +468,7 @@ def test_the_february_allowance_is_spent_to_the_last_transfer():
     # the six is a move worth making.
     assert spent == allowance, f"spent {spent} of {allowance}"
     assert capped["cost"] <= budget
-    assert capped["expected_round"] > squad_value(
+    assert capped["expected_round"] > expected_round_points(
         squad, market, returns, playing, draws=128
     )
 
@@ -622,7 +622,7 @@ def test_without_a_horizon_the_search_is_the_one_it_always_was():
     The numbers below were read off the search the day the horizon was added,
     BEFORE the change, on the whole climb and on the one transfer a round the
     page asks for. A horizon of one round equal to the season values must give
-    them too: it is the same arithmetic, divided by one. If `squad_value`
+    them too: it is the same arithmetic, divided by one. If `expected_round_points`
     itself ever changes on purpose, read them again from the new code; what
     this holds is that the horizon changed nothing on its own.
     """

@@ -17,7 +17,7 @@ five-round lookahead, 2024/25 and 2025/26, rounds 6 to 31 (§6.17 closes the
 last three). Before each round, from data before it:
 
     expected   what the squad's sheet is expected to make this round
-               (`squad_value`, absences and §11 played out, on this round's
+               (`expected_round_points`, absences and §11 played out, on this round's
                fixture-adjusted values)
     typical    the same over the next five rounds, averaged
 
@@ -60,7 +60,7 @@ from backtest_transfers import (  # noqa: E402
 from liga_record_mcp.backtest import appeared, replay_with_transfers  # noqa: E402
 from liga_record_mcp.holiday import LAST_HOLIDAY_ROUND, holiday_bar  # noqa: E402
 from liga_record_mcp.models import BASE_BUDGET, HOLIDAY_ROUNDS, Position  # noqa: E402
-from liga_record_mcp.optimise import squad_value  # noqa: E402
+from liga_record_mcp.optimise import expected_round_points  # noqa: E402
 from liga_record_mcp.source import LigaRecordClient  # noqa: E402
 
 SEASONS = (
@@ -96,13 +96,13 @@ def path_weeks(held, market, history, halves, moved, ahead_of, actual):
         playing = halves[number][0]
         views = [moved[number][f] for f in ahead_of[number]]
         blind = [
-            squad_value(squad, market, view, playing, draws=DRAWS) for view in views
+            expected_round_points(squad, market, view, playing, draws=DRAWS) for view in views
         ]
         known = {
             i: (playing.get(i, 0.0) if appeared(history, i, number) else 0.0)
             for i in squad
         }
-        informed = squad_value(squad, market, views[0], {**playing, **known}, draws=DRAWS)
+        informed = expected_round_points(squad, market, views[0], {**playing, **known}, draws=DRAWS)
         weeks.append(
             {
                 "round": number,
