@@ -52,9 +52,9 @@ from collections.abc import Iterable, Mapping, Sequence
 from statistics import mean
 from typing import Any
 
-from .models import Player, Position, Selection, Squad
+from .models import REOPENED_MAX_SWAPS, Player, Position, Selection, Squad
 from .optimise import best_eleven, improve_squad
-from .rules import simulate_autosubs
+from .rules import simulate_autosubs, transfers_allowed
 from .stats import (
     STARTER_MINUTES,
     PRIOR_STRENGTH,
@@ -1126,6 +1126,27 @@ def replay_with_transfers(
     return summary
 
 
+def _paired(
+    gone: Sequence[str], arrived: Sequence[str], market: Mapping[str, Player]
+) -> list[tuple[str, str]]:
+    """Match the men leaving to the men arriving, position by position.
+
+    A transfer keeps the contingent, so the two lists hold the same positions;
+    inside a position the pairing is arbitrary and is therefore fixed, by id,
+    so the same climb always reports the same swaps.
+    """
+    pairs = []
+    waiting = sorted(arrived)
+    for out_id in sorted(gone):
+        position = market[out_id].position
+        match = next((i for i in waiting if market[i].position == position), None)
+        if match is None:                       # never, while the quota holds
+            match = waiting[0]
+        waiting.remove(match)
+        pairs.append((out_id, match))
+    return pairs
+
+
 def replay_with_search(
     opening: Sequence[str],
     market: Mapping[str, Player],
@@ -1139,6 +1160,7 @@ def replay_with_search(
     draws: int = 400,
     seed: int = 0,
     knows_availability: bool = True,
+    honour_window: bool = False,
 ) -> dict[str, Any]:
     """`replay_with_transfers`, with each transfer chosen the way the page does.
 
@@ -1158,44 +1180,76 @@ def replay_with_search(
     One transfer a round under §6.8: `max_swaps=1` counts the net change, so
     the search may buy a man and then a better one for the same place inside
     one climb, and only the move it lands on is a transfer.
+
+    `honour_window` OPENS FEBRUARY. §6.9 reopens the market over matchdays 21
+    to 24 with six swaps for the WHOLE window and §6.8 switched off, and this
+    replayed it one a round like any other week — which is the ladder nobody
+    has to climb, and the reason the window could not be measured at all. With
+    it, those four matchdays draw on one purse of six and the rest of the
+    season is untouched.
+
+    It is off by default so that every number measured before it stays the
+    number it was. §6.7's free window is not honoured here either way: the
+    replay begins from an opening squad that is already that window's work, and
+    granting it again at matchday 6 would count it twice.
     """
     squad = list(opening)
     per_round, substitutions = [], 0
     transfers: list[dict[str, Any]] = []
+    purse = REOPENED_MAX_SWAPS
 
     for index, matchday in enumerate(matchdays):
         playing, returns = parts[matchday]
+        allowed, article = transfers_allowed(matchday)
+        if honour_window and article == "§6.9":
+            # Six for the window, not six a round: what is left is what is
+            # left, and a week inside it that spends none keeps them.
+            allowed = max(0, purse)
+        else:
+            allowed = 1
         found = improve_squad(
             squad,
             market,
             returns,
             playing,
             budget=budget,
-            max_swaps=1,
+            max_swaps=allowed,
             draws=draws,
             seed=seed,
             horizon=None if horizons is None else horizons.get(matchday),
         )
         gone = [i for i in squad if i not in found["players"]]
+        arrived = [i for i in found["players"] if i not in squad]
         if gone:
-            (out_id,) = gone
-            (in_id,) = [i for i in found["players"] if i not in squad]
             rounds_left = len(matchdays) - index
-            squad[squad.index(out_id)] = in_id
-            transfers.append(
-                {
-                    "matchday": matchday,
-                    "out": market[out_id].name,
-                    "in": market[in_id].name,
-                    # The search reports a round; the page prints the season.
-                    "projected_gain": round(
-                        sum(swap["gain"] for swap in found["swaps"]) * rounds_left, 1
-                    ),
-                    "out_id": out_id,
-                    "in_id": in_id,
-                    "rounds_left": rounds_left,
-                }
-            )
+            # PAIRED BY POSITION, because a swap has to keep the contingent
+            # (§6.8, §6.9): the men leaving and the men arriving hold the same
+            # multiset of positions. Within one position any pairing gives the
+            # same season, and only the per-swap attribution in
+            # `settle_transfers` differs, so the pairing is made in a fixed
+            # order rather than left to whatever the search happened to do.
+            gain = round(sum(swap["gain"] for swap in found["swaps"]) * rounds_left, 1)
+            pairs = _paired(gone, arrived, market)
+            for number, (out_id, in_id) in enumerate(pairs):
+                squad[squad.index(out_id)] = in_id
+                transfers.append(
+                    {
+                        "matchday": matchday,
+                        "out": market[out_id].name,
+                        "in": market[in_id].name,
+                        # The search reports a round; the page prints the
+                        # season. The gain belongs to the climb rather than to
+                        # any one swap in it, so it is recorded once, against
+                        # the first, and the rest carry zero instead of a share
+                        # nobody measured.
+                        "projected_gain": gain if number == 0 else 0.0,
+                        "out_id": out_id,
+                        "in_id": in_id,
+                        "rounds_left": rounds_left,
+                    }
+                )
+            if honour_window and article == "§6.9":
+                purse -= len(gone)
 
         played = play_round(
             squad,

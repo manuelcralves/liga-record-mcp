@@ -21,6 +21,7 @@ import random
 
 from liga_record_mcp.backtest import (
     ABSENT,
+    _paired,
     best_transfer,
     play_round,
     replay,
@@ -30,7 +31,7 @@ from liga_record_mcp.backtest import (
     shrunk_projection,
     two_part_projection,
 )
-from liga_record_mcp.models import Player, Position
+from liga_record_mcp.models import REOPENED_MAX_SWAPS, Player, Position
 
 QUOTA = {Position.GK: 3, Position.DEF: 8, Position.MID: 8, Position.FWD: 4}
 MATCHDAYS = list(range(1, 11))
@@ -706,3 +707,113 @@ def test_the_page_search_makes_one_transfer_a_round_and_plays_what_it_holds():
         played["final_squad"], market, history, MATCHDAYS[2], forecast=returns,
         knows_availability=True,
     )["points"]
+
+
+# --- §6.9, the February window ------------------------------------------------
+
+#: Matchdays 19 to 26, so the reopening (21 to 24) has an ordinary week on
+#: either side of it. §6.9 is the only rule that changes inside it.
+WINDOW_MATCHDAYS = list(range(19, 27))
+
+
+def window_season(spares=8):
+    """A squad with plenty of better men on the shelf, and the money for them.
+
+    The cap has to BITE for these tests to mean anything: if the search only
+    wanted four swaps, a purse of six and a ladder of one would be told apart
+    by nothing.
+    """
+    market = market_of(extra=spares)
+    squad = squad_of(market)
+    shelf = [i for i in market if i not in squad]
+    returns = {i: 1.0 for i in market}
+    playing = {i: 0.95 for i in market}
+    for rank, identifier in enumerate(sorted(shelf)):
+        returns[identifier] = 9.0 - rank * 0.1
+    history = {i: {m: returns[i] for m in WINDOW_MATCHDAYS} for i in market}
+    return market, squad, returns, playing, history
+
+
+def replayed(honour_window):
+    market, squad, returns, playing, history = window_season()
+    return replay_with_search(
+        squad, market, history, WINDOW_MATCHDAYS,
+        budget=99_000_000,
+        parts={m: (playing, returns) for m in WINDOW_MATCHDAYS},
+        forecasts={m: returns for m in WINDOW_MATCHDAYS},
+        draws=32,
+        honour_window=honour_window,
+    )
+
+
+def by_matchday(played):
+    counted = {}
+    for transfer in played["transfers"]:
+        counted[transfer["matchday"]] = counted.get(transfer["matchday"], 0) + 1
+    return counted
+
+
+def test_the_ladder_is_what_the_replay_climbs_unless_it_is_told_otherwise():
+    """The default has to stay exactly what every earlier measurement ran on:
+    one a round, February included."""
+    counted = by_matchday(replayed(honour_window=False))
+    assert counted, "the search should want to move at all"
+    assert max(counted.values()) == 1
+    assert sum(counted.values()) == len(counted), "one apiece, never two"
+
+
+def test_the_window_stays_shut_unless_someone_asks_for_it():
+    """The default is not passed here on purpose.
+
+    The ordinary lookahead comparison — the one that measured +29.8 ± 6.5 and
+    wired the horizon into the page — replays the whole season, matchdays 21 to
+    24 among them, and never mentions `honour_window`. If its default ever
+    flipped, that headline would quietly become a number measured under another
+    rule. This is the test that would go red.
+    """
+    market, squad, returns, playing, history = window_season()
+    played = replay_with_search(
+        squad, market, history, WINDOW_MATCHDAYS,
+        budget=99_000_000,
+        parts={m: (playing, returns) for m in WINDOW_MATCHDAYS},
+        forecasts={m: returns for m in WINDOW_MATCHDAYS},
+        draws=32,
+    )
+    inside = [t for t in played["transfers"] if 21 <= t["matchday"] <= 24]
+    assert inside, "the window weeks should still trade one at a time"
+    assert max(by_matchday(played).values()) == 1
+
+
+def test_the_window_spends_one_purse_of_six_across_its_four_matchdays():
+    """§6.9: six for the whole reopening, not six a round — and not one a
+    round either, which is the ladder this exists to skip."""
+    played = replayed(honour_window=True)
+    counted = by_matchday(played)
+    inside = {m: n for m, n in counted.items() if 21 <= m <= 24}
+    outside = {m: n for m, n in counted.items() if not 21 <= m <= 24}
+
+    assert sum(inside.values()) == REOPENED_MAX_SWAPS, "six, and the cap binds"
+    assert max(inside.values()) > 1, "the point is that they can go together"
+    assert outside == {} or max(outside.values()) == 1, "§6.8 elsewhere, one a round"
+
+
+def test_the_window_leaves_a_squad_of_the_same_size_and_shape():
+    """A swap keeps the contingent (§6.9), whatever the search did inside its
+    climb."""
+    market, squad, *_ = window_season()
+    played = replayed(honour_window=True)
+    assert len(played["final_squad"]) == len(squad)
+    for position in QUOTA:
+        before = sum(1 for i in squad if market[i].position is position)
+        after = sum(1 for i in played["final_squad"] if market[i].position is position)
+        assert after == before, position
+
+
+def test_the_men_leaving_are_paired_to_the_men_arriving_by_position():
+    """The season does not depend on the pairing, but `settle_transfers` values
+    each swap on it, so it is fixed rather than left to the search's order."""
+    market = market_of(extra=2)
+    gone = ["DEF0", "FWD0"]
+    arrived = ["FWD3", "DEF8"]
+    assert _paired(gone, arrived, market) == [("DEF0", "DEF8"), ("FWD0", "FWD3")]
+

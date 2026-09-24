@@ -36,13 +36,16 @@ the same answer twice.
 WHAT IT DOES NOT MODEL. Prices are frozen at today's quotes: last season's are
 gone, and §12.3's price movement cannot be replayed without them. So this
 measures whether the model picks better PLAYERS, not whether it plays the
-market. §6.9's February window is left out too — six swaps in a month is a
-different problem and blurring it into "one a round" would answer neither.
+market. §6.9's February window was left out too, for the same reason it is a
+different problem: six swaps in a month blurred into "one a round" answers
+neither. `--fevereiro` asks it properly — the same season twice, the page's
+rule in both, differing only on matchdays 21 to 24.
 
     python scripts/backtest_transfers.py
     python scripts/backtest_transfers.py --thresholds 0 5 10 20
     python scripts/backtest_transfers.py --lookahead 5 --paths 64
     python scripts/backtest_transfers.py --lookahead 5 --paths 64 --search improve --workers 16
+    python scripts/backtest_transfers.py --fevereiro --search improve --paths 24 --workers 8
 """
 
 from __future__ import annotations
@@ -93,6 +96,11 @@ SQUAD_PATH = ROOT / "data" / "squad.yaml"
 SEASON_PATH = ROOT / "data" / "last-season.json"
 
 MATCHDAYS = list(range(FIRST_SCORING_MATCHDAY, LAST_MATCHDAY + 1))
+
+#: What the page prices a transfer over, since cc4ae93 — the horizon the
+#: February arms inherit when none is asked for, so the two arms differ in
+#: §6.9 and in nothing else.
+PAGE_LOOKAHEAD = 5
 ALL_MATCHDAYS = list(range(1, LAST_MATCHDAY + 1))
 
 #: The season each reconstruction may remember, as `replay_valuation` has it:
@@ -274,7 +282,20 @@ def _play_the_arms(start):
         market=shared["market"], history=shared["history"], matchdays=MATCHDAYS,
         budget=BASE_BUDGET, forecasts=shared["per_round"], knows_availability=True,
     )
-    if shared["search"] == "improve":
+    if shared.get("february"):
+        # ONE PAIR, ONE DIFFERENCE. Both arms are the page as it stands today,
+        # horizon included, and they part company on four matchdays only: 21 to
+        # 24, where §6.9 hands over six swaps for the month and §6.8 is off.
+        # So the paired difference IS what the window is worth, with no other
+        # change of regime to share the credit.
+        played = {
+            arm: replay_with_search(
+                held, parts=shared["parts"], horizons=shared["ahead"],
+                draws=shared["draws"], honour_window=window, **common,
+            )
+            for arm, window in (("escada", False), ("janela", True))
+        }
+    elif shared["search"] == "improve":
         played = {
             arm: replay_with_search(
                 held, parts=shared["parts"], horizons=horizons,
@@ -310,6 +331,7 @@ def paired(label, diffs):
 def looking_ahead(
     history, minutes, cells, table, market, rows, mine, *,
     horizon, paths, seed, estimator, search, workers, draws, season_path,
+    february=False,
 ):
     """Does pricing a transfer over the next few rounds beat what the page does?
 
@@ -378,7 +400,12 @@ def looking_ahead(
         market=market, history=history, cells=cells, per_round=per_round,
         search=search, draws=draws,
     )
-    if search == "improve":
+    if february:
+        arms = ("escada", "janela")
+        shared["february"] = True
+        shared["parts"] = {m: (halves[m][0], halves[m][1]) for m in MATCHDAYS}
+        shared["ahead"] = {m: [moved[m][f] for f in ahead_of[m]] for m in MATCHDAYS}
+    elif search == "improve":
         arms = ("epoca", "ahead")
         shared["parts"] = {m: (halves[m][0], halves[m][1]) for m in MATCHDAYS}
         shared["ahead"] = {m: [moved[m][f] for f in ahead_of[m]] for m in MATCHDAYS}
@@ -429,6 +456,13 @@ def looking_ahead(
         for start in starts:
             show(*_play_the_arms(start))
 
+    if "janela" in arms:
+        diffs = {"janela - escada": [r["janela"][0] - r["escada"][0] for r in results]}
+        print()
+        for label, values in diffs.items():
+            print(paired(label, values))
+        return diffs
+
     diffs = {
         "ahead - epoca": [r["ahead"][0] - r["epoca"][0] for r in results],
     }
@@ -475,7 +509,8 @@ def main() -> None:
         "--search",
         choices=("best", "improve"),
         default="best",
-        help="which search picks each transfer in the lookahead comparison: "
+        help="which search picks each transfer in the lookahead comparison "
+        "(--fevereiro always uses `improve`, the page's own, and ignores this): "
         "best_transfer, or improve_squad as the page runs it",
     )
     parser.add_argument(
@@ -489,6 +524,15 @@ def main() -> None:
         type=int,
         default=PAGE_DRAWS,
         help="draws per candidate squad under --search improve",
+    )
+    parser.add_argument(
+        "--fevereiro",
+        action="store_true",
+        help=(
+            "§6.9's window: the same season twice, differing only on matchdays "
+            "21-24, where one arm climbs the ladder a swap a round and the "
+            "other spends one purse of six"
+        ),
     )
     parser.add_argument(
         "--story",
@@ -505,12 +549,13 @@ def main() -> None:
 
     print(f"{len(market)} players; matchdays {MATCHDAYS[0]}-{MATCHDAYS[-1]}")
 
-    if args.lookahead:
+    if args.lookahead or args.fevereiro:
         looking_ahead(
             history, minutes, cells, table, market, rows, mine,
-            horizon=args.lookahead, paths=args.paths, seed=args.seed,
-            estimator=args.estimator, search=args.search, workers=args.workers,
-            draws=args.draws, season_path=args.season or SEASON_PATH,
+            horizon=args.lookahead or PAGE_LOOKAHEAD, paths=args.paths,
+            seed=args.seed, estimator=args.estimator, search=args.search,
+            workers=args.workers, draws=args.draws,
+            season_path=args.season or SEASON_PATH, february=args.fevereiro,
         )
         return
 

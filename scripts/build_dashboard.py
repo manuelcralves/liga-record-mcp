@@ -1258,6 +1258,14 @@ def model_section(data: dict, public: bool = False) -> str:
     # the whole twenty-three be rebuilt for free — announcing one move on the
     # very week there were unlimited ones, which is the most expensive
     # week to be wrong about.
+    # AND WHAT THE MODEL DOES WITH IT, which in February is not what the rule
+    # allows. §6.9 hands over six for the month; spending them as soon as each
+    # one looks worth it was measured on 24/09/2026 and cost 8.9 ± 3.7 points a
+    # season on 2025/26 and 8.1 ± 4.6 on 2024/25, winning 6 paths of 24 and 9 of
+    # 24. One a round is not a limitation here — it is a brake: it forces the
+    # best single move of the week and decides again seven days later, with a
+    # fresher projection. So the page says both, rather than promising six and
+    # then showing one, which is what it did.
     window, article = transfers_allowed(data.get("round") or FIRST_SCORING_MATCHDAY)
     limit = (
         "E é uma por ronda: não acumula, e saltar uma não guarda nada."
@@ -1265,7 +1273,11 @@ def model_section(data: dict, public: bool = False) -> str:
         else f"E esta semana não estás limitado a uma: o {article} deixa-te "
         "fazer as que quiseres de uma vez, até ao fecho."
         if window is None
-        else f"O {article} deixa-te {window} nesta janela, para o mês inteiro."
+        else f"O {article} deixa-te {window} nesta janela, para o mês inteiro — "
+        "mas aqui vai uma de cada vez, e de propósito: gastá-las todas de "
+        "uma vez foi medido a custar cerca de 8 pontos por época, porque "
+        "decidir quatro vezes com projecções frescas bate decidir seis de "
+        "uma só vez."
     )
     if not found:
         return """      <p class="lede">Sem épocas reconstruídas, o modelo não tem
