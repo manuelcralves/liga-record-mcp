@@ -2637,7 +2637,7 @@
       "fully_settled": true
     },
     "8": {
-      "recorded_at": "2026-10-08T08:43:20.579107+00:00",
+      "recorded_at": "2026-10-08T09:05:56.927397+00:00",
       "estimator": "valuation+fixture+recency",
       "evidence": {
         "archive_players": 287,
@@ -2653,28 +2653,28 @@
           5
         ]
       },
-      "squad_value": 39550000,
+      "squad_value": 39800000,
       "filed": {
         "starters": [
           "38800",
           "43299",
           "42927",
-          "43175",
           "43510",
+          "43369",
+          "42835",
           "43499",
-          "33728",
-          "42864",
+          "42937",
           "43298",
           "42896",
           "42749"
         ],
         "bench": [
           "43029",
-          "42835",
-          "26072",
-          "26027"
+          "43426",
+          "33728",
+          "26072"
         ],
-        "captain": "43298"
+        "captain": "42896"
       },
       "advised": {
         "starters": [
@@ -2684,8 +2684,8 @@
           "43510",
           "43369",
           "42835",
+          "42937",
           "43499",
-          "42864",
           "42896",
           "43298",
           "42749"
@@ -3019,22 +3019,22 @@
           "actual": null,
           "unavailable": "lesionado a 08/10"
         },
-        "42864": {
-          "name": "Pedro Ferreira",
+        "42937": {
+          "name": "Santi García",
           "position": "MID",
-          "club": "Santa Clara",
-          "value": 750000,
-          "opponent": "Casa Pia",
+          "club": "Gil Vicente",
+          "value": 1000000,
+          "opponent": "Moreirense",
           "at_home": false,
-          "kickoff": "10 OUT 15:30",
+          "kickoff": "09 OUT 18:45",
           "club_has_history": true,
-          "season_rate": 3.07,
-          "returns": 3.13,
-          "playing": 0.985,
-          "appearances": 70,
-          "defensive_multiplier": 1.207,
-          "attacking_multiplier": 1.07,
-          "projected": 3.27,
+          "season_rate": 3.41,
+          "returns": 3.58,
+          "playing": 0.962,
+          "appearances": 64,
+          "defensive_multiplier": 1.108,
+          "attacking_multiplier": 1.06,
+          "projected": 3.55,
           "points_before": 13,
           "actual": null
         },
@@ -3156,15 +3156,15 @@
         }
       },
       "coach": {
-        "id": "860",
-        "name": "Rui Borges",
-        "club": "Sporting",
-        "points_before": 5,
+        "id": "622",
+        "name": "Marco Silva",
+        "club": "Benfica",
+        "points_before": 11,
         "metodo": "jogo",
         "alem_do_resultado": 3.72,
-        "opponent": "Sp. Braga",
-        "at_home": false,
-        "projected_rate": 4.13,
+        "opponent": "V. Guimarães",
+        "at_home": true,
+        "projected_rate": 5.04,
         "actual": null
       }
     }

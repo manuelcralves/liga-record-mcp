@@ -181,12 +181,12 @@ players:
     points_total: 14
     points_round: 2
 
-  - id: "42864"
-    name: Pedro Ferreira
+  - id: "42937"
+    name: Santi García
     position: MID
-    club: Santa Clara
-    value: 750000
-    initial_value: 750000
+    club: Gil Vicente
+    value: 1000000
+    initial_value: 1000000
     points_total: 13
     points_round: 2
 
@@ -257,23 +257,34 @@ players:
 # treinadores sao gratis (§6.15) e escolhem-se jornada a jornada, mas as
 # paginas ainda os escolhem para a epoca inteira. A conta desta jornada foi
 # feita a parte, com o modelo de golos da tabela final.
+# A FOLHA DA JORNADA 8, lida na pagina da equipa a 08/10/2026, 26 horas antes do
+# fecho, depois de o Manuel a ter mexido com o boletim clinico em mao: 3-4-3 em
+# vez de 4-3-3, com o Lagerbielke e o Samu a sair do onze para entrarem o Espen
+# Van Ee e o Fukui, a bracadeira a passar para o Pavlidis e o Marco Silva no
+# lugar do Rui Borges. Nenhum dos cinco lesionados estava no onze.
+#
+# A ORDEM DO BANCO E A DO SITE, nao a que eu sugeri. O modelo poe um suplente
+# por posicao (o §11 substitui posicao por posicao) mas ordena-os pela ordem das
+# posicoes, e a ordem so decide uma coisa: se falharem quatro titulares, so tres
+# entram (§6.13) e o quarto da lista fica de fora. Como esta, o sacrificado
+# seria o Goncalo Paciencia, que e o melhor do banco.
 selection:
   starters:
     - "38800"    # Diogo Costa        GR   FC Porto
     - "43299"    # Bednarek           DEF  FC Porto
     - "42927"    # Rodrigo Pinheiro   DEF  Famalicão
-    - "43175"    # Lagerbielke        DEF  Sp. Braga
     - "43510"    # Finn van Breemen   DEF  Famalicão
+    - "43369"    # Espen Van Ee       MED  Arouca
+    - "42835"    # Fukui              MED  Arouca
     - "43499"    # Altimira           MED  Sporting
-    - "33728"    # Samu               MED  V. Guimarães
-    - "42864"    # Pedro Ferreira     MED  Santa Clara
+    - "42937"    # Santi García       MED  Gil Vicente
     - "43298"    # Luis Suárez        AVA  Sporting
     - "42896"    # Pavlidis           AVA  Benfica
     - "42749"    # Óscar Aranda       AVA  Famalicão
   bench:
     - "43029"    # Carevic            GR   Famalicão
-    - "42835"    # Fukui              MED  Arouca
+    - "43426"    # Javi Sánchez       DEF  Arouca
+    - "33728"    # Samu               MED  V. Guimarães
     - "26072"    # Gonçalo Paciência  AVA  Santa Clara
-    - "26027"    # André Geraldes     DEF  Casa Pia
-  captain: "43298"    # Luis Suárez
-  coach: "860"        # Rui Borges, Sporting
+  captain: "42896"    # Pavlidis
+  coach: "622"        # Marco Silva, Benfica
