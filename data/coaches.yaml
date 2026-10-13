@@ -20,11 +20,16 @@ coaches:
     points_total: 14
     points_round: 8
 
-  - id: "777"
-    name: Vasco Seabra
+  # O Vasco Seabra (id 777) saiu do Arouca para o Rio Ave durante a pausa, e o
+  # email da jornada 8 ja credita «Vitor Severino | Arouca» e «Vasco Seabra |
+  # Rio Ave». Os ids do site so se leem na pagina da equipa com sessao
+  # iniciada; ficam marcadores ate la, e nada espera por eles, porque a
+  # ordenacao e o settle juntam-se pelo clube.
+  - id: "arouca"
+    name: Vítor Severino
     club: Arouca
-    points_total: 14
-    points_round: 9
+    points_total: 0
+    points_round: 0
 
   - id: "890"
     name: Farioli
@@ -111,10 +116,13 @@ coaches:
     points_total: 4
     points_round: 0
 
-  - id: "894"
-    name: Sotiris
+  # O Sotiris (id 894) saiu, e o Vasco Seabra veio do Arouca. Os totais ficam a
+  # zero em vez de herdados: os numeros deste ficheiro sao os do site lidos a
+  # 19/08, antes de o site os zerar, e nao sao dele neste clube.
+  - id: "rio-ave"
+    name: Vasco Seabra
     club: Rio Ave
-    points_total: 1
+    points_total: 0
     points_round: 0
 
   - id: "842"
