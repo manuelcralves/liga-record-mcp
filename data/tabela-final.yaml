@@ -47,6 +47,13 @@ chips:
     clube: FC Porto
     para: 1
     nota: subiu 2 (do 3.º), o chip semanal — +12,9 esperados na página de 22/09
+  - jornada: 9
+    clube: Nacional
+    para: 17
+    nota: >-
+      desceu 3 (do 14.º), o chip semanal — +8,5 esperados na página de 20/10,
+      com o Nacional em 16.º na classificação real e 43% de probabilidade de
+      descer. Jogado pelo Manuel a 20/10, antes do fecho da jornada 9.
 # Exemplo, depois de entregar:
 #
 # entrada:
