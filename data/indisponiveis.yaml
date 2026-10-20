@@ -23,19 +23,19 @@
 #
 # Esvazia a lista quando a jornada mudar.
 
-jornada: 8
+jornada: 9
 
-# VAZIA A 23/09, E ISSO NÃO QUER DIZER QUE ESTEJAM TODOS APTOS. Quer dizer que
-# o boletim clínico da jornada 8 ainda não foi lido: o último em data/boletim/
-# é o de 18/09, que é da jornada 7. Enquanto isto estiver vazio, o modelo
+# VAZIA A 20/10, E ISSO NÃO QUER DIZER QUE ESTEJAM TODOS APTOS. Quer dizer que
+# o boletim clínico da jornada 9 ainda não foi lido: o último em data/boletim/
+# é o de 08/10, que é da jornada 8. Enquanto isto estiver vazio, o modelo
 # projeta a jornada 8 com o plantel todo apto — que era exatamente o que já
 # acontecia com `jornada: 7` escrito aqui, porque o `load_unavailable` devolve
 # vazio quando a jornada não bate certo. A diferença é que agora está dito.
 #
-# ANTES DO FECHO, SEXTA 9/10 ÀS 18:30: copiar o boletim para data/boletim/, pôr
+# ANTES DO FECHO, SEXTA 23/10 ÀS 20:30: copiar o boletim para data/boletim/, pôr
 # aqui quem ele listar do plantel, e reconstruir as páginas. Mexer nesta lista
 # obriga o ledger a registar a jornada de novo, que é o que se quer — a jornada
-# 8 está registada desde 21/09 com esta lista vazia.
+# 9 é registada hoje com esta lista vazia.
 #
 # O ZAIDU É O NOME A CONFIRMAR PRIMEIRO. A paragem dele eram dois meses desde a
 # jornada 4 e «só volta depois da pausa internacional»; a jornada 8 joga-se de 9

@@ -39,13 +39,13 @@
   "8": {
    "captain": "Pavlidis",
    "coach": "Marco Silva",
-   "field_size": 158940,
+   "field_size": 160660,
    "followed": true,
    "holiday": false,
-   "note": "Jornada 8, a «3.a ronda» do site. A folha entregue foi exatamente a aconselhada: mesmo onze (3-4-3), mesmo banco, Pavlidis capitao, Marco Silva treinador, e a troca sugerida feita. Pela minha conta sobre o email: 42 dos jogadores com o capitao a dobrar, mais 7 do treinador, 49 no total. A pontuacao e a posicao ficam por preencher porque a 13/10 as 15h o site ainda nao tinha publicado o ranking da ronda 3 — completa-se so esse campo quando publicar.",
-   "our_points": null,
-   "our_rank": null,
-   "recorded_at": "2026-10-13T07:08:15.787256+00:00",
+   "note": "Jornada 8, a «3.a ronda» do site. A folha entregue foi exatamente a aconselhada: mesmo onze (3-4-3), mesmo banco, Pavlidis capitao, Marco Silva treinador, e a troca sugerida feita. Registada a 13/10 sem pontuacao porque o site ainda nao tinha publicado a ronda 3; completada a 20/10 com a pontuacao e a posicao que ele publicou, e so esses dois campos mudaram. A conta feita sobre o email a 13/10 dava 49 e o site diz 49.",
+   "our_points": 49,
+   "our_rank": 26438,
+   "recorded_at": "2026-10-20T09:14:32.500613+00:00",
    "suggested": {
     "in": "Santi García",
     "out": "Pedro Ferreira"
