@@ -3196,7 +3196,7 @@
       "fully_settled": true
     },
     "9": {
-      "recorded_at": "2026-10-20T09:15:01.209800+00:00",
+      "recorded_at": "2026-10-22T14:13:37.777682+00:00",
       "estimator": "valuation+fixture+recency",
       "evidence": {
         "archive_players": 287,
@@ -3213,35 +3213,13 @@
           5
         ]
       },
-      "squad_value": 39800000,
+      "squad_value": 39050000,
       "filed": {
         "starters": [
           "38800",
           "43299",
-          "42927",
-          "43510",
-          "43369",
-          "42835",
-          "43499",
-          "42937",
-          "43298",
-          "42896",
-          "42749"
-        ],
-        "bench": [
-          "43029",
           "43426",
-          "33728",
-          "26072"
-        ],
-        "captain": "42896"
-      },
-      "advised": {
-        "starters": [
-          "38800",
-          "43299",
-          "43426",
-          "42927",
+          "43047",
           "43499",
           "33728",
           "43369",
@@ -3252,8 +3230,30 @@
         ],
         "bench": [
           "43029",
-          "26027",
-          "43304",
+          "42927",
+          "31229",
+          "26072"
+        ],
+        "captain": "43298"
+      },
+      "advised": {
+        "starters": [
+          "38800",
+          "43299",
+          "43426",
+          "43047",
+          "43499",
+          "33728",
+          "43369",
+          "42835",
+          "42937",
+          "43298",
+          "42896"
+        ],
+        "bench": [
+          "43029",
+          "42927",
+          "31229",
           "26072"
         ],
         "captain": "43298",
@@ -3348,22 +3348,22 @@
           "points_before": 20,
           "actual": null
         },
-        "41670": {
-          "name": "Zaidu",
+        "43047": {
+          "name": "Elimbi",
           "position": "DEF",
-          "club": "FC Porto",
-          "value": 1500000,
-          "opponent": "Gil Vicente",
-          "at_home": false,
+          "club": "Gil Vicente",
+          "value": 750000,
+          "opponent": "FC Porto",
+          "at_home": true,
           "kickoff": "24 OUT 20:30",
           "club_has_history": true,
-          "season_rate": -0.26,
-          "returns": 4.02,
-          "playing": 0.147,
-          "appearances": 24,
-          "defensive_multiplier": 1.043,
-          "attacking_multiplier": 0.901,
-          "projected": -0.26,
+          "season_rate": 2.08,
+          "returns": 2.48,
+          "playing": 0.884,
+          "appearances": 46,
+          "defensive_multiplier": 0.723,
+          "attacking_multiplier": 0.615,
+          "projected": 1.79,
           "points_before": 18,
           "actual": null
         },
@@ -3572,9 +3572,10 @@
           "appearances": 32,
           "defensive_multiplier": 0.818,
           "attacking_multiplier": 0.845,
-          "projected": 0.02,
+          "projected": -1.0,
           "points_before": 14,
-          "actual": null
+          "actual": null,
+          "unavailable": "lesionado a 22/10"
         },
         "42937": {
           "name": "Santi García",
@@ -3610,9 +3611,10 @@
           "appearances": 29,
           "defensive_multiplier": 1.476,
           "attacking_multiplier": 1.281,
-          "projected": -0.08,
+          "projected": -1.0,
           "points_before": 3,
-          "actual": null
+          "actual": null,
+          "unavailable": "lesionado a 22/10"
         },
         "41718": {
           "name": "Filipe Soares",
@@ -3629,9 +3631,10 @@
           "appearances": 43,
           "defensive_multiplier": 0.818,
           "attacking_multiplier": 0.845,
-          "projected": -0.33,
+          "projected": -1.0,
           "points_before": 12,
-          "actual": null
+          "actual": null,
+          "unavailable": "lesionado a 22/10"
         },
         "43298": {
           "name": "Luis Suárez",
@@ -3711,15 +3714,15 @@
         }
       },
       "coach": {
-        "id": "622",
-        "name": "Marco Silva",
-        "club": "Benfica",
-        "points_before": 11,
+        "id": "860",
+        "name": "Rui Borges",
+        "club": "Sporting",
+        "points_before": 5,
         "metodo": "jogo",
         "alem_do_resultado": 3.72,
-        "opponent": "Santa Clara",
-        "at_home": false,
-        "projected_rate": 4.5,
+        "opponent": "Académico Viseu",
+        "at_home": true,
+        "projected_rate": 5.08,
         "actual": null
       }
     }

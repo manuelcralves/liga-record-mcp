@@ -72,12 +72,12 @@ players:
     points_total: 20
     points_round: 5
 
-  - id: "41670"
-    name: Zaidu
+  - id: "43047"
+    name: Elimbi
     position: DEF
-    club: FC Porto
-    value: 1500000
-    initial_value: 1500000
+    club: Gil Vicente
+    value: 750000
+    initial_value: 750000
     points_total: 18
     points_round: 3
 
@@ -257,39 +257,39 @@ players:
 # treinadores sao gratis (§6.15) e escolhem-se jornada a jornada, mas as
 # paginas ainda os escolhem para a epoca inteira. A conta desta jornada foi
 # feita a parte, com o modelo de golos da tabela final.
-# A JORNADA 9 FECHA A 23/10 AS 20:30. A folha abaixo e a da jornada 8, que o
-# §6.14 e o §6.16 repetem enquanto ninguem lhes tocar; o onze volta a ser lido
-# depois do boletim clinico desta semana. O Pedro Ferreira ja saiu e o Santi
-# Garcia ja esta ca dentro, da troca da 8.
+# A FOLHA DA JORNADA 9, lida na pagina da equipa a 22/10/2026, um dia antes do
+# fecho, depois de o Manuel a ter feito com o boletim clinico em mao. E
+# exatamente a aconselhada, pela segunda jornada seguida:
 #
-# A FOLHA DA JORNADA 8, lida na pagina da equipa a 08/10/2026, 26 horas antes do
-# fecho, depois de o Manuel a ter mexido com o boletim clinico em mao: 3-4-3 em
-# vez de 4-3-3, com o Lagerbielke e o Samu a sair do onze para entrarem o Espen
-# Van Ee e o Fukui, a bracadeira a passar para o Pavlidis e o Marco Silva no
-# lugar do Rui Borges. Nenhum dos cinco lesionados estava no onze.
+#   - a troca: sai o Zaidu (lesionado desde a jornada 4, -1.00 esperados),
+#     entra o Elimbi do Gil Vicente a 0,75M. O saldo subiu para 950 000.
+#   - o onze passa a 3-5-2: saem os tres do Famalicao, que vai a Rio Ave e
+#     aparece todo em baixo (Rodrigo Pinheiro 1.50, Finn van Breemen 1.39,
+#     Oscar Aranda 1.93), e entram o Javi Sanchez, o Elimbi e o Samu.
+#   - a bracadeira volta ao Luis Suarez (5.30, o Sporting recebe o Academico
+#     Viseu) e o treinador ao Rui Borges (5.08, contra 4.50 do Marco Silva).
 #
-# A ORDEM DO BANCO E A DO SITE, nao a que eu sugeri. O modelo poe um suplente
-# por posicao (o §11 substitui posicao por posicao) mas ordena-os pela ordem das
-# posicoes, e a ordem so decide uma coisa: se falharem quatro titulares, so tres
-# entram (§6.13) e o quarto da lista fica de fora. Como esta, o sacrificado
-# seria o Goncalo Paciencia, que e o melhor do banco.
+# O TERCEIRO DO BANCO NAO COBRE NADA, e ficou assim de olhos abertos: os tres
+# medios suplentes (Filipe Soares, Liziero, Xeka) estao todos no boletim, por
+# isso se um medio titular falhar entra um lesionado. A alternativa era o Oscar
+# Aranda como segunda cobertura de avancado, que vale pouco e nao e zero.
 selection:
   starters:
     - "38800"    # Diogo Costa        GR   FC Porto
     - "43299"    # Bednarek           DEF  FC Porto
-    - "42927"    # Rodrigo Pinheiro   DEF  Famalicão
-    - "43510"    # Finn van Breemen   DEF  Famalicão
+    - "43426"    # Javi Sánchez       DEF  Arouca
+    - "43047"    # Elimbi             DEF  Gil Vicente
+    - "43499"    # Altimira           MED  Sporting
+    - "33728"    # Samu               MED  V. Guimarães
     - "43369"    # Espen Van Ee       MED  Arouca
     - "42835"    # Fukui              MED  Arouca
-    - "43499"    # Altimira           MED  Sporting
     - "42937"    # Santi García       MED  Gil Vicente
     - "43298"    # Luis Suárez        AVA  Sporting
     - "42896"    # Pavlidis           AVA  Benfica
-    - "42749"    # Óscar Aranda       AVA  Famalicão
   bench:
     - "43029"    # Carevic            GR   Famalicão
-    - "43426"    # Javi Sánchez       DEF  Arouca
-    - "33728"    # Samu               MED  V. Guimarães
+    - "42927"    # Rodrigo Pinheiro   DEF  Famalicão
+    - "31229"    # Xeka               MED  Estoril
     - "26072"    # Gonçalo Paciência  AVA  Santa Clara
-  captain: "42896"    # Pavlidis
-  coach: "622"        # Marco Silva, Benfica
+  captain: "43298"    # Luis Suárez
+  coach: "860"        # Rui Borges, Sporting
