@@ -1393,7 +1393,7 @@ def model_section(data: dict, public: bool = False) -> str:
       O <strong>{esc(best['name'])}</strong> ({esc(best['club'])},
       {coach_fixture(best)}): <strong>{best['expected']:.2f}</strong> pontos
       esperados, com a nota média da redação.{runner} Não custa nada trocar
-      (§6.15), e os dezoito estão em <a href="decisoes.html">As decisões</a>.</p>"""
+      (§6.15), e a lista toda está em <a href="decisoes.html">As decisões</a>.</p>"""
     # §6.17, said here only when it says "use one" — every other week the
     # answer is to keep them, and that lives in As decisões.
     plan = data.get("holiday") or {}
@@ -2083,7 +2083,7 @@ def versus_section(data: dict) -> str:
 {column("O do modelo", found, coach_theirs, "theirs")}
       </div>
       <p class="foot muted">O modelo escolhe o treinador pelo jogo desta
-      jornada, e os dezoito estão ordenados em
+      jornada, e estão todos ordenados em
       <a href="decisoes.html">As decisões</a>.</p>"""
 
 

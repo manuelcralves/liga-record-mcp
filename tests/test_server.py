@@ -31,6 +31,7 @@ from liga_record_mcp.models import (
 )
 from liga_record_mcp.source import SiteError
 from liga_record_mcp.source.appearances import current_records
+from liga_record_mcp.source.manual import load_coaches
 from liga_record_mcp.source.scores import load_official_rounds
 
 XI = (
@@ -218,7 +219,7 @@ def test_validate_selection_says_when_the_coach_went_unchecked(monkeypatch):
     monkeypatch.setattr(mcp_server, "COACHES_PATH", Path("no-such-file.yaml"))
     result = mcp_server.validate_selection(list(XI), list(BENCH), "MID1", "anything")
     assert result["is_valid"] is True
-    assert "not checked against the real 18" in result["coach_unverified"]
+    assert "not checked against the list the site offers" in result["coach_unverified"]
 
 
 def test_list_coaches_ranks_on_the_rounds_match(monkeypatch):
@@ -248,12 +249,15 @@ def test_list_coaches_ranks_on_the_rounds_match(monkeypatch):
     monkeypatch.setattr(mcp_server, "_market", Calendar())
     monkeypatch.setattr(mcp_server, "_history", Archive())
     result = mcp_server.list_coaches(round_number=5)
-    assert result["count"] == 18
+    # However many the hand file holds — sixteen since 27/10/2026, when Estoril
+    # and Famalicão were left without one and the site stopped offering them.
+    filed = len(load_coaches(mcp_server.COACHES_PATH))
+    assert result["count"] == filed
     top = result["coaches"][0]
     assert (top["club"], top["opponent"], top["at_home"]) == ("Sporting", "Arouca", True)
     # A club with no match this round comes last, at nothing.
     idle = [c for c in result["coaches"] if c["opponent"] is None]
-    assert len(idle) == 14 and all(c["expected"] == 0.0 for c in idle)
+    assert len(idle) == filed - 4 and all(c["expected"] == 0.0 for c in idle)
     assert result["coaches"][-1]["opponent"] is None
     # The hand file's totals stay, for reference.
     assert all("points_total" in c for c in result["coaches"])

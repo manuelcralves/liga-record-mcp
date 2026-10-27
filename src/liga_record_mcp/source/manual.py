@@ -37,12 +37,24 @@ from .base import SquadSourceError
 
 
 def load_coaches(path: str | Path) -> list[Coach]:
-    """The 18 selectable coaches, from a hand-maintained YAML file.
+    """The selectable coaches, from a hand-maintained YAML file.
 
     Hand-maintained for the same reason the squad is: the list only renders for
     a signed-in user, and the endpoint that touches it (`team_manager.ashx`)
     sets a coach rather than listing them. It changes when a club changes
-    manager, which is rare.
+    manager, which is not as rare as this file first assumed.
+
+    ONE PER CLUB, AND FEWER THAN EIGHTEEN IS LEGAL. This refused any list that
+    was not exactly eighteen, to catch a partial copy — and on 27/10/2026 the
+    site itself served SIXTEEN. Estoril and Famalicão had sacked their coaches
+    and had nobody in the chooser, and §14.5 pays nothing to a man who cannot
+    take the bench, so the weekly email left those clubs out rather than
+    scoring them zero. A rule written to catch a truncated paste was refusing
+    the truth.
+
+    What is still refused is the thing that rule was for: two coaches for one
+    club, or a repeated id. A club missing from the list simply cannot be
+    picked that week, which is what the site is saying.
     """
     file = Path(path)
     if not file.is_file():
@@ -66,10 +78,15 @@ def load_coaches(path: str | Path) -> list[Coach]:
         raise SquadSourceError(
             f"{file} has duplicate coach ids: {', '.join(repeated)}"
         )
-    if len(coaches) != COACH_COUNT:
+    clubs = [c.club for c in coaches]
+    twice = sorted({club for club in clubs if clubs.count(club) > 1})
+    if twice:
         raise SquadSourceError(
-            f"{file} lists {len(coaches)} coaches; §6.15 expects {COACH_COUNT}, "
-            "one per club — a short list usually means a partial copy"
+            f"{file} lists two coaches for {', '.join(twice)} — §6.15 is one per club"
+        )
+    if len(coaches) > COACH_COUNT:
+        raise SquadSourceError(
+            f"{file} lists {len(coaches)} coaches; there are only {COACH_COUNT} clubs"
         )
     return coaches
 

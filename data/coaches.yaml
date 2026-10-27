@@ -1,4 +1,5 @@
-# The 18 selectable coaches (§6.15) — one per Primeira Liga club.
+# Os treinadores que o site oferece (§6.15), um por clube — DEZASSEIS a 27/10,
+# porque dois clubes estao sem ninguem em funcoes. Nao sao sempre dezoito.
 #
 # Read from the logged-in team-sheet page on 2026-08-19, during Ronda 3.
 #
@@ -13,6 +14,19 @@
 #
 # Coaches are free: they never cost budget (§6.15).
 
+# ATUALIZADO A 27/10/2026, da lista da propria pagina da equipa, que passou a
+# ter DEZASSEIS e nao dezoito. O Estoril e o Famalicao ficaram sem treinador em
+# funcoes e saem daqui: o §6.15 escolhe-se de entre os que o site oferece, e o
+# §14.5 nao paga nada a quem nao pode ir ao banco — o email da jornada 9 omite
+# tres clubes (Estoril, Famalicao e Nacional, que nessa semana ainda estava sem
+# ninguem) em vez de lhes dar zero. Sem treinador na lista ficam dois. O Nacional despediu o
+# Alexandre Santos e tem agora o Joao Henriques; o Sp. Braga trocou o Carlos
+# Vicens pelo Franclim Carvalho.
+#
+# E OS IDS SAO OS VERDADEIROS. Vinham dos nomes dos ficheiros das fotografias
+# na lista do site (m<id>.jpg), o que acabou com os marcadores que estavam aqui
+# desde 23/09 — Arouca 909, Rio Ave 777, Nacional 787, Sp. Braga 834.
+
 coaches:
   - id: "96"
     name: Van der Gaag
@@ -21,11 +35,9 @@ coaches:
     points_round: 8
 
   # O Vasco Seabra (id 777) saiu do Arouca para o Rio Ave durante a pausa, e o
-  # email da jornada 8 ja credita «Vitor Severino | Arouca» e «Vasco Seabra |
-  # Rio Ave». Os ids do site so se leem na pagina da equipa com sessao
-  # iniciada; ficam marcadores ate la, e nada espera por eles, porque a
-  # ordenacao e o settle juntam-se pelo clube.
-  - id: "arouca"
+  # email da jornada 8 ja creditava «Vitor Severino | Arouca» e «Vasco Seabra |
+  # Rio Ave». Os ids vieram da lista do site a 27/10.
+  - id: "909"
     name: Vítor Severino
     club: Arouca
     points_total: 0
@@ -49,15 +61,13 @@ coaches:
     points_total: 11
     points_round: 4
 
-  # Nacional changed manager: João Gião (id 906) out, Alexandre Santos in. The
-  # weekly emails credit Alexandre Santos from matchday 6 on (+2, then -2), so
-  # this file was two rounds stale. The site's id for him is only readable on
-  # the logged-in team-sheet page — it is a placeholder until that page is next
-  # open, and nothing waits on it: the ranking and the settle both join on the
-  # club. His totals here would have to be the site's pre-reset ones, which
-  # predate him, so they are left at zero.
-  - id: "nacional"
-    name: Alexandre Santos
+  # O Nacional vai no terceiro treinador da epoca: Joao Giao (906), depois
+  # Alexandre Santos, despedido durante a jornada 9 — o email dessa semana nao
+  # tem linha nenhuma para o clube —, e agora o Joao Henriques, que a lista do
+  # site ja oferecia a 27/10. Os totais ficam a zero: os numeros deste ficheiro
+  # sao os do site lidos a 19/08 e nao sao dele.
+  - id: "787"
+    name: João Henriques
     club: Nacional
     points_total: 0
     points_round: 0
@@ -73,12 +83,6 @@ coaches:
     club: Gil Vicente
     points_total: 6
     points_round: 0
-
-  - id: "7"
-    name: Carlos Carvalhal
-    club: Famalicão
-    points_total: 5
-    points_round: 2
 
   - id: "822"
     name: Bruno Pinheiro
@@ -110,24 +114,18 @@ coaches:
     points_total: 4
     points_round: -1
 
-  - id: "891"
-    name: Carlos Vicens
+  - id: "834"
+    name: Franclim Carvalho
     club: Sp. Braga
-    points_total: 4
-    points_round: 0
-
-  # O Sotiris (id 894) saiu, e o Vasco Seabra veio do Arouca. Os totais ficam a
-  # zero em vez de herdados: os numeros deste ficheiro sao os do site lidos a
-  # 19/08, antes de o site os zerar, e nao sao dele neste clube.
-  - id: "rio-ave"
-    name: Vasco Seabra
-    club: Rio Ave
     points_total: 0
     points_round: 0
 
-  - id: "842"
-    name: Vasco Matos
-    club: Estoril
+  # O Sotiris (id 894) saiu, e o Vasco Seabra veio do Arouca com o id dele. Os
+  # totais ficam a zero em vez de herdados: os numeros deste ficheiro sao os do
+  # site lidos a 19/08, antes de o site os zerar, e nao sao dele neste clube.
+  - id: "777"
+    name: Vasco Seabra
+    club: Rio Ave
     points_total: 0
     points_round: 0
 

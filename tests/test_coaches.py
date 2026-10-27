@@ -34,8 +34,8 @@ def make_entries(count: int = COACH_COUNT) -> list[dict[str, Any]]:
 
 def test_the_shipped_list_loads():
     coaches = load_coaches(SHIPPED)
-    assert len(coaches) == COACH_COUNT
-    assert len({c.club for c in coaches}) == COACH_COUNT  # one per club
+    assert len(coaches) == len({c.club for c in coaches})  # one per club
+    assert 0 < len(coaches) <= COACH_COUNT
 
 
 def test_the_shipped_list_holds_real_data():
@@ -57,10 +57,33 @@ def test_a_file_without_a_coaches_list_is_refused(tmp_path: Path):
         load_coaches(path)
 
 
-def test_a_short_list_is_refused(tmp_path: Path):
-    """§6.15 is one coach per club — a short list is usually a partial copy."""
-    path = write_coaches(tmp_path / "coaches.yaml", make_entries(12))
-    with pytest.raises(SquadSourceError, match="lists 12 coaches"):
+def test_a_short_list_is_allowed_because_the_site_served_one(tmp_path: Path):
+    """This used to be refused, and the refusal was wrong.
+
+    The rule said eighteen, one per club, and called anything shorter a
+    partial copy. On 27/10/2026 the site's own chooser offered SIXTEEN:
+    Estoril and Famalicão had sacked their coaches and had nobody to pick, and
+    §14.5 pays nothing to a man who cannot take the bench — so that week's
+    email left those clubs out rather than scoring them zero. A guard written
+    against a truncated paste was refusing the thing that actually happened.
+    """
+    path = write_coaches(tmp_path / "coaches.yaml", make_entries(16))
+    assert len(load_coaches(path)) == 16
+
+
+def test_two_coaches_for_one_club_are_still_refused(tmp_path: Path):
+    """What the old rule was really protecting, and this keeps: a club cannot
+    have two, whatever the length of the list."""
+    entries = make_entries(16)
+    entries[5]["club"] = entries[2]["club"]
+    path = write_coaches(tmp_path / "coaches.yaml", entries)
+    with pytest.raises(SquadSourceError, match="two coaches for"):
+        load_coaches(path)
+
+
+def test_more_coaches_than_clubs_are_refused(tmp_path: Path):
+    path = write_coaches(tmp_path / "coaches.yaml", make_entries(COACH_COUNT + 1))
+    with pytest.raises(SquadSourceError, match="only 18 clubs"):
         load_coaches(path)
 
 
@@ -119,3 +142,20 @@ def test_coaches_never_cost_budget(squad: Squad):
     validate_selection(squad, selection_for(squad, 4, 4, 2, coach_id=coaches[0].id), coaches)
     assert squad.value() == before
     assert not hasattr(Coach, "value")
+
+def test_the_email_names_a_club_the_file_does_not_hold(tmp_path: Path):
+    """What replaced counting to eighteen.
+
+    The weekly email is an independent list of who is in post, so a club it
+    pays a coach for that the file does not hold is either a sacking the file
+    has not caught up with or a paste that lost its tail. Counting could not
+    tell those from a league that genuinely has sixteen.
+    """
+    from liga_record_mcp.coaches import missing_from_file
+
+    coaches = load_coaches(write_coaches(tmp_path / "coaches.yaml", make_entries(16)))
+    email = {"treinadores": {f"Coach {i}|Club {i}": 3 for i in range(1, 19)}}
+    assert missing_from_file(coaches, email) == ["Club 17", "Club 18"]
+    # And nothing to say when the file covers everyone the email pays.
+    assert missing_from_file(coaches, {"treinadores": {"Coach 1|Club 1": 3}}) == []
+

@@ -3268,7 +3268,8 @@
           "opponent": "Académico Viseu",
           "at_home": true,
           "projected_rate": 5.08,
-          "actual": null
+          "actual": 1,
+          "error": -4.08
         }
       },
       "players": {
@@ -3289,7 +3290,8 @@
           "attacking_multiplier": 0.901,
           "projected": 3.16,
           "points_before": 26,
-          "actual": null
+          "actual": 6,
+          "error": 2.84
         },
         "43256": {
           "name": "João Afonso",
@@ -3308,7 +3310,8 @@
           "attacking_multiplier": 0.901,
           "projected": -0.78,
           "points_before": -4,
-          "actual": null
+          "actual": -1,
+          "error": -0.22
         },
         "43029": {
           "name": "Carevic",
@@ -3327,7 +3330,8 @@
           "attacking_multiplier": 1.197,
           "projected": 1.81,
           "points_before": 5,
-          "actual": null
+          "actual": 6,
+          "error": 4.19
         },
         "43299": {
           "name": "Bednarek",
@@ -3346,7 +3350,8 @@
           "attacking_multiplier": 0.901,
           "projected": 4.17,
           "points_before": 20,
-          "actual": null
+          "actual": 6,
+          "error": 1.83
         },
         "43047": {
           "name": "Elimbi",
@@ -3365,7 +3370,8 @@
           "attacking_multiplier": 0.615,
           "projected": 1.79,
           "points_before": 18,
-          "actual": null
+          "actual": -3,
+          "error": -4.79
         },
         "43175": {
           "name": "Lagerbielke",
@@ -3384,7 +3390,8 @@
           "attacking_multiplier": 1.007,
           "projected": 0.01,
           "points_before": 4,
-          "actual": null
+          "actual": 2,
+          "error": 1.99
         },
         "42927": {
           "name": "Rodrigo Pinheiro",
@@ -3403,7 +3410,8 @@
           "attacking_multiplier": 1.197,
           "projected": 1.5,
           "points_before": 9,
-          "actual": null
+          "actual": 6,
+          "error": 4.5
         },
         "43510": {
           "name": "Finn van Breemen",
@@ -3422,7 +3430,8 @@
           "attacking_multiplier": 1.197,
           "projected": 1.39,
           "points_before": 14,
-          "actual": null
+          "actual": -1,
+          "error": -2.39
         },
         "43426": {
           "name": "Javi Sánchez",
@@ -3441,7 +3450,8 @@
           "attacking_multiplier": 1.102,
           "projected": 2.53,
           "points_before": 16,
-          "actual": null
+          "actual": 5,
+          "error": 2.47
         },
         "42544": {
           "name": "Weverson",
@@ -3460,7 +3470,8 @@
           "attacking_multiplier": 0.615,
           "projected": -0.27,
           "points_before": 12,
-          "actual": null
+          "actual": -1,
+          "error": -0.73
         },
         "26027": {
           "name": "André Geraldes",
@@ -3479,7 +3490,8 @@
           "attacking_multiplier": 1.123,
           "projected": 1.43,
           "points_before": -2,
-          "actual": null
+          "actual": 5,
+          "error": 3.57
         },
         "43499": {
           "name": "Altimira",
@@ -3498,7 +3510,8 @@
           "attacking_multiplier": 1.1,
           "projected": 4.17,
           "points_before": 19,
-          "actual": null
+          "actual": 2,
+          "error": -2.17
         },
         "33728": {
           "name": "Samu",
@@ -3517,7 +3530,8 @@
           "attacking_multiplier": 1.1,
           "projected": 3.75,
           "points_before": 16,
-          "actual": null
+          "actual": 5,
+          "error": 1.25
         },
         "43369": {
           "name": "Espen Van Ee",
@@ -3536,7 +3550,8 @@
           "attacking_multiplier": 1.102,
           "projected": 3.49,
           "points_before": 19,
-          "actual": null
+          "actual": 4,
+          "error": 0.51
         },
         "42835": {
           "name": "Fukui",
@@ -3555,7 +3570,8 @@
           "attacking_multiplier": 1.102,
           "projected": 3.48,
           "points_before": 17,
-          "actual": null
+          "actual": 8,
+          "error": 4.52
         },
         "43304": {
           "name": "Liziero",
@@ -3574,8 +3590,9 @@
           "attacking_multiplier": 0.845,
           "projected": -1.0,
           "points_before": 14,
-          "actual": null,
-          "unavailable": "lesionado a 22/10"
+          "actual": -1,
+          "unavailable": "lesionado a 22/10",
+          "error": 0.0
         },
         "42937": {
           "name": "Santi García",
@@ -3594,7 +3611,8 @@
           "attacking_multiplier": 0.615,
           "projected": 2.81,
           "points_before": 13,
-          "actual": null
+          "actual": 2,
+          "error": -0.81
         },
         "31229": {
           "name": "Xeka",
@@ -3613,8 +3631,9 @@
           "attacking_multiplier": 1.281,
           "projected": -1.0,
           "points_before": 3,
-          "actual": null,
-          "unavailable": "lesionado a 22/10"
+          "actual": 1,
+          "unavailable": "lesionado a 22/10",
+          "error": 2.0
         },
         "41718": {
           "name": "Filipe Soares",
@@ -3633,8 +3652,9 @@
           "attacking_multiplier": 0.845,
           "projected": -1.0,
           "points_before": 12,
-          "actual": null,
-          "unavailable": "lesionado a 22/10"
+          "actual": -1,
+          "unavailable": "lesionado a 22/10",
+          "error": 0.0
         },
         "43298": {
           "name": "Luis Suárez",
@@ -3653,7 +3673,8 @@
           "attacking_multiplier": 1.1,
           "projected": 5.3,
           "points_before": 19,
-          "actual": null
+          "actual": 5,
+          "error": -0.3
         },
         "42896": {
           "name": "Pavlidis",
@@ -3672,7 +3693,8 @@
           "attacking_multiplier": 0.774,
           "projected": 4.33,
           "points_before": 37,
-          "actual": null
+          "actual": 7,
+          "error": 2.67
         },
         "42749": {
           "name": "Óscar Aranda",
@@ -3691,7 +3713,8 @@
           "attacking_multiplier": 1.197,
           "projected": 1.93,
           "points_before": 8,
-          "actual": null
+          "actual": 8,
+          "error": 6.07
         },
         "26072": {
           "name": "Gonçalo Paciência",
@@ -3710,7 +3733,8 @@
           "attacking_multiplier": 0.679,
           "projected": 2.75,
           "points_before": 23,
-          "actual": null
+          "actual": -1,
+          "error": -3.75
         }
       },
       "coach": {
@@ -3723,8 +3747,11 @@
         "opponent": "Académico Viseu",
         "at_home": true,
         "projected_rate": 5.08,
-        "actual": null
-      }
+        "actual": 1,
+        "error": -4.08
+      },
+      "settled_at": "2026-10-27T11:52:31.676239+00:00",
+      "fully_settled": true
     }
   }
 }

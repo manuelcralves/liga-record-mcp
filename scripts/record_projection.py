@@ -37,6 +37,7 @@ from liga_record_mcp.advice import (  # noqa: E402
 )
 from liga_record_mcp.coaches import (  # noqa: E402
     coach_points_by_club,
+    missing_from_file,
     rank_coaches,
     round_strengths,
 )
@@ -138,6 +139,7 @@ def snapshot(market, history, squad, round_number):
     # It is handed the emails read above, so the guard and the valuation read
     # the same files and the guard never sees a rebuilt round.
     archive = archive_records(ROOT / "data")
+    warn_if_the_file_is_short(official)
     season, sources = season_so_far(whole, ROOT / "data", emails=official)
     view = valuation(players_to_value(squad.players, whole), archive, season)
 
@@ -262,11 +264,15 @@ def advised_sheet(rows: dict, coach: dict | None = None) -> dict | None:
     }
 
 def ranked_coaches(history, fixtures, round_number):
-    """The coach file, and the eighteen priced on this round's match.
+    """The coach file, and everyone in it priced on this round's match.
 
     `coaches.rank_coaches` on the inputs the page ranks them on — the archive's
     club records and the calendar — so a coach on the ledger and the same coach
     on the page carry one number.
+
+    The list being short of eighteen is not an error (see `load_coaches`), and
+    `warn_if_the_file_is_short` says so out loud when it is short of what the
+    emails pay.
     """
     coaches = load_coaches(COACHES_PATH)
     strength = round_strengths(history.club_records(), fixtures)
@@ -346,11 +352,17 @@ def advised_coach(history, fixtures, round_number):
 def settle_advised_coach(stored, official, playing) -> bool:
     """Close the model's coach from the round's email, by his club.
 
-    Returns whether anything was written. The email carries all eighteen
-    coaches; the model picked a club's coach, so the club is the key. Only once
-    his club has played, as for the coach on the sheet: a postponed club's
-    coach reads 0 in the email, and that 0 means nothing assigned yet, not a
-    round that scored nothing — found by the code review of 22/09/2026.
+    Returns whether anything was written. The model picked a club's coach, so
+    the club is the key. Only once his club has played, as for the coach on the
+    sheet: a postponed club's coach reads 0 in the email, and that 0 means
+    nothing assigned yet, not a round that scored nothing — found by the code
+    review of 22/09/2026.
+
+    THE EMAIL DOES NOT CARRY ALL EIGHTEEN, which this said until 27/10/2026.
+    That week it carried fifteen: Estoril and Famalicão had sacked their
+    coaches and Nacional was between two, and §14.5 pays nothing to a man who
+    cannot take the bench, so those clubs have no row at all rather than a zero.
+    A club with no row stays open here, and the round stays open with it.
     """
     coach = (stored.get("advised") or {}).get("coach")
     if not coach or coach.get("actual") is not None or not official:
@@ -476,6 +488,44 @@ def settle_wrote_anything(
 #: the only source that says which round its numbers belong to, so when a file
 #: is here it outranks the API.
 OFFICIAL_DIR = ROOT / "data" / "pontuacoes"
+
+
+def warn_if_the_file_is_short(official_rounds: dict) -> None:
+    """Say so when the coach file does not cover who the newest email pays.
+
+    THE CHECK THAT REPLACED COUNTING TO EIGHTEEN. `load_coaches` refused any
+    list that was not exactly eighteen, which caught a truncated hand copy —
+    and on 27/10/2026 refused the truth, because the site served sixteen after
+    two clubs sacked their coaches. Counting cannot tell a short list from a
+    short league. The email can: it is an independent list of who is in post.
+
+    A warning and not a refusal, because the ledger must keep recording: a
+    round not filed before the whistle can never be filed at all.
+    """
+    if not official_rounds:
+        return
+    newest = official_rounds[max(official_rounds)]
+    try:
+        coaches = load_coaches(COACHES_PATH)
+    except SquadSourceError:
+        # A WARNING MUST NOT BE ABLE TO BREAK THE RUN IT WARNS ABOUT. Whoever
+        # actually needs the coach file will say so with its own error; this
+        # one has nothing to add, and the end-to-end tests record rounds in a
+        # directory that has no coach file at all.
+        return
+    absent = missing_from_file(coaches, newest)
+    if absent:
+        print(
+            f"  ATENCAO: o data/coaches.yaml nao cobre {len(absent)} clubes que o "
+            f"email da jornada {newest.get('ronda')} paga: {', '.join(absent)}. "
+            "Ou ha despedimentos por apanhar, ou a lista foi colada a meio."
+        )
+
+
+def newest_email() -> dict | None:
+    """The most recent round's email on file, or None if there is none yet."""
+    rounds = load_official_rounds(OFFICIAL_DIR, first_round=FIRST_SCORING_MATCHDAY)
+    return rounds[max(rounds)] if rounds else None
 
 
 def official_scores(round_number: str) -> dict | None:
@@ -686,13 +736,15 @@ def main() -> None:
                 current = next(
                     (c for c in load_coaches(COACHES_PATH) if c.id == coach["id"]), None
                 )
-                if current is None:
-                    print(f"  coach {coach['name']} is no longer in the coach file")
-                elif official and (
-                    scored := official.get("treinadores", {}).get(
-                        f"{coach['name']}|{coach['club']}"
-                    )
-                ) is not None:
+                # BY CLUB, NOT BY NAME, and the email is asked FIRST. Two of the
+                # sixteen are filed under a shorter name than the email writes
+                # — "Farioli" against "Francesco Farioli" — so a name key would
+                # have failed to settle them while the row sat right there. And
+                # §14.5 credits the man who actually took the bench, so when a
+                # club changes coach between the lock and the whistle it is the
+                # club's row that is the answer, not the filed name's.
+                scored = coach_points_by_club(official or {}, coach["club"])
+                if scored is not None:
                     coach_settled = True
                     coach["actual"] = scored
                     coach["error"] = round(scored - coach["projected_rate"], 2)
@@ -701,11 +753,18 @@ def main() -> None:
                         f"(projected {coach['projected_rate']}, "
                         f"error {coach['error']:+.2f})"
                     )
+                elif current is None:
+                    print(
+                        f"  coach {coach['name']} is no longer in the coach file, and "
+                        "the email has no row for his club — left open"
+                    )
+                    pending.append(f"{coach['name']} (treinador)")
                 elif current.points_total == coach["points_before"]:
                     print(
-                        f"  coach {coach['name']}: the file still reads "
-                        f"{current.points_total} — refresh data/coaches.yaml from the "
-                        "site, then run --settle again"
+                        f"  coach {coach['name']}: no row for {coach['club']} in the "
+                        f"email, and the file still reads {current.points_total} — "
+                        "refresh data/coaches.yaml from the site, or wait for the "
+                        "email, then run --settle again"
                     )
                 else:
                     coach_settled = True
@@ -716,6 +775,12 @@ def main() -> None:
                         f"(projected {coach['projected_rate']}, "
                         f"error {coach['error']:+.2f})"
                     )
+                if coach.get("actual") is None:
+                    # AND THE ROUND IS NOT WHOLE WITHOUT HIM. Every branch above
+                    # that fails to settle used to fall through silently, and the
+                    # round was stamped `fully_settled` with the coach still at
+                    # None — a round that looks closed and is not.
+                    pending.append(f"{coach['name']} (treinador)")
             else:
                 pending.append(f"{coach['name']} (treinador)")
 
@@ -741,7 +806,11 @@ def main() -> None:
         if pending:
             print(f"  still pending ({len(pending)}): {', '.join(sorted(pending))}")
             if published:
-                print("  their clubs have not played this round — run again afterwards")
+                print(
+                    "  their clubs have not played this round, or the email has no row "
+                    "for them (§14.5 gives none to a club with no coach in post) — run "
+                    "again when either changes"
+                )
             else:
                 print(
                     "  a espera de que o site publique a jornada — corre outra vez "

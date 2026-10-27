@@ -113,6 +113,38 @@ def same_club(one: str, other: str) -> bool:
     return bool(first) and bool(second) and (first <= second or second <= first)
 
 
+def clubs_the_email_credits(official: Mapping[str, Any]) -> set[str]:
+    """The clubs a round's email pays a coach for, as it spells them."""
+    return {key.split("|", 1)[-1] for key in (official.get("treinadores") or {})}
+
+
+def missing_from_file(
+    coaches: Iterable[Mapping[str, Any] | Any], official: Mapping[str, Any]
+) -> list[str]:
+    """Clubs the email pays a coach for that the hand file does not hold.
+
+    THE CHECK THAT REPLACED COUNTING TO EIGHTEEN. `load_coaches` used to refuse
+    any list that was not exactly eighteen, which caught a truncated paste —
+    and on 27/10/2026 refused the truth, because the site itself served
+    sixteen after two clubs sacked their coaches. Counting cannot tell a short
+    list from a short league.
+
+    This can: the weekly email is an independent list of who is in post, so a
+    club it pays and the file does not hold is either a sacking the file has
+    not caught up with or a paste that lost its tail. Both are worth a word.
+    The reverse is not checked — the file may legitimately hold a club the
+    email skipped, which is exactly what §14.5 produces.
+    """
+    held = {
+        (c["club"] if isinstance(c, Mapping) else c.club) for c in coaches
+    }
+    return sorted(
+        club
+        for club in clubs_the_email_credits(official)
+        if not any(same_club(club, one) for one in held)
+    )
+
+
 def coach_points_by_club(official: Mapping[str, Any], club: str) -> int | None:
     """What a club's coach scored, read off a round's email file by the club.
 

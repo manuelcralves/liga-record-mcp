@@ -461,7 +461,7 @@ def validate_selection(
     if coaches is None:
         result["coach_unverified"] = (
             "the coach list could not be read, so the coach was not checked "
-            "against the real 18"
+            "against the list the site offers"
         )
     return result
 
@@ -912,7 +912,11 @@ def standings(
 
 @server.tool()
 def list_coaches(round_number: int | None = None) -> dict[str, Any]:
-    """The 18 selectable coaches (§6.15), ranked on the round's match.
+    """The coaches the site offers (§6.15), ranked on the round's match.
+
+    SIXTEEN AND NOT EIGHTEEN SINCE 27/10/2026: Estoril and Famalicão sacked
+    theirs and have nobody to pick, and §14.5 pays nothing to a man who
+    cannot take the bench. `count` says how many there are this week.
 
     A coach is free — picking one never costs budget — a round with none
     selected scores zero (§6.17), and he may be changed every round. What he

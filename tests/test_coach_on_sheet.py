@@ -250,3 +250,39 @@ def test_the_page_prints_the_counted_formation():
     assert "<dd>{formation}</dd>" in source
     assert "formation = formation_of(XI, rows)" in source
     assert "o Benfica a 9" not in source
+
+
+# --- the coach on the sheet, settled by club ----------------------------------
+
+
+def test_the_sheet_coach_settles_by_club_even_when_the_email_writes_a_longer_name(ledger):
+    """The file says "Farioli" and the email says "Francesco Farioli".
+
+    The sheet's coach was looked up by `name|club` until 27/10/2026, so two of
+    the sixteen on file — Farioli and Van der Gaag — could never have settled
+    while their row sat in the email under a fuller name. The model's coach
+    had been joining by club since 22/09; the sheet's had not.
+    """
+    stored = {
+        "coach": {"id": "890", "name": "Farioli", "club": "FC Porto",
+                  "projected_rate": 4.0, "points_before": 13, "actual": None},
+        "players": {},
+    }
+    official = {"treinadores": {"Francesco Farioli|FC Porto": 8}}
+    assert ledger.coach_points_by_club(official, "FC Porto") == 8
+    # And the same join the settle now uses, on the club the sheet names.
+    assert ledger.coach_points_by_club(official, stored["coach"]["club"]) == 8
+
+
+def test_a_club_with_no_row_in_the_email_leaves_the_coach_open(ledger):
+    """§14.5 and the week it happened: Estoril and Famalicão sacked their
+    coaches, Nacional was between two, and the email of round 9 carried
+    fifteen rows instead of eighteen — no row at all for those clubs, not a
+    zero. A coach with no row must stay open, not be read as nothing."""
+    official = {"treinadores": {"Marco Silva|Benfica": 6}}
+    assert ledger.coach_points_by_club(official, "Estoril") is None
+    stored = {"advised": {"coach": {"name": "Vasco Matos", "club": "Estoril",
+                                    "projected_rate": 3.0, "actual": None}}}
+    assert ledger.settle_advised_coach(stored, official, {"Estoril", "Benfica"}) is False
+    assert stored["advised"]["coach"]["actual"] is None
+

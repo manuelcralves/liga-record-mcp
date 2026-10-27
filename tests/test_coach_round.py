@@ -111,12 +111,18 @@ def test_the_ranking_joins_on_the_exact_club_and_puts_no_match_last():
 def test_every_coach_is_filed_under_a_club_the_site_writes():
     """Joined on the exact name, so the coaches file must spell clubs as the
     site does — the market, the calendar and the weekly email agree, and it
-    said "Académico" where they all say "Académico Viseu"."""
+    said "Académico" where they all say "Académico Viseu".
+
+    The count is NOT eighteen and must not be asserted as such: on 27/10/2026
+    the site offered sixteen, Estoril and Famalicão having sacked their
+    coaches. What has to hold is one per club, and every club spelled the way
+    the site spells it.
+    """
     filed = yaml.safe_load((ROOT / "data" / "coaches.yaml").read_text(encoding="utf-8"))
     clubs = [coach["club"] for coach in filed["coaches"]]
     email = json.loads(
         (ROOT / "data" / "pontuacoes" / "7.json").read_text(encoding="utf-8")
     )
     site = {key.split("|", 1)[1] for key in email["jogadores"]}
-    assert len(set(clubs)) == 18
+    assert len(clubs) == len(set(clubs)), "one coach per club"
     assert sorted(set(clubs) - site) == []
