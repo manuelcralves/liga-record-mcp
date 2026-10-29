@@ -263,8 +263,11 @@ players:
 #
 #   - a troca: sai o Rodrigo Pinheiro (1.14), entra o Leo Realpe do Famalicao
 #     a 0,55M (2.25). O saldo subiu para 1 150 000.
-#   - o onze mantem o 3-5-2 da 9, com o Leo Realpe no lugar do Elimbi, que vai
-#     para o banco no lugar do vendido.
+#   - o onze mantem o 3-5-2 da 9, Elimbi incluido; o Leo Realpe vai para o
+#     banco no lugar do vendido. Primeiro foi ao contrario: escolhi o defesa com
+#     os 2.25 da busca da transferencia, que e a media de cinco jornadas, e a
+#     projecao desta da-lhe 1.89 contra 2.18 do Elimbi. O Manuel trocou-os de
+#     volta na vespera, e e esta a folha entregue.
 #   - a bracadeira passa ao Pavlidis (5.73, o Benfica recebe o Alverca) e o
 #     treinador ao Marco Silva (5.23 contra 5.06 do Rui Borges).
 #
@@ -279,7 +282,7 @@ selection:
     - "38800"    # Diogo Costa        GR   FC Porto
     - "43299"    # Bednarek           DEF  FC Porto
     - "43426"    # Javi Sánchez       DEF  Arouca
-    - "43039"    # Léo Realpe         DEF  Famalicão
+    - "43047"    # Elimbi             DEF  Gil Vicente
     - "43499"    # Altimira           MED  Sporting
     - "42835"    # Fukui              MED  Arouca
     - "43369"    # Espen Van Ee       MED  Arouca
@@ -289,7 +292,7 @@ selection:
     - "43298"    # Luis Suárez        AVA  Sporting
   bench:
     - "43029"    # Carevic            GR   Famalicão
-    - "43047"    # Elimbi             DEF  Gil Vicente
+    - "43039"    # Léo Realpe         DEF  Famalicão
     - "31229"    # Xeka               MED  Estoril
     - "26072"    # Gonçalo Paciência  AVA  Santa Clara
   captain: "42896"    # Pavlidis

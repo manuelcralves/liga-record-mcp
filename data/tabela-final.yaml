@@ -54,6 +54,13 @@ chips:
       desceu 3 (do 14.º), o chip semanal — +8,5 esperados na página de 20/10,
       com o Nacional em 16.º na classificação real e 43% de probabilidade de
       descer. Jogado pelo Manuel a 20/10, antes do fecho da jornada 9.
+  - jornada: 10
+    clube: Sporting
+    para: 3
+    nota: >-
+      desceu 1 (do 2.º), o chip semanal — +8,4 esperados na página de 29/10,
+      com o Sporting em 6.º na classificação real e o Benfica, que sobe ao 2.º,
+      em 2.º. Jogado pelo Manuel a 29/10, antes do fecho da jornada 10.
 # Exemplo, depois de entregar:
 #
 # entrada:
