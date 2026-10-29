@@ -3754,7 +3754,7 @@
       "fully_settled": true
     },
     "10": {
-      "recorded_at": "2026-10-29T18:18:07.489693+00:00",
+      "recorded_at": "2026-10-29T18:30:12.319034+00:00",
       "estimator": "valuation+fixture+recency",
       "evidence": {
         "archive_players": 287,
@@ -3772,28 +3772,28 @@
           5
         ]
       },
-      "squad_value": 39050000,
+      "squad_value": 38850000,
       "filed": {
         "starters": [
           "38800",
           "43299",
           "43426",
-          "43047",
+          "43039",
           "43499",
-          "33728",
-          "43369",
           "42835",
+          "43369",
           "42937",
-          "43298",
-          "42896"
+          "33728",
+          "42896",
+          "43298"
         ],
         "bench": [
           "43029",
-          "42927",
+          "43047",
           "31229",
           "26072"
         ],
-        "captain": "43298"
+        "captain": "42896"
       },
       "advised": {
         "starters": [
@@ -3811,7 +3811,7 @@
         ],
         "bench": [
           "43029",
-          "43175",
+          "43039",
           "31229",
           "26072"
         ],
@@ -3945,22 +3945,22 @@
           "points_before": 4,
           "actual": null
         },
-        "42927": {
-          "name": "Rodrigo Pinheiro",
+        "43039": {
+          "name": "Léo Realpe",
           "position": "DEF",
           "club": "Famalicão",
-          "value": 750000,
+          "value": 550000,
           "opponent": "Sp. Braga",
           "at_home": false,
           "kickoff": "01 NOV 20:30",
           "club_has_history": true,
-          "season_rate": 1.41,
-          "returns": 2.92,
-          "playing": 0.615,
-          "appearances": 66,
+          "season_rate": 2.25,
+          "returns": 2.82,
+          "playing": 0.851,
+          "appearances": 36,
           "defensive_multiplier": 0.682,
           "attacking_multiplier": 0.699,
-          "projected": 1.14,
+          "projected": 1.89,
           "points_before": 9,
           "actual": null
         },
@@ -4276,15 +4276,15 @@
         }
       },
       "coach": {
-        "id": "860",
-        "name": "Rui Borges",
-        "club": "Sporting",
-        "points_before": 5,
+        "id": "622",
+        "name": "Marco Silva",
+        "club": "Benfica",
+        "points_before": 11,
         "metodo": "jogo",
         "alem_do_resultado": 3.72,
-        "opponent": "Casa Pia",
-        "at_home": false,
-        "projected_rate": 5.06,
+        "opponent": "Alverca",
+        "at_home": true,
+        "projected_rate": 5.23,
         "actual": null
       }
     }

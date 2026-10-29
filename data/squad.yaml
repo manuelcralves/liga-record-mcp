@@ -90,12 +90,12 @@ players:
     points_total: 4
     points_round: 4
 
-  - id: "42927"
-    name: Rodrigo Pinheiro
+  - id: "43039"
+    name: Léo Realpe
     position: DEF
     club: Famalicão
-    value: 750000
-    initial_value: 750000
+    value: 550000
+    initial_value: 550000
     points_total: 9
     points_round: 4
 
@@ -257,39 +257,40 @@ players:
 # treinadores sao gratis (§6.15) e escolhem-se jornada a jornada, mas as
 # paginas ainda os escolhem para a epoca inteira. A conta desta jornada foi
 # feita a parte, com o modelo de golos da tabela final.
-# A FOLHA DA JORNADA 9, lida na pagina da equipa a 22/10/2026, um dia antes do
-# fecho, depois de o Manuel a ter feito com o boletim clinico em mao. E
-# exatamente a aconselhada, pela segunda jornada seguida:
+# A FOLHA DA JORNADA 10, lida na pagina da equipa a 29/10/2026, na vespera do
+# fecho e depois do boletim clinico: a aconselhada, pela terceira jornada
+# seguida.
 #
-#   - a troca: sai o Zaidu (lesionado desde a jornada 4, -1.00 esperados),
-#     entra o Elimbi do Gil Vicente a 0,75M. O saldo subiu para 950 000.
-#   - o onze passa a 3-5-2: saem os tres do Famalicao, que vai a Rio Ave e
-#     aparece todo em baixo (Rodrigo Pinheiro 1.50, Finn van Breemen 1.39,
-#     Oscar Aranda 1.93), e entram o Javi Sanchez, o Elimbi e o Samu.
-#   - a bracadeira volta ao Luis Suarez (5.30, o Sporting recebe o Academico
-#     Viseu) e o treinador ao Rui Borges (5.08, contra 4.50 do Marco Silva).
+#   - a troca: sai o Rodrigo Pinheiro (1.14), entra o Leo Realpe do Famalicao
+#     a 0,55M (2.25). O saldo subiu para 1 150 000.
+#   - o onze mantem o 3-5-2 da 9, com o Leo Realpe no lugar do Elimbi, que vai
+#     para o banco no lugar do vendido.
+#   - a bracadeira passa ao Pavlidis (5.73, o Benfica recebe o Alverca) e o
+#     treinador ao Marco Silva (5.23 contra 5.06 do Rui Borges).
 #
-# O TERCEIRO DO BANCO NAO COBRE NADA, e ficou assim de olhos abertos: os tres
-# medios suplentes (Filipe Soares, Liziero, Xeka) estao todos no boletim, por
-# isso se um medio titular falhar entra um lesionado. A alternativa era o Oscar
-# Aranda como segunda cobertura de avancado, que vale pouco e nao e zero.
+# O FECHO E SEXTA 30/10 AS 20:00, pelo proprio site («Limite para alteracoes
+# nas equipas»). O projeto calcula-o pelo primeiro jogo do calendario e dava
+# 15:15, de um Moreirense-E. Amadora as 15:30 que o fecho do site contradiz.
+#
+# O TERCEIRO DO BANCO CONTINUA A NAO COBRIR NADA: os tres medios suplentes
+# (Filipe Soares, Liziero, Xeka) estao todos no boletim outra vez.
 selection:
   starters:
     - "38800"    # Diogo Costa        GR   FC Porto
     - "43299"    # Bednarek           DEF  FC Porto
     - "43426"    # Javi Sánchez       DEF  Arouca
-    - "43047"    # Elimbi             DEF  Gil Vicente
+    - "43039"    # Léo Realpe         DEF  Famalicão
     - "43499"    # Altimira           MED  Sporting
-    - "33728"    # Samu               MED  V. Guimarães
-    - "43369"    # Espen Van Ee       MED  Arouca
     - "42835"    # Fukui              MED  Arouca
+    - "43369"    # Espen Van Ee       MED  Arouca
     - "42937"    # Santi García       MED  Gil Vicente
-    - "43298"    # Luis Suárez        AVA  Sporting
+    - "33728"    # Samu               MED  V. Guimarães
     - "42896"    # Pavlidis           AVA  Benfica
+    - "43298"    # Luis Suárez        AVA  Sporting
   bench:
     - "43029"    # Carevic            GR   Famalicão
-    - "42927"    # Rodrigo Pinheiro   DEF  Famalicão
+    - "43047"    # Elimbi             DEF  Gil Vicente
     - "31229"    # Xeka               MED  Estoril
     - "26072"    # Gonçalo Paciência  AVA  Santa Clara
-  captain: "43298"    # Luis Suárez
-  coach: "860"        # Rui Borges, Sporting
+  captain: "42896"    # Pavlidis
+  coach: "622"        # Marco Silva, Benfica
