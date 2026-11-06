@@ -1,6 +1,25 @@
 {
  "format": 1,
  "rounds": {
+  "10": {
+   "captain": "Pavlidis",
+   "coach": "Marco Silva",
+   "field_size": 162140,
+   "followed": false,
+   "holiday": false,
+   "note": "Jornada 10, a «5.ª ronda» do site. A troca aconselhada na página desse dia era sair Xeka (-1.00 esperados) e entrar Hyunju do Arouca a 0.55M (2.95, joga 93%); o que foi feito foi outro — saiu Rodrigo Pinheiro e entrou Léo Realpe, também a 0.55M, conforme o commit 4d50a52 («Rodrigo Pinheiro sold and Léo Realpe bought»). Conselho dado e NÃO seguido no canal das transferências. O onze entregue era o que o modelo escolheria, com 48 pontos esperados; rendeu 43 mais 6 do treinador. O Elimbi foi escalado com 2.18 esperados e 89% de probabilidade de jogar, marcado «arriscado» — não jogou, e a substituição automática trouxe o Léo Realpe, que jogou e fez -2. O boletim de 29/10 não o trazia nem como lesionado nem como castigado, apesar do -3 na jornada 9, que é a assinatura do vermelho direto do §10.3(g). Reconstruída a 06/11 do histórico do git e da página publicada nesse dia.",
+   "our_points": 49,
+   "our_rank": 31388,
+   "recorded_at": "2026-11-06T01:24:33.647827+00:00",
+   "suggested": {
+    "in": "Hyunju",
+    "out": "Xeka"
+   },
+   "transfer": {
+    "in": "Léo Realpe",
+    "out": "Rodrigo Pinheiro"
+   }
+  },
   "6": {
    "captain": "Pavlidis",
    "coach": "Farioli",

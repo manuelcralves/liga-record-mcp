@@ -27,11 +27,15 @@ team:
   bonus: 0
   penalties: 0
 
-# Passou a 8 a 21/09/2026, com a jornada 7 fechada pelo email (44 pontos).
-# O trabalho agendado regista a jornada que este campo indicar, por isso a 8
-# foi registada logo a seguir no portatil, que tem o arquivo. A folha abaixo e
-# a da jornada 7 e repete-se sozinha pelo 6.14 ate ser mudada.
-round: 10
+# Passou a 11 a 06/11/2026, com a jornada 10 fechada pelo email (49 pontos) e
+# ja liquidada no ledger. O trabalho agendado regista a jornada que este campo
+# indicar, e so este campo: o record_projection tira a ronda daqui, nao do site.
+# ENQUANTO ISTO DISSER UMA JORNADA VELHA, TUDO MENTE EM SILENCIO. A 06/11 a
+# pagina foi reconstruida com o boletim novo ja em data/boletim/ e continuou a
+# escalar o Elimbi, lesionado, porque isto dizia 10 e o load_bulletin da ronda
+# 10 encontra o boletim de 29/10, que nao o trazia. A folha abaixo e ainda a da
+# jornada 10 e repete-se sozinha pelo 6.14 ate ser mudada.
+round: 11
 
 players:
   # --- Guarda-redes (3) ---
@@ -81,14 +85,14 @@ players:
     points_total: 18
     points_round: 3
 
-  - id: "43175"
-    name: Lagerbielke
+  - id: "41670"
+    name: Zaidu
     position: DEF
-    club: Sp. Braga
-    value: 1550000
+    club: FC Porto
+    value: 1300000
     initial_value: 1500000
-    points_total: 4
-    points_round: 4
+    points_total: 7
+    points_round: 5
 
   - id: "43039"
     name: Léo Realpe
@@ -281,19 +285,22 @@ selection:
   starters:
     - "38800"    # Diogo Costa        GR   FC Porto
     - "43299"    # Bednarek           DEF  FC Porto
-    - "43426"    # Javi Sánchez       DEF  Arouca
-    - "43047"    # Elimbi             DEF  Gil Vicente
+    - "41670"    # Zaidu              DEF  FC Porto
+    - "43039"    # Léo Realpe         DEF  Famalicão
     - "43499"    # Altimira           MED  Sporting
+    - "42937"    # Santi García       MED  Gil Vicente
     - "42835"    # Fukui              MED  Arouca
     - "43369"    # Espen Van Ee       MED  Arouca
-    - "42937"    # Santi García       MED  Gil Vicente
-    - "33728"    # Samu               MED  V. Guimarães
-    - "42896"    # Pavlidis           AVA  Benfica
     - "43298"    # Luis Suárez        AVA  Sporting
+    - "42896"    # Pavlidis           AVA  Benfica
+    - "42749"    # Óscar Aranda       AVA  Famalicão
   bench:
     - "43029"    # Carevic            GR   Famalicão
-    - "43039"    # Léo Realpe         DEF  Famalicão
-    - "31229"    # Xeka               MED  Estoril
+    - "43426"    # Javi Sánchez       DEF  Arouca
+    - "33728"    # Samu               MED  V. Guimarães
     - "26072"    # Gonçalo Paciência  AVA  Santa Clara
-  captain: "42896"    # Pavlidis
-  coach: "622"        # Marco Silva, Benfica
+  captain: "43298"    # Luis Suárez
+  coach: "622"        # Marco Silva, Benfica — escolha do Manuel. O modelo
+                      # aconselhava o Rui Borges, mas a 06/11 ele ja nao esta
+                      # na lista do site: o Sporting e do Paulo Fonseca e o
+                      # data/coaches.yaml esta desatualizado.
