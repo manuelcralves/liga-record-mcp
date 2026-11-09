@@ -20,6 +20,25 @@
     "out": "Rodrigo Pinheiro"
    }
   },
+  "11": {
+   "captain": "Luis Suárez",
+   "coach": "Marco Silva",
+   "field_size": 162360,
+   "followed": true,
+   "holiday": false,
+   "note": "Jornada 11, a «6.ª ronda» do site. A troca aconselhada foi feita tal e qual: saiu o Lagerbielke por 1.55M, entrou o Zaidu a 1.30M, plantel a 38.60M com 1.40M de folga. A folha foi entregue pelo Claude no Chrome e lida de volta da página antes de ser escrita no squad.yaml. Onze 3-4-3, capitão Luis Suárez, que fez 15 e foi o jogador da semana — trinta dos setenta e um vieram da braçadeira. A substituição automática rendeu três: o Léo Realpe não jogou (-1) e entrou o Javi Sánchez (2). O ONZE FOI RE-DERIVADO DEPOIS DA TROCA, como manda a nota do projeto: a folha publicada era anterior ao reforço e não o conhecia; ao re-registar com o plantel novo o Zaidu entrou a 3.15 esperados e o Javi Sánchez foi para o banco a 2.38. O Zaidu fez 3. O TREINADOR FOI ESCOLHA DO MANUEL E NÃO DO MODELO: o modelo pediu Rui Borges, que já não estava no cargo — o Sporting é do Paulo Fonseca, que fez 5, e o Marco Silva fez 4. Um ponto perdido por o data/coaches.yaml estar velho, corrigido a 09/11 para dezassete treinadores. Melhor ronda da época; subiu de 29.º para 19.º na liga privada.",
+   "our_points": 71,
+   "our_rank": 2497,
+   "recorded_at": "2026-11-09T18:14:46.588286+00:00",
+   "suggested": {
+    "in": "Zaidu",
+    "out": "Lagerbielke"
+   },
+   "transfer": {
+    "in": "Zaidu",
+    "out": "Lagerbielke"
+   }
+  },
   "6": {
    "captain": "Pavlidis",
    "coach": "Farioli",
