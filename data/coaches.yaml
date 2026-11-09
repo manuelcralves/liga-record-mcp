@@ -1,5 +1,5 @@
-# Os treinadores que o site oferece (§6.15), um por clube — DEZASSEIS a 27/10,
-# porque dois clubes estao sem ninguem em funcoes. Nao sao sempre dezoito.
+# Os treinadores que o site oferece (§6.15), um por clube — DEZASSETE a 09/11,
+# porque um clube esta sem ninguem em funcoes. Nao sao sempre dezoito.
 #
 # Read from the logged-in team-sheet page on 2026-08-19, during Ronda 3.
 #
@@ -26,6 +26,22 @@
 # E OS IDS SAO OS VERDADEIROS. Vinham dos nomes dos ficheiros das fotografias
 # na lista do site (m<id>.jpg), o que acabou com os marcadores que estavam aqui
 # desde 23/09 — Arouca 909, Rio Ave 777, Nacional 787, Sp. Braga 834.
+
+# ATUALIZADO A 09/11/2026, outra vez da lista da propria pagina da equipa, com
+# os ids tirados dos nomes das fotografias (m<id>.jpg) como da ultima vez. Sao
+# DEZASSETE: o Sporting passou a ter o Paulo Fonseca (206) no lugar do Rui
+# Borges (860), e o ESTORIL JA TEM TREINADOR, o Sergio Raimundo (910). So o
+# Famalicao continua sem ninguem.
+#
+# PORQUE E QUE ISTO FOI PRECISO. A folha da jornada 11 aconselhou o Rui Borges,
+# que ja nao estava no cargo, e a recomendacao nao se podia cumprir. O clube
+# estava certo — o Sporting jogava em casa e o Paulo Fonseca fez 5 — mas a
+# pessoa nao existia. Foi escolhido o Marco Silva, que fez 4: um ponto perdido
+# por este ficheiro estar velho.
+#
+# OS PONTOS NAO FORAM REFRESCADOS. Continuam a copia a mao das datas anteriores,
+# e os dois novos ficam a zero. Nao entram no ranking, que corre sobre o jogo do
+# clube (coaches.rank_coaches) e nao sobre esta coluna.
 
 coaches:
   - id: "96"
@@ -90,11 +106,22 @@ coaches:
     points_total: 5
     points_round: 0
 
-  - id: "860"
-    name: Rui Borges
+  # O Sporting trocou o Rui Borges pelo Paulo Fonseca. O email da jornada 11 ja
+  # credita «Paulo Fonseca | Sporting», com 5 pontos. Os pontos ficam a zero
+  # porque e isso que o site mostra: ele chegou na 11, que o site ainda nao somou.
+  - id: "206"
+    name: Paulo Fonseca
     club: Sporting
-    points_total: 5
-    points_round: 3
+    points_total: 0
+    points_round: 0
+
+  # O Estoril deixou de estar sem ninguem. Nao aparece no email da jornada 11
+  # porque o Estoril-Maritimo foi adiado, e um clube que nao jogou nao e pago.
+  - id: "910"
+    name: Sérgio Raimundo
+    club: Estoril
+    points_total: 0
+    points_round: 0
 
   - id: "905"
     name: Sérgio Ferreira

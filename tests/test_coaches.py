@@ -39,10 +39,18 @@ def test_the_shipped_list_loads():
 
 
 def test_the_shipped_list_holds_real_data():
+    """Real names, not the `Coach N` placeholders the other tests build.
+
+    Naming clubs here is deliberate: a manager who changes club breaks this,
+    and the file has to be looked at rather than drifting. Sporting read
+    `Rui Borges` until 09/11/2026, when the site served Paulo Fonseca and the
+    round-11 email paid him — the stale name had already cost a round, because
+    the sheet recommended a coach who was no longer in post.
+    """
     by_club = {c.club: c for c in load_coaches(SHIPPED)}
     assert by_club["FC Porto"].name == "Farioli"
     assert by_club["Benfica"].name == "Marco Silva"
-    assert by_club["Sporting"].name == "Rui Borges"
+    assert by_club["Sporting"].name == "Paulo Fonseca"
 
 
 def test_a_missing_file_is_reported_clearly(tmp_path: Path):
