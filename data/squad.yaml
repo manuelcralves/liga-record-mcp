@@ -27,15 +27,17 @@ team:
   bonus: 0
   penalties: 0
 
-# Passou a 11 a 06/11/2026, com a jornada 10 fechada pelo email (49 pontos) e
-# ja liquidada no ledger. O trabalho agendado regista a jornada que este campo
+# Passou a 12 a 22/11/2026, com a jornada 11 fechada pelo email (71 pontos) e
+# ja liquidada no ledger. Esteve treze dias a dizer 11 depois disso, e as
+# paginas mostraram a jornada 11 esse tempo todo. O trabalho agendado regista a
+# jornada que este campo
 # indicar, e so este campo: o record_projection tira a ronda daqui, nao do site.
 # ENQUANTO ISTO DISSER UMA JORNADA VELHA, TUDO MENTE EM SILENCIO. A 06/11 a
 # pagina foi reconstruida com o boletim novo ja em data/boletim/ e continuou a
 # escalar o Elimbi, lesionado, porque isto dizia 10 e o load_bulletin da ronda
 # 10 encontra o boletim de 29/10, que nao o trazia. A folha abaixo e ainda a da
-# jornada 10 e repete-se sozinha pelo 6.14 ate ser mudada.
-round: 11
+# jornada 11 e repete-se sozinha pelo 6.14 ate ser mudada.
+round: 12
 
 players:
   # --- Guarda-redes (3) ---
