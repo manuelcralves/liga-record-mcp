@@ -1519,6 +1519,15 @@ def _evidence(archived: int, sources: dict[str, list[int]]) -> str:
     )
 
 
+#: The page size of the unfiltered round ranking that `holiday_round` and
+#: `settle_decision` ask, and so the size their page count is in. The site
+#: honours `pagesize`: on 22/11/2026 its 40 589 teams came back as 8118 pages
+#: of 5 and 2030 of 20. Both asked in fives and multiplied by twenty from 21/08
+#: to that day, and filed a field four times its size. Small on purpose: the
+#: holiday wants only the round's winner, and the page count comes with it.
+FIELD_PAGE_SIZE = 5
+
+
 @server.tool()
 def holiday_round(round_number: int | None = None) -> dict[str, Any]:
     """What §6.17's holiday mechanism would pay, against what the team scored.
@@ -1550,7 +1559,7 @@ def holiday_round(round_number: int | None = None) -> dict[str, Any]:
 
     try:
         leaders, pages = _market.standings(
-            page_size=5, round_number=target, order="round"
+            page_size=FIELD_PAGE_SIZE, round_number=target, order="round"
         )
         mine, _ = _market.standings(
             team=snapshot.squad.team_name, round_number=target, order="round"
@@ -1588,7 +1597,7 @@ def holiday_round(round_number: int | None = None) -> dict[str, Any]:
         "holiday_pays": payout,
         "our_score": ours,
         "verdict": verdict,
-        "teams_ranked": pages * 20,
+        "teams_ranked": pages * FIELD_PAGE_SIZE,
         "allowance": (
             f"{HOLIDAY_ROUNDS} rounds a season, consecutive or not, none in the "
             f"last {HOLIDAY_BLOCKED_LAST_ROUNDS} (§6.17). This server cannot see "
@@ -1673,11 +1682,13 @@ def settle_decision(
         # narrows the RESULT, so its page count is the size of the filtered
         # list and not of the field — which turned a 53rd percentile into
         # 53380%. The field has to come from a query that filters nothing.
-        # This project has now made that mistake twice.
+        # This project has now made that mistake twice. The third was the
+        # arithmetic: a page count asked in fives, multiplied by twenty — see
+        # FIELD_PAGE_SIZE.
         _, pages = _market.standings(
-            page_size=5, round_number=site_round, order="round"
+            page_size=FIELD_PAGE_SIZE, round_number=site_round, order="round"
         )
-        field = pages * 20
+        field = pages * FIELD_PAGE_SIZE
         rows, _ = _market.standings(
             team=snapshot.squad.team_name, round_number=site_round, order="round"
         )

@@ -4,7 +4,7 @@
   "10": {
    "captain": "Pavlidis",
    "coach": "Marco Silva",
-   "field_size": 162140,
+   "field_size": 40535,
    "followed": false,
    "holiday": false,
    "note": "Jornada 10, a «5.ª ronda» do site. A troca aconselhada na página desse dia era sair Xeka (-1.00 esperados) e entrar Hyunju do Arouca a 0.55M (2.95, joga 93%); o que foi feito foi outro — saiu Rodrigo Pinheiro e entrou Léo Realpe, também a 0.55M, conforme o commit 4d50a52 («Rodrigo Pinheiro sold and Léo Realpe bought»). Conselho dado e NÃO seguido no canal das transferências. O onze entregue era o que o modelo escolheria, com 48 pontos esperados; rendeu 43 mais 6 do treinador. O Elimbi foi escalado com 2.18 esperados e 89% de probabilidade de jogar, marcado «arriscado» — não jogou, e a substituição automática trouxe o Léo Realpe, que jogou e fez -2. O boletim de 29/10 não o trazia nem como lesionado nem como castigado, apesar do -3 na jornada 9, que é a assinatura do vermelho direto do §10.3(g). Reconstruída a 06/11 do histórico do git e da página publicada nesse dia.",
@@ -23,7 +23,7 @@
   "11": {
    "captain": "Luis Suárez",
    "coach": "Marco Silva",
-   "field_size": 162360,
+   "field_size": 40590,
    "followed": true,
    "holiday": false,
    "note": "Jornada 11, a «6.ª ronda» do site. A troca aconselhada foi feita tal e qual: saiu o Lagerbielke por 1.55M, entrou o Zaidu a 1.30M, plantel a 38.60M com 1.40M de folga. A folha foi entregue pelo Claude no Chrome e lida de volta da página antes de ser escrita no squad.yaml. Onze 3-4-3, capitão Luis Suárez, que fez 15 e foi o jogador da semana — trinta dos setenta e um vieram da braçadeira. A substituição automática rendeu três: o Léo Realpe não jogou (-1) e entrou o Javi Sánchez (2). O ONZE FOI RE-DERIVADO DEPOIS DA TROCA, como manda a nota do projeto: a folha publicada era anterior ao reforço e não o conhecia; ao re-registar com o plantel novo o Zaidu entrou a 3.15 esperados e o Javi Sánchez foi para o banco a 2.38. O Zaidu fez 3. O TREINADOR FOI ESCOLHA DO MANUEL E NÃO DO MODELO: o modelo pediu Rui Borges, que já não estava no cargo — o Sporting é do Paulo Fonseca, que fez 5, e o Marco Silva fez 4. Um ponto perdido por o data/coaches.yaml estar velho, corrigido a 09/11 para dezassete treinadores. Melhor ronda da época; subiu de 29.º para 19.º na liga privada.",
@@ -42,7 +42,7 @@
   "6": {
    "captain": "Pavlidis",
    "coach": "Farioli",
-   "field_size": 158940,
+   "field_size": 39735,
    "followed": false,
    "holiday": false,
    "note": "Reconstruida a 23/09 do historico do data/squad.yaml (fa9feb7, 08/09). A pagina desse dia dizia NENHUMA troca: «o modelo nao encontra troca que melhore o onze o suficiente para valer a pena». A troca foi feita na mesma. Reescrita no mesmo dia para marcar o conselho como dado e nao seguido, que o formato passou a saber dizer.",
@@ -61,7 +61,7 @@
   "7": {
    "captain": "Luis Suárez",
    "coach": "Rui Borges",
-   "field_size": 158940,
+   "field_size": 39735,
    "followed": null,
    "holiday": false,
    "note": "Reconstruida a 23/09 do historico do data/squad.yaml (5c4bf3b, 18/09). A sugestao dessa semana nao esta nas paginas publicadas desse dia, por isso fica por dizer em vez de inventada.",
@@ -77,7 +77,7 @@
   "8": {
    "captain": "Pavlidis",
    "coach": "Marco Silva",
-   "field_size": 160660,
+   "field_size": 40165,
    "followed": true,
    "holiday": false,
    "note": "Jornada 8, a «3.a ronda» do site. A folha entregue foi exatamente a aconselhada: mesmo onze (3-4-3), mesmo banco, Pavlidis capitao, Marco Silva treinador, e a troca sugerida feita. Registada a 13/10 sem pontuacao porque o site ainda nao tinha publicado a ronda 3; completada a 20/10 com a pontuacao e a posicao que ele publicou, e so esses dois campos mudaram. A conta feita sobre o email a 13/10 dava 49 e o site diz 49.",
@@ -96,7 +96,7 @@
   "9": {
    "captain": "Luis Suárez",
    "coach": "Rui Borges",
-   "field_size": 161820,
+   "field_size": 40455,
    "followed": true,
    "holiday": false,
    "note": "Jornada 9, a «4.a ronda» do site. A folha entregue foi exatamente a aconselhada: onze 3-5-2, banco, Luis Suarez capitao, Rui Borges treinador, e a troca sugerida feita. Registada a 27/10 sem pontuacao porque o site ainda estava em 6+7+8; completada a 29/10 com a pontuacao e a posicao publicadas, e so esses dois campos mudaram. A conta sobre o email dava 53 e o site diz 53.",
