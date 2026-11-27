@@ -61,6 +61,16 @@ chips:
       desceu 1 (do 2.º), o chip semanal — +8,4 esperados na página de 29/10,
       com o Sporting em 6.º na classificação real e o Benfica, que sobe ao 2.º,
       em 2.º. Jogado pelo Manuel a 29/10, antes do fecho da jornada 10.
+  # Nenhum na jornada 11: a ordem lida no zerozero a 27/11 é a da jornada 10
+  # com uma única mudança, a de baixo — o chip dessa semana perdeu-se.
+  - jornada: 12
+    clube: Rio Ave
+    para: 18
+    nota: >-
+      desceu 2 (do 16.º), o chip semanal — +12,4 esperados na página de 27/11,
+      com o Rio Ave em 17.º na classificação real. Jogado pelo Manuel a 27/11,
+      antes do fecho da jornada 12, e lido de volta no editor do zerozero, que
+      rotula esta janela como «Jornada 11».
 # Exemplo, depois de entregar:
 #
 # entrada:

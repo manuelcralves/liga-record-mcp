@@ -4876,7 +4876,7 @@
       "fully_settled": false
     },
     "12": {
-      "recorded_at": "2026-11-22T13:50:44.018125+00:00",
+      "recorded_at": "2026-11-27T13:27:32.638623+00:00",
       "estimator": "valuation+fixture+recency",
       "evidence": {
         "archive_players": 287,
@@ -4896,28 +4896,28 @@
           5
         ]
       },
-      "squad_value": 38600000,
+      "squad_value": 38350000,
       "filed": {
         "starters": [
           "38800",
           "43299",
+          "43426",
           "41670",
-          "43039",
-          "43499",
-          "42937",
+          "33728",
           "42835",
           "43369",
-          "43298",
+          "42937",
+          "43354",
           "42896",
-          "42749"
+          "43298"
         ],
         "bench": [
           "43029",
-          "43426",
-          "33728",
-          "26072"
+          "43510",
+          "31229",
+          "42749"
         ],
-        "captain": "43298"
+        "captain": "42896"
       },
       "advised": {
         "starters": [
@@ -4929,7 +4929,7 @@
           "42835",
           "43369",
           "42937",
-          "43499",
+          "43354",
           "42896",
           "43298"
         ],
@@ -5164,23 +5164,23 @@
           "points_before": -2,
           "actual": null
         },
-        "43499": {
-          "name": "Altimira",
+        "43354": {
+          "name": "Pablo Rosario",
           "position": "MID",
-          "club": "Sporting",
-          "value": 3000000,
-          "opponent": "FC Porto",
-          "at_home": false,
+          "club": "FC Porto",
+          "value": 2750000,
+          "opponent": "Sporting",
+          "at_home": true,
           "kickoff": "29 NOV 20:30",
           "club_has_history": true,
-          "season_rate": 3.89,
-          "returns": 4.06,
-          "playing": 0.966,
-          "appearances": 11,
-          "defensive_multiplier": 0.676,
-          "attacking_multiplier": 0.55,
-          "projected": 3.03,
-          "points_before": 19,
+          "season_rate": 3.59,
+          "returns": 3.98,
+          "playing": 0.923,
+          "appearances": 33,
+          "defensive_multiplier": 0.61,
+          "attacking_multiplier": 0.653,
+          "projected": 2.84,
+          "points_before": 25,
           "actual": null
         },
         "33728": {
@@ -5255,9 +5255,10 @@
           "appearances": 32,
           "defensive_multiplier": 0.87,
           "attacking_multiplier": 0.91,
-          "projected": -0.02,
+          "projected": -1.0,
           "points_before": 14,
-          "actual": null
+          "actual": null,
+          "unavailable": "lesionado a 27/11"
         },
         "42937": {
           "name": "Santi García",
@@ -5293,9 +5294,10 @@
           "appearances": 31,
           "defensive_multiplier": 1.1,
           "attacking_multiplier": 0.901,
-          "projected": 2.5,
+          "projected": -1.0,
           "points_before": 3,
-          "actual": null
+          "actual": null,
+          "unavailable": "castigado a 27/11"
         },
         "41718": {
           "name": "Filipe Soares",
@@ -5312,9 +5314,10 @@
           "appearances": 43,
           "defensive_multiplier": 0.87,
           "attacking_multiplier": 0.91,
-          "projected": -0.33,
+          "projected": -1.0,
           "points_before": 12,
-          "actual": null
+          "actual": null,
+          "unavailable": "lesionado a 27/11"
         },
         "43298": {
           "name": "Luis Suárez",
@@ -5397,7 +5400,7 @@
         "id": "622",
         "name": "Marco Silva",
         "club": "Benfica",
-        "points_before": 11,
+        "points_before": 32,
         "metodo": "jogo",
         "alem_do_resultado": 3.72,
         "opponent": "Famalicão",

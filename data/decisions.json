@@ -39,6 +39,25 @@
     "out": "Lagerbielke"
    }
   },
+  "12": {
+   "captain": null,
+   "coach": null,
+   "field_size": null,
+   "followed": true,
+   "holiday": false,
+   "note": "Jornada 12, a «7.ª ronda» do site. A troca da página de 27/11, já com o boletim desse dia: +1 ponto até ao fim da época, pequena mas positiva, e a transferência não acumula.",
+   "our_points": null,
+   "our_rank": null,
+   "recorded_at": "2026-11-27T13:27:31.588641+00:00",
+   "suggested": {
+    "in": "Pablo Rosario",
+    "out": "Altimira"
+   },
+   "transfer": {
+    "in": "Pablo Rosario",
+    "out": "Altimira"
+   }
+  },
   "6": {
    "captain": "Pavlidis",
    "coach": "Farioli",
@@ -114,7 +133,8 @@
   }
  },
  "season": {
-  "top_scorer": "Luis Suárez",
-  "updated_at": "2026-08-24T08:19:54.953563+00:00"
+  "note": "Corrigido a 27/11/2026 pela página da equipa, que diz «A tua aposta: Pavlidis». Estava Luis Suárez desde 24/08, escrito antes de a aposta fechar com a jornada 6; o site é que manda.",
+  "top_scorer": "Pavlidis",
+  "updated_at": "2026-11-27T13:34:26.654956+00:00"
  }
 }

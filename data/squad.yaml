@@ -142,13 +142,13 @@ players:
     points_round: 1
 
   # --- Médios (8) ---
-  - id: "43499"
-    name: Altimira
+  - id: "43354"
+    name: Pablo Rosario
     position: MID
-    club: Sporting
-    value: 3000000
-    initial_value: 3000000
-    points_total: 19
+    club: FC Porto
+    value: 2750000
+    initial_value: 2500000
+    points_total: 25
     points_round: 4
 
   - id: "33728"
@@ -283,26 +283,30 @@ players:
 #
 # O TERCEIRO DO BANCO CONTINUA A NAO COBRIR NADA: os tres medios suplentes
 # (Filipe Soares, Liziero, Xeka) estao todos no boletim outra vez.
+# A FOLHA DA JORNADA 12, como o Manuel a entregou a 27/11 e lida de volta da
+# pagina da equipa antes do fecho (20:00): 3-5-2, plantel a 38.35M com 1.65M de
+# saldo depois da troca Altimira -> Pablo Rosario. E a folha que o modelo
+# aconselhou com o boletim de 27/11. O banco leva o Xeka, castigado, no lugar do
+# medio: os outros dois medios de fora, Liziero e Filipe Soares, estao
+# lesionados, por isso esse lugar nao cobre ninguem esta jornada.
 selection:
   starters:
     - "38800"    # Diogo Costa        GR   FC Porto
     - "43299"    # Bednarek           DEF  FC Porto
+    - "43426"    # Javi Sánchez       DEF  Arouca
     - "41670"    # Zaidu              DEF  FC Porto
-    - "43039"    # Léo Realpe         DEF  Famalicão
-    - "43499"    # Altimira           MED  Sporting
-    - "42937"    # Santi García       MED  Gil Vicente
+    - "33728"    # Samu               MED  V. Guimarães
     - "42835"    # Fukui              MED  Arouca
     - "43369"    # Espen Van Ee       MED  Arouca
-    - "43298"    # Luis Suárez        AVA  Sporting
+    - "42937"    # Santi García       MED  Gil Vicente
+    - "43354"    # Pablo Rosario      MED  FC Porto
     - "42896"    # Pavlidis           AVA  Benfica
-    - "42749"    # Óscar Aranda       AVA  Famalicão
+    - "43298"    # Luis Suárez        AVA  Sporting
   bench:
     - "43029"    # Carevic            GR   Famalicão
-    - "43426"    # Javi Sánchez       DEF  Arouca
-    - "33728"    # Samu               MED  V. Guimarães
-    - "26072"    # Gonçalo Paciência  AVA  Santa Clara
-  captain: "43298"    # Luis Suárez
-  coach: "622"        # Marco Silva, Benfica — escolha do Manuel. O modelo
-                      # aconselhava o Rui Borges, mas a 06/11 ele ja nao esta
-                      # na lista do site: o Sporting e do Paulo Fonseca e o
-                      # data/coaches.yaml esta desatualizado.
+    - "43510"    # Finn van Breemen   DEF  Famalicão
+    - "31229"    # Xeka               MED  Estoril (castigado)
+    - "42749"    # Óscar Aranda       AVA  Famalicão
+  captain: "42896"    # Pavlidis
+  coach: "622"        # Marco Silva, Benfica — o primeiro da lista do modelo
+                      # nesta jornada (em casa com o Famalicao, 4.77).
